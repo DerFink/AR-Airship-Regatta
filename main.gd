@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Startmodell wieder Albacore
 # 2026-10-27 16:07 – Startmodell Chewie; Restmasse/Schwerpunkt nur im Baukasten einblenden
 # 2026-10-27 15:12 – Baukasten: Modell mit einem Finger drehen, mit zwei Fingern zoomen (PC: Maus ziehen / Mausrad); Knopf „Ansicht zurücksetzen“
 # 2026-10-27 12:55 – Kein Zoom mehr (fester Bildwinkel 60°, Wunsch des Nutzers); Knopf „Zurücksetzen“ stellt das Schiff an den Startpunkt
@@ -120,7 +121,7 @@ func _build_world() -> void:
 func _build_ship() -> void:
 	ship = AirshipPhysics.new()
 	ship.name = "Airship"
-	AirshipPresets.chewie(ship)              # Startmodell: Chewie
+	AirshipPresets.albacore_default(ship)    # Startmodell: Albacore
 	ship.position = SHIP_START
 	ship.rotation.y = -PI * 0.5             # Nase (−Z des Schiffs) zeigt nach +X, zu Pylon 2
 	visual = AirshipVisual.new()

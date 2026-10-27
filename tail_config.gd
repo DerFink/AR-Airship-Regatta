@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Pseudo-Flex auch für Pendelleitwerke erlaubt (schaltbar)
 # 2026-10-27 15:09 – Erstversion: symmetrisches Leitwerk als Konfiguration (1–8 Flossen; Anordnungen +, ×, Y, λ, gleichmäßig), Bauart Klappe/Pendel, Fläche, Streckung, Pfeilung (Zuspitzung), V-Winkel, optional getrennte Flächen für Höhen- und Seitenleitwerk
 # =============================================================================
 # TailConfig.gd
@@ -108,6 +109,6 @@ func generate() -> Array[ControlSurface]:
 		s.aspect_ratio = aspect_ratio
 		s.taper = taper
 		s.max_deflection_deg = max_deflection_deg
-		s.pseudo_flex = pseudo_flex and kind == ControlSurface.Kind.FLAP
+		s.pseudo_flex = pseudo_flex
 		out.append(s)
 	return out

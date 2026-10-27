@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Albacore wieder Standard: X-Heck mit Ruderklappen wie das Original, Schriftzug USS ALBACORE, Heckmotor an der Hüllenunterseite; Chewie: Schriftzug aerarium e.V., Pendel 35°, starres Leitwerk
 # 2026-10-27 16:07 – Chewie laut Nutzer: L/D 6, Hülle 86 g, Motoren seitlich unten bei 135°/225°, Massen (90 g Antrieb + Elektronik, Aufteilung angenommen); Massenwerte in beiden Presets
 # 2026-10-27 15:09 – Presets nutzen TailConfig: Albacore = + mit Klappen, Chewie = λ in Pendelausführung (19 × 19 cm, Streckung 1, Pfeilung 0,8, 45°)
 # 2026-10-27 14:36 – Chewie: λ-Leitwerk in Pendelausführung, je ca. 19 × 19 cm, Streckung 1 (Nutzerangabe); Motorschwenk max. 110°
@@ -71,19 +72,25 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.set_hull(GertlerHull.new())     # Standardwerte = Albacore-Näherung
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
+	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
 	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
 	ship.hull_mass_kg = 0.086
 	ship.electronics_mass_kg = 0.030
 	ship.ballast_auto_x = true
-	# Kreuzleitwerk (+) mit Ruderklappen, 0,14 m² je Flosse (0,08 war instabil, s. Kopf)
+	# X-Heck wie das Original in seiner bekanntesten Ausbaustufe (Phase III,
+	# heute auch am Museumsschiff zu sehen): 4 diagonale Flossen mit Ruder-
+	# klappen VOR dem Heckpropeller. 0,14 m² je Flosse – beim X wirkt jede
+	# Flosse zur Hälfte auf Nick und Seite, die Stabilität entspricht dem +.
 	var t := TailConfig.new()
-	t.layout = TailConfig.Layout.PLUS
+	t.layout = TailConfig.Layout.CROSS
 	t.kind = ControlSurface.Kind.FLAP
 	t.area_m2 = 0.14
 	t.aspect_ratio = 1.5
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
-	var heck := make_motor("Heckmotor", 1.0, 0.0, 1.5, 0.0)
+	# Winkel 180° = Hüllenunterseite: wird der Motor im Baukasten nach vorn
+	# verschoben, wandert er unten an der Hülle entlang (wichtig für den Schwerpunkt)
+	var heck := make_motor("Heckmotor", 1.0, 180.0, 1.5, 0.0)
 	heck.standoff_m = 0.0                # sitzt auf der Längsachse an der Heckspitze
 	heck.pair_id = "heck"
 	heck.prop_diameter_in = 7.0          # größerer, langsamer Propeller → tieferer Ton
@@ -110,6 +117,7 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.set_hull(h)
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
+	ship.livery.text = "aerarium e.V."       # fester Schriftzug
 	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
 	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.
 	# Akku + Ballast klebt mit der Elektronik unten an der Hülle; die Menge
@@ -127,6 +135,8 @@ static func chewie(ship: AirshipPhysics) -> void:
 	t.area_m2 = 0.0361
 	t.aspect_ratio = 1.0
 	t.taper = 0.8
+	t.max_deflection_deg = 35.0          # Pendel-Flossen: großer Ausschlag
+	t.pseudo_flex = false                # superleichte, starre 3D-Flossen: keine Verformung
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	# Antrieb laut Nutzer: 2 × GEPRC SpeedX2 1804 mit 4"-Propellern.

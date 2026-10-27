@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Ruderausschlag standardmäßig 100 % (vorher 50 %, ältere Einstellungsdateien übernehmen ihn nicht); Differenzschub relativ zum Gas ohne Rückwärtslauf; Mischer blendet nach Vorwärtsfahrt; Gier mit Vorsteuerung; D-Anteil Nick/Roll 1,0 und Reglerbereich bis 3,0
 # 2026-10-27 12:41 – Nick-Knüppel umgedreht wie beim RC-Sender: nach vorn = Nase runter, ziehen = Nase hoch
 # 2026-10-27 11:08 – Mischer nutzt den Schub mit Vorzeichen (Rückwärtsschub kehrt die Schwenkwirkung um) und den reduzierten Rückwärts-Wirkungsgrad
 # 2026-10-27 10:33 – Stick-Belegung neu: Gier immer rechter Knüppel X, linker Knüppel X frei (Aux), kein Roll-Stick mehr (Roll nur noch auf 0° stabilisiert); Stick-Modes auf 1/2 reduziert; stick_labels() für das HUD
@@ -37,6 +38,9 @@ enum Axis { ROLL, PITCH, YAW }
 enum MixMode { BLEND, AERO_ONLY, VECTOR_ONLY }
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
+## Version der gespeicherten Einstellungen. Ab 2 gilt der volle Ruderausschlag
+## als Standard – ältere Dateien (mit 50 %) übernehmen ihn nicht mehr.
+const SETTINGS_VERSION := 2
 
 @export var airship: AirshipPhysics
 @export var mode: Mode = Mode.DIRECT:
@@ -59,9 +63,11 @@ const SETTINGS_PATH := "user://flight_controller.cfg"
 ## Mindest-Staudruck für die Ruder-Zuordnung, damit Ruder auch im Stand
 ## ausschlagen (Bodentest). Entspricht ~3 m/s.
 @export var alloc_q_floor: float = 5.4
-## Ausschlagsbegrenzung aller Ruder (0,5 = 50 %).
-@export_range(0.1, 1.0, 0.05) var output_limit: float = 0.5
-## Anteil des Gier-Befehls, der als Differenzschub an die Motoren geht.
+## Ausschlagsbegrenzung aller Ruder (1,0 = voller Ausschlag laut Baukasten).
+@export_range(0.1, 1.0, 0.05) var output_limit: float = 1.0
+## Differenzschub für Gier als Anteil des aktuellen Gases (0,3 = ±30 %).
+## Wirkt nur relativ zum Gas: Gas 0 → kein Differenzschub, und ein Motor
+## wird dadurch nie in den Rückwärtslauf gedrückt (Drehen auf der Stelle).
 @export_range(0.0, 1.0, 0.05) var yaw_diff_thrust: float = 0.3
 
 # --- Eingänge -----------------------------------------------------------------
@@ -117,8 +123,9 @@ func _init() -> void:
 	for m in Mode.values():
 		pids[m] = {
 			# Nick und Roll gleich stark gewichtet, Gier schwach (Luftschiff)
-			Axis.ROLL:  PID.new(0.9, 0.10, 0.30),
-			Axis.PITCH: PID.new(0.9, 0.10, 0.30),
+			# D kräftig: dämpft das Nicken/Rollen (am echten Chewie war D am Anschlag nötig)
+			Axis.ROLL:  PID.new(0.9, 0.10, 1.00),
+			Axis.PITCH: PID.new(0.9, 0.10, 1.00),
 			Axis.YAW:   PID.new(0.4, 0.05, 0.00),
 		}
 	# Mode 3 startet etwas weicher
@@ -193,7 +200,9 @@ func _physics_process(dt: float) -> void:
 		var sp_yaw := cmd_yaw * deg_to_rad(max_yaw_rate_dps)
 		u_pitch = pid_set[Axis.PITCH].update(sp_pitch - pitch, rate_pitch, dt)
 		u_roll = pid_set[Axis.ROLL].update(sp_roll - roll, rate_roll, dt)
-		u_yaw = pid_set[Axis.YAW].update(sp_yaw - rate_yaw, 0.0, dt)   # Ratenregler
+		# Gier: Vorsteuerung (Stick direkt) + Ratenregler für die Korrektur –
+		# so bekommt man auch bei kleinem P sofort die volle Drehwirkung
+		u_yaw = clampf(cmd_yaw + pid_set[Axis.YAW].update(sp_yaw - rate_yaw, 0.0, dt), -1.0, 1.0)
 		loop_sample.emit(Axis.PITCH, sp_pitch, pitch)
 		loop_sample.emit(Axis.ROLL, sp_roll, roll)
 		loop_sample.emit(Axis.YAW, sp_yaw, rate_yaw)
@@ -213,7 +222,13 @@ func _physics_process(dt: float) -> void:
 # =============================================================================
 func _mix(tau_cmd: Vector3) -> void:
 	var cg := airship.cg_offset
-	var v := airship.airspeed
+	# Für die Ruderwirkung zählt die Fahrt NACH VORN (Längsachse), nicht das
+	# seitliche Abdriften beim Drehen auf der Stelle – sonst würde der Mischer
+	# beim Drehen fälschlich von den Schwenkmotoren auf die Ruder umblenden.
+	var xf := airship.global_transform if airship.is_inside_tree() else airship.transform
+	var bb := xf.basis.orthonormalized()
+	var v_body := bb.transposed() * (airship.linear_velocity - airship.wind)
+	var v := maxf(-v_body.z, 0.0)
 	var q_alloc := maxf(0.5 * airship.air_density * v * v, alloc_q_floor)
 
 	# Gewichte: wenig Fahrt → Motoren, viel Fahrt → Ruder
@@ -267,7 +282,9 @@ func _mix(tau_cmd: Vector3) -> void:
 		# Gas + Differenzschub für Gier: bei Gier rechts schiebt der linke
 		# Motor (side = −1) stärker, der rechte schwächer.
 		var side := signf(mot.position.x - cg.x)
-		mot.throttle_cmd = clampf(cmd_throttle + side * yaw_diff_thrust * tau_cmd.y, -1.0, 1.0)
+		# Relativ zum Gas und ohne Vorzeichenwechsel (kein ungewollter Rückwärtslauf)
+		var t_cmd := cmd_throttle * (1.0 + side * yaw_diff_thrust * tau_cmd.y)
+		mot.throttle_cmd = clampf(t_cmd, -1.0, 1.0)     # Faktor 0,7…1,3 → Vorzeichen bleibt
 		idx += 1
 
 	# Mode 3: Schwenker folgen direkt dem Nick-Stick (nicht geregelt)
@@ -289,7 +306,7 @@ func _reset_integrators() -> void:
 const UI_PARAMS := [
 	{"term": "kp", "label": "P", "min": 0.0, "max": 3.0, "step": 0.01},
 	{"term": "ki", "label": "I", "min": 0.0, "max": 1.0, "step": 0.01},
-	{"term": "kd", "label": "D", "min": 0.0, "max": 1.0, "step": 0.01},
+	{"term": "kd", "label": "D", "min": 0.0, "max": 3.0, "step": 0.01},
 	{"term": "i_limit", "label": "I-Grenze", "min": 0.0, "max": 1.0, "step": 0.05},
 ]
 
@@ -314,6 +331,7 @@ func save_settings() -> void:
 	cfg.set_value("general", "stick_mode", stick_mode)
 	cfg.set_value("general", "mix_mode", mix_mode)
 	cfg.set_value("general", "output_limit", output_limit)
+	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
 func load_settings() -> void:
@@ -327,4 +345,6 @@ func load_settings() -> void:
 				pids[m][a].set(p.term, cfg.get_value(key, p.term, pids[m][a].get(p.term)))
 	stick_mode = cfg.get_value("general", "stick_mode", stick_mode)
 	mix_mode = cfg.get_value("general", "mix_mode", mix_mode)
-	output_limit = cfg.get_value("general", "output_limit", output_limit)
+	# Ruderausschlag erst ab Version 2 übernehmen (vorher Standard 50 % = zu klein)
+	if int(cfg.get_value("general", "version", 1)) >= SETTINGS_VERSION:
+		output_limit = cfg.get_value("general", "output_limit", output_limit)

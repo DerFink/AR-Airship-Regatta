@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Pseudo-Flex wirkt auch beim Pendelleitwerk, wenn eingeschaltet
 # 2026-10-27 15:09 – Zuspitzung (taper, im LTA-Simulator „Pfeilung“) und Kennung tail_member für Flossen aus dem symmetrischen Leitwerk
 # 2026-10-27 10:42 – Parametrische Platzierung: hull_x (Längsposition) + hull_angle_deg (Umfangswinkel) → place_on_hull() berechnet Druckpunkt und Normale; span_m() für Darstellung; Servo/Flex wird auch im Stand nachgeführt (Ruder bewegen sich beim Bodentest sichtbar)
 # 2026-10-27 10:25 – Erstversion: Ruderklappe, Pendelleitwerk, Canard; Pseudo-Flex-Gelenk; Klappenwirksamkeit; Stall-Modell
@@ -96,7 +97,7 @@ func compute_force(v_local: Vector3, rho: float, dt: float) -> Vector3:
 	# 2) Pseudo-Flex: weiches Scharnier gibt unter Last nach + Verzögerung
 	#    (läuft auch im Stand, damit die Darstellung den Ausschlag zeigt)
 	var eff_deg := _servo_deg
-	if pseudo_flex and flex_enabled_runtime and kind != Kind.ALL_MOVING:
+	if pseudo_flex and flex_enabled_runtime:   # Klappe: Scharnier gibt nach · Pendel: Welle/Fläche verdreht sich
 		var loaded := _servo_deg / (1.0 + flex_compliance * q)
 		var a := 1.0 if flex_time_constant <= 0.0 else clampf(dt / flex_time_constant, 0.0, 1.0)
 		_flex_deg = lerpf(_flex_deg, loaded, a)

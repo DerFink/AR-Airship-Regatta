@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Mischer-Wirkvektor des Schwenks in Neutralstellung (beide Gondeln schwenken symmetrisch, Drehen auf der Stelle)
 # 2026-10-27 16:07 – Gondelmasse mass_kg (mit Schwenkservo); Pigleg-Neigung der Schwenkachse gilt jetzt gegen die Waagrechte (unabhängig vom Einbauwinkel)
 # 2026-10-27 12:23 – Schubabfall mit der Fahrt über die Propellersteigung (prop_pitch_in); compute_force bekommt die Anströmung des Motors
 # 2026-10-27 11:08 – Rückwärtsschub: pro Motor(paar) zuschaltbar (reverse_allowed) mit reduziertem Wirkungsgrad (reverse_efficiency); Propellerdaten für Sound (Durchmesser, Blattzahl, max. Drehzahl, Drehrichtung); pair_id für gemeinsame Einstellung im Baukasten; signed_thrust_estimate() für den Mischer; rpm() / is_reversing() für den Sound
@@ -168,8 +169,12 @@ func signed_thrust_estimate(t: float) -> float:
 
 ## Momentenänderung pro Radiant Schwenk bei Referenzschub (für den Mischer).
 ## ref_thrust mit Vorzeichen: negativ = Rückwärtsschub.
+## Bewusst in der NEUTRALSTELLUNG (ungeschwenkt) ausgewertet: so bleibt der
+## Mischer linear und beide Gondeln eines Paares schwenken symmetrisch.
+## (Vorher am aktuellen Schwenkwinkel → bei großen Winkeln kippte die
+## Wirkrichtung, ein Motor schwenkte voll, der andere gar nicht.)
 func moment_per_rad_swivel(cg: Vector3, ref_thrust: float) -> Vector3:
-	var d := current_direction()
+	var d := thrust_direction.normalized()
 	var dd := swivel_axis.normalized().cross(d)       # Ableitung der Richtung nach dem Winkel
 	if invert_swivel: dd = -dd
 	return (position - cg).cross(dd * ref_thrust)

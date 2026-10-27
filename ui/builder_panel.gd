@@ -1,3 +1,4 @@
+# 2026-10-27 23:28 – Modellauswahl fest in der rechten Spalte; Schalter Elastisches Leitwerk für jede Bauart; neue Motorpaare seitlich unten (135°/225°)
 # 2026-10-27 16:07 – Reiter Hülle: Massen (Hülle, Elektronik, Restmasse-Anzeige, Lage mit Automatik); Antrieb: Masse je Gondel
 # 2026-10-27 15:12 – Umbau nach freigegebenem Entwurf: vier Reiter (Hülle, Leitwerk, Antrieb, Gestaltung); Leitwerk als symmetrische Anordnung (+, ×, Y, λ, gleichmäßig 1–8 Flossen; Klappe/Pendel; Fläche in cm², Streckung, Pfeilung, V-Winkel; Höhen-/Seitenleitwerk getrennt); Canards separat; Heckansicht; Hinweis und Knopf „Ansicht“ für Drehen/Zoomen; große Regler
 # 2026-10-27 14:36 – Schwenkbereich der Motoren im Editor bis 120° (Chewie: 110°)
@@ -80,6 +81,15 @@ func _ready() -> void:
 	add_child(_right)
 	var rcol := UITheme.make_vbox("sm")
 	_right.add_child(rcol)
+	# Modellauswahl immer sichtbar (nicht in einem Reiter versteckt)
+	rcol.add_child(UITheme.make_title("Luftschiff"))
+	_preset = OptionButton.new()
+	_preset.custom_minimum_size = Vector2(200, UITheme.size("control_height"))
+	_preset.fit_to_longest_item = false
+	_preset.clip_text = true
+	_preset.item_selected.connect(_on_preset)
+	rcol.add_child(_preset)
+	reload_model_list()
 	rcol.add_child(UITheme.make_title("Kennwerte"))
 	_stats = UITheme.make_label("")
 	_stats.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
@@ -168,13 +178,6 @@ func _scroll_page(title: String, builder: Callable) -> ScrollContainer:
 # Reiter „Hülle“
 # =============================================================================
 func _build_hull_page(col: VBoxContainer) -> void:
-	col.add_child(UITheme.make_title("Modell"))
-	_preset = OptionButton.new()
-	_preset.custom_minimum_size.y = UITheme.size("control_height")
-	_preset.item_selected.connect(_on_preset)
-	col.add_child(_preset)
-	reload_model_list()
-
 	col.add_child(UITheme.make_title("Hülle"))
 	_hull_rows.vol = UITheme.make_slider_row("Volumen", 0.05, 5.0, 0.01, ship.hull.volume_m3,
 		func(v): ship.hull.volume_m3 = v, "%.2f m³")
@@ -296,12 +299,12 @@ func _fill_tail_page() -> void:
 		func(v): t.hull_x = v; _tail_changed(false), "%.2f"))
 	_tail_box.add_child(UITheme.make_slider_row("Ausschlag max", 0.0, 45.0, 1.0, t.max_deflection_deg,
 		func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
-	if t.kind == ControlSurface.Kind.FLAP:
-		var flex := CheckBox.new()
-		flex.text = "Pseudo-Flex (Depron-Scharnier)"
-		flex.button_pressed = t.pseudo_flex
-		flex.toggled.connect(func(on): t.pseudo_flex = on; _tail_changed(false))
-		_tail_box.add_child(flex)
+	# Elastisches Leitwerk für beide Bauarten schaltbar (aus = starre Flossen)
+	var flex := CheckBox.new()
+	flex.text = "Elastisches Leitwerk (Pseudo-Flex) – aus = starr"
+	flex.button_pressed = t.pseudo_flex
+	flex.toggled.connect(func(on): t.pseudo_flex = on; _tail_changed(false))
+	_tail_box.add_child(flex)
 
 
 func _tail_changed(rebuild_page: bool) -> void:
@@ -382,8 +385,9 @@ func _build_drive_page(col: VBoxContainer) -> void:
 
 func _add_motor_pair() -> void:
 	var pid := "paar%d" % (ship.motors.size() / 2 + 1)
-	var r := AirshipPresets.make_motor("Motor rechts (%s)" % pid, 0.25, 90.0, 1.2, 60.0, 0.0)
-	var l := AirshipPresets.make_motor("Motor links (%s)" % pid, 0.25, 270.0, 1.2, 60.0, 0.0)
+	# Neue Paare sitzen seitlich unten (45° unter der Waagrechten) – wie Chewie
+	var r := AirshipPresets.make_motor("Motor rechts (%s)" % pid, 0.25, 135.0, 1.2, 60.0, 45.0)
+	var l := AirshipPresets.make_motor("Motor links (%s)" % pid, 0.25, 225.0, 1.2, 60.0, 45.0)
 	r.pair_id = pid; l.pair_id = pid
 	r.spin_dir = 1; l.spin_dir = -1                 # gegenläufig
 	ship.motors.append(r)
