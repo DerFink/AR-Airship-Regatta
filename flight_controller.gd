@@ -1,3 +1,4 @@
+# 2026-10-27 12:41 – Nick-Knüppel umgedreht wie beim RC-Sender: nach vorn = Nase runter, ziehen = Nase hoch
 # 2026-10-27 11:08 – Mischer nutzt den Schub mit Vorzeichen (Rückwärtsschub kehrt die Schwenkwirkung um) und den reduzierten Rückwärts-Wirkungsgrad
 # 2026-10-27 10:33 – Stick-Belegung neu: Gier immer rechter Knüppel X, linker Knüppel X frei (Aux), kein Roll-Stick mehr (Roll nur noch auf 0° stabilisiert); Stick-Modes auf 1/2 reduziert; stick_labels() für das HUD
 # 2026-10-27 10:48 – Erstversion: 3 Modi (direkt / geregelt / geregelt ohne Vektor), PID je Achse, Stick-Modes 1–4, geometrischer Mischer Aero↔Vektor, Failsafe, UI-Parametertabelle, Speichern/Laden
@@ -148,10 +149,12 @@ func set_sticks(left: Vector2, right: Vector2) -> void:
 	cmd_yaw = right.x                     # Gier: immer rechts, links/rechts
 	cmd_aux = left.x                      # frei
 	cmd_roll = 0.0                        # kein aktives Rollen
+	# Nick wie beim RC-Sender: Knüppel nach vorn (hoch) = Nase runter,
+	# Knüppel zu sich ziehen = Nase hoch. Deshalb das Minus.
 	if stick_mode == 1:
-		cmd_pitch = left.y; cmd_throttle = right.y
+		cmd_pitch = -left.y; cmd_throttle = right.y
 	else:                                 # Mode 2 (Standard)
-		cmd_throttle = left.y; cmd_pitch = right.y
+		cmd_throttle = left.y; cmd_pitch = -right.y
 
 
 ## Beschriftung der Knüppel für das HUD (passt sich dem Stick-Mode an).

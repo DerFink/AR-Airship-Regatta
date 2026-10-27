@@ -35,7 +35,7 @@ func _initialize() -> void:
 	fc.airship = ship
 	fc.mode = FlightController.Mode.DIRECT
 	fc.mix_mode = FlightController.MixMode.VECTOR_ONLY
-	for st in [["Nick hoch", Vector2(0, 0.5), Vector2(0, 1)], ["Gier rechts", Vector2(0, 0.5), Vector2(1, 0)]]:
+	for st in [["Nick hoch", Vector2(0, 0.5), Vector2(0, -1)], ["Gier rechts", Vector2(0, 0.5), Vector2(1, 0)]]:
 		fc.set_sticks(st[1], st[2])
 		fc._mix(Vector3(fc.cmd_pitch, -fc.cmd_yaw, 0.0))
 		print("%s → Schwenk rechts=%.2f links=%.2f | Gas rechts=%.2f links=%.2f" % [st[0], ship.motors[0].swivel_cmd, ship.motors[1].swivel_cmd, ship.motors[0].throttle_cmd, ship.motors[1].throttle_cmd])

@@ -25,7 +25,7 @@ func _initialize() -> void:
 	fc.airship = ship
 	fc.mix_mode = FlightController.MixMode.VECTOR_ONLY
 	for gas in [0.6, -0.6]:
-		fc.set_sticks(Vector2(0, gas), Vector2(0, 1))
+		fc.set_sticks(Vector2(0, gas), Vector2(0, -1))   # Knüppel ziehen = Nase hoch
 		fc._mix(Vector3(fc.cmd_pitch, 0, 0))
 		print("Gas %+.1f, Nick hoch → Schwenk rechts %+.2f links %+.2f" % [gas, ship.motors[0].swivel_cmd, ship.motors[1].swivel_cmd])
 
