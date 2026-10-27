@@ -1,3 +1,4 @@
+# 2026-10-27 13:03 – Motor-Schalter heißt jetzt wie bei FPV-Drohnen: „Disarmed“ / „Armed“
 # 2026-10-27 12:55 – Knopf „Zurücksetzen“ oben rechts (vor „Motoren“)
 # 2026-10-27 12:24 – Eigene Layout-Funktion: Telemetrie, Menüs, Knüppel und Hinweis werden aus der Bildschirmgröße platziert (Knüppel lagen sonst außerhalb des Bildes)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
@@ -61,7 +62,7 @@ func _ready() -> void:
 	_tr = UITheme.make_hbox("xs")
 	var tr := _tr
 	add_child(tr)
-	_btn_arm = UITheme.make_pill("Motoren aus", true)
+	_btn_arm = UITheme.make_pill("Disarmed", true)
 	_btn_arm.toggle_mode = true
 	_btn_arm.toggled.connect(_on_arm_toggled)
 	var b_reset := UITheme.make_pill("Zurücksetzen", true)
@@ -135,7 +136,7 @@ func set_ar_active(active: bool) -> void:
 func _on_arm_toggled(on: bool) -> void:
 	if fc:
 		fc.armed = on
-	_btn_arm.text = "Motoren an" if on else "Motoren aus"
+	_btn_arm.text = "Armed" if on else "Disarmed"
 
 
 func _process(dt: float) -> void:
@@ -145,7 +146,7 @@ func _process(dt: float) -> void:
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
-			_btn_arm.text = "Motoren an" if fc.armed else "Motoren aus"
+			_btn_arm.text = "Armed" if fc.armed else "Disarmed"
 		_pill_mode.text = "FC: Mode %d" % (int(fc.mode) + 1)
 	if ship:
 		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")

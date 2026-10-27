@@ -32,7 +32,7 @@ Export aus Godot als Xcode-Projekt, dann auf einem Mac in Xcode signieren (Apple
 ## Bedienung
 - Linker Knüppel hoch/runter: **Gas** – Mitte = Stopp, unten = Rückwärtsschub (wenn im Baukasten erlaubt)
 - Rechter Knüppel: hoch/runter **Nick**, links/rechts **Gier**
-- Oben rechts: Motoren an/aus · Bau · PID · AR
+- Oben rechts: Zurücksetzen · Arm-Schalter (Disarmed/Armed) · Bau · PID · AR
 
 ## Modelle teilen
 Baukasten → **Teilen** → *Kopieren*: Der String (`LTA1:Name:…:Prüfsumme`) enthält das komplette Modell.
