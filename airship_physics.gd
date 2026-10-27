@@ -1,3 +1,4 @@
+# 2026-10-27 23:49 – Turm an der Hüllenunterseite als feste Flosse (sail_*), wird wie das Leitwerk bei jedem Neuaufbau erzeugt
 # 2026-10-27 16:07 – Massenmodell aus Teilmassen: Hülle (verteilt), Motoren am Einbauort, Elektronik + Akku + Ballast als Masse unten an der Hülle (Menge aus Auftrieb, Lage automatisch getrimmt); Schwerpunkt und Trägheit daraus berechnet; Bauteile werden vor der Massenbilanz platziert
 # 2026-10-27 15:09 – Leitwerk als TailConfig: Flossen werden bei rebuild_mass_properties() daraus erzeugt, Canards bleiben erhalten
 # 2026-10-27 12:55 – reset_to(): Schiff im Physikschritt an den Startpunkt versetzen, Geschwindigkeiten/Motoren/Ruder nullen
@@ -66,6 +67,17 @@ signal config_changed
 ## um trim_heaviness_n schwerer als Luft ist (schwebt fast neutral).
 @export var auto_trim: bool = true
 @export var trim_heaviness_n: float = 0.05
+
+@export_group("Turm")
+## Fester Turm an der Hüllenunterseite (wie der U-Boot-Turm, nur kopfüber).
+## Wirkt aerodynamisch wie eine feste Flosse ohne Ruder.
+@export var sail_enabled: bool = false
+## Mitte des Turms als Längsposition (0 = Nase, 1 = Heck).
+@export_range(0.05, 0.95, 0.01) var sail_x: float = 0.30
+## Turmlänge als Anteil der Rumpflänge.
+@export_range(0.02, 0.4, 0.005) var sail_length_frac: float = 0.12
+## Turmhöhe als Anteil des Rumpfdurchmessers.
+@export_range(0.05, 1.0, 0.01) var sail_height_frac: float = 0.33
 
 @export_group("Atmosphäre")
 @export var air_density: float = 1.20       ## kg/m³ (Meereshöhe, 20 °C)
@@ -137,14 +149,19 @@ func set_hull(h: GertlerHull) -> void:
 func rebuild_mass_properties() -> void:
 	# --- 1) Leitwerk erzeugen und alle Bauteile an die Hülle setzen ---------
 	# (zuerst, weil die Motormassen ihren Einbauort brauchen)
+	# Erzeugte Teile (Leitwerk, Turm) neu anlegen, freie Flächen (Canards) behalten
+	var free: Array[ControlSurface] = []
+	for s in surfaces:
+		if s.sail_member or (tail and s.tail_member):
+			continue
+		free.append(s)
+	var gen: Array[ControlSurface] = []
 	if tail:
-		var free: Array[ControlSurface] = []
-		for s in surfaces:
-			if not s.tail_member:
-				free.append(s)
-		var fins := tail.generate()
-		fins.append_array(free)
-		surfaces = fins
+		gen = tail.generate()
+	if sail_enabled:
+		gen.append(_make_sail())
+	gen.append_array(free)
+	surfaces = gen
 	for s in surfaces:
 		s.place_on_hull(hull)
 	for mot in motors:
@@ -215,6 +232,24 @@ func rebuild_mass_properties() -> void:
 	var i_air := m_air * (a * a + b * b) / 5.0
 	added_inertia = Vector3(hull.k_rot * i_air, hull.k_rot * i_air, 0.0)
 	config_changed.emit()
+
+
+## Turm als feste Flosse an der Unterseite (180°): Fläche = Länge × Höhe,
+## Streckung = Höhe / Länge, kein Ruderausschlag.
+func _make_sail() -> ControlSurface:
+	var c := sail_length_frac * hull.length_m
+	var h := sail_height_frac * hull.diameter_m
+	var s := ControlSurface.new()
+	s.display_name = "Turm"
+	s.kind = ControlSurface.Kind.FLAP
+	s.hull_x = sail_x
+	s.hull_angle_deg = 180.0
+	s.area_m2 = c * h
+	s.aspect_ratio = h / c
+	s.taper = 0.85
+	s.max_deflection_deg = 0.0
+	s.sail_member = true
+	return s
 
 
 # =============================================================================

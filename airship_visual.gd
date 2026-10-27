@@ -1,3 +1,4 @@
+# 2026-10-27 23:49 – Turm als stromlinienförmiger Körper (NACA-Grundriss) in Hüllenfarbe
 # 2026-10-27 16:07 – Restmasse (Block am Hüllenboden) und Schwerpunkt (rote Kugel) im Baukasten sichtbar
 # 2026-10-27 15:09 – Flossen als Trapez mit Zuspitzung (Pfeilung) statt Quader
 # 2026-10-27 11:08 – Hülle trägt die Gestaltungs-Textur (LiveryCanvas: Farbe, Schriftzug, Logo); bei Änderungen der Gestaltung wird nur neu gemalt
@@ -28,6 +29,7 @@ var _livery: Livery                      ## aktuell angezeigte Gestaltung
 var _mass_node := MeshInstance3D.new()   ## Restmasse unten an der Hülle (nur im Baukasten)
 var _cg_node := MeshInstance3D.new()     ## Gesamtschwerpunkt (nur im Baukasten)
 var _workshop := false
+var _sail_mat := StandardMaterial3D.new() ## Turm in Hüllenfarbe
 
 
 func _ready() -> void:
@@ -113,8 +115,13 @@ func rebuild() -> void:
 		# (rechtshändig: X = Y × Z)
 		pivot.basis = Basis(d.cross(Vector3(0, 0, 1)), d, Vector3(0, 0, 1)).orthonormalized()
 		var mi := MeshInstance3D.new()
-		mi.mesh = _fin_mesh(span, chord, s.taper)
-		mi.material_override = _fin_mat
+		if s.sail_member:
+			# Turm: dicker, stromlinienförmiger Körper in Hüllenfarbe
+			mi.mesh = _sail_mesh(span, chord)
+			mi.material_override = _sail_mat
+		else:
+			mi.mesh = _fin_mesh(span, chord, s.taper)
+			mi.material_override = _fin_mat
 		pivot.add_child(mi)
 		pivot.set_meta("surface", s)
 		pivot.set_meta("base_basis", pivot.basis)
@@ -158,6 +165,46 @@ func set_workshop(on: bool) -> void:
 	_cg_node.visible = on
 
 
+## Turm (Segel des U-Boots) als geschlossener Körper: Grundriss wie ein
+## symmetrisches NACA-Profil (vorn rund, hinten spitz), Dicke 35 % der Länge.
+## Unten (y < 0) steckt er 15 % der Höhe in der Hülle, damit an der
+## gewölbten Hülle kein Spalt bleibt; oben ist er etwas kürzer (Hinterkante
+## leicht schräg). Lokal: Y = Höhe (abstehend), Z = Längsachse (+Z = hinten).
+func _sail_mesh(height: float, chord: float) -> ArrayMesh:
+	const N := 16                                # Punkte je Profilseite
+	var thick := 0.35 * chord
+	var y0 := -0.15 * height
+	var rings: Array = []
+	for level in 2:
+		var y := y0 if level == 0 else height
+		var c := chord if level == 0 else chord * 0.85      # oben kürzer
+		var front := -chord * 0.5                           # Vorderkante senkrecht
+		var ring := PackedVector3Array()
+		# rechte Seite von vorn nach hinten, dann linke Seite zurück
+		for side in [1.0, -1.0]:
+			for i in N + 1:
+				var k := i if side > 0.0 else N - i
+				var u := float(k) / N
+				var yt := 5.0 * (0.2969 * sqrt(u) - 0.1260 * u - 0.3516 * u * u + 0.2843 * u * u * u - 0.1036 * u * u * u * u)
+				ring.append(Vector3(side * yt * thick, y, front + u * c))
+		rings.append(ring)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var r0: PackedVector3Array = rings[0]
+	var r1: PackedVector3Array = rings[1]
+	var n := r0.size()
+	for i in n:                                  # Mantel
+		var j := (i + 1) % n
+		for v in [r0[i], r1[i], r1[j], r0[i], r1[j], r0[j]]:
+			st.add_vertex(v)
+	var top_c := Vector3(0, height, -chord * 0.5 + chord * 0.85 * 0.4)
+	for i in n:                                  # Deckel (Fächer)
+		for v in [top_c, r1[(i + 1) % n], r1[i]]:
+			st.add_vertex(v)
+	st.generate_normals()
+	return st.commit()
+
+
 ## Flache Flosse als Trapez (zweiseitig gerendert): Wurzeltiefe c_r an der
 ## Hülle, Endtiefe c_t = Zuspitzung · c_r außen, Hinterkante gerade.
 ## Lokal: Y = Spannweite (abstehend), Z = Längsachse (+Z = hinten).
@@ -194,6 +241,9 @@ func _repaint() -> void:
 	if _livery == null:
 		_livery = Livery.new()
 	_canvas.repaint(_livery, ship.hull.length_to_diameter)
+	_sail_mat.albedo_color = _livery.hull_color          # Turm in Hüllenfarbe
+	_sail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_sail_mat.roughness = 0.6
 
 
 # =============================================================================

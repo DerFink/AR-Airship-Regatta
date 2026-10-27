@@ -1,3 +1,4 @@
+# 2026-10-27 23:49 – Albacore mit Turm an der Unterseite (30 % Länge, 12 % L lang, 1/3 D hoch); Chewie ohne Turm
 # 2026-10-27 23:28 – Albacore wieder Standard: X-Heck mit Ruderklappen wie das Original, Schriftzug USS ALBACORE, Heckmotor an der Hüllenunterseite; Chewie: Schriftzug aerarium e.V., Pendel 35°, starres Leitwerk
 # 2026-10-27 16:07 – Chewie laut Nutzer: L/D 6, Hülle 86 g, Motoren seitlich unten bei 135°/225°, Massen (90 g Antrieb + Elektronik, Aufteilung angenommen); Massenwerte in beiden Presets
 # 2026-10-27 15:09 – Presets nutzen TailConfig: Albacore = + mit Klappen, Chewie = λ in Pendelausführung (19 × 19 cm, Streckung 1, Pfeilung 0,8, 45°)
@@ -73,6 +74,11 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
 	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
+	# Turm wie beim Original, aber an der Unterseite (Optik + Wirkung als feste Flosse)
+	ship.sail_enabled = true
+	ship.sail_x = 0.30
+	ship.sail_length_frac = 0.12
+	ship.sail_height_frac = 0.33
 	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
 	ship.hull_mass_kg = 0.086
 	ship.electronics_mass_kg = 0.030
@@ -118,6 +124,7 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
 	ship.livery.text = "aerarium e.V."       # fester Schriftzug
+	ship.sail_enabled = false                # Chewie hat keinen Turm
 	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
 	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.
 	# Akku + Ballast klebt mit der Elektronik unten an der Hülle; die Menge

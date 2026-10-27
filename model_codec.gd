@@ -1,3 +1,5 @@
+# 2026-10-27 23:51 – Fix: Leerzeichen im Modellnamen bleiben beim Import erhalten
+# 2026-10-27 23:49 – Turm im Modell-String (sail: an, Lage, Länge, Höhe); alte Strings ohne Turm
 # 2026-10-27 16:07 – Teilmassen im String (Hülle, Elektronik, Lage/Automatik der Restmasse, Gondelmasse); alte Strings bekommen Standardwerte
 # 2026-10-27 15:09 – Leitwerk als Beschreibung im String (tail: Anordnung, Anzahl, Bauart, Fläche, Streckung, Pfeilung …); Flossen-Zuspitzung; ältere Strings ohne tail bleiben lesbar
 # 2026-10-27 12:23 – Propellersteigung (pit) im Modell-String; fehlt sie in älteren Strings, gilt 3"
@@ -32,6 +34,7 @@ const LIMITS := {
 	"m": [0.2, 0.6], "r0": [0.0, 1.0], "r1": [0.0, 0.5], "cp": [0.5, 0.75],
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
+	"sx": [0.05, 0.95], "sl": [0.02, 0.4], "sh": [0.05, 1.0],
 	"hm": [0.0, 1000.0], "el": [0.0, 1000.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
@@ -55,6 +58,8 @@ static func encode(ship: AirshipPhysics) -> String:
 		"mass": {"trim": ship.trim_heaviness_n, "hm": ship.hull_mass_kg, "el": ship.electronics_mass_kg,
 			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x},
 		"fins": [], "motors": [],
+		# Turm an der Unterseite (an/aus, Lage, Länge, Höhe)
+		"sail": {"on": ship.sail_enabled, "sx": ship.sail_x, "sl": ship.sail_length_frac, "sh": ship.sail_height_frac},
 	}
 	# Symmetrisches Leitwerk als Beschreibung (nicht Flosse für Flosse)
 	if ship.tail:
@@ -64,7 +69,7 @@ static func encode(ship: AirshipPhysics) -> String:
 			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex}
 	# Freie Flächen (Canards u. Ä.)
 	for s in ship.surfaces:
-		if s.tail_member and ship.tail:
+		if (s.tail_member and ship.tail) or s.sail_member:
 			continue
 		data.fins.append({"n": s.display_name, "k": int(s.kind), "x": s.hull_x, "a": s.hull_angle_deg,
 			"area": s.area_m2, "ar": s.aspect_ratio, "defl": s.max_deflection_deg,
@@ -90,8 +95,15 @@ static func encode(ship: AirshipPhysics) -> String:
 # Import – Rückgabe {ok, error, name, data}. data ist bereits geprüft.
 # =============================================================================
 static func decode(text: String) -> Dictionary:
-	var s := text.strip_edges().replace("\n", "").replace(" ", "")
+	# Zeilenumbrüche (z. B. aus Messengern) entfernen; Leerzeichen nur in den
+	# Daten und der Prüfsumme – im Namen bleiben sie erhalten (vorher wurde
+	# „Albacore Standard“ beim Import zu „AlbacoreStandard“)
+	var s := text.strip_edges().replace("\n", "").replace("\r", "")
 	var parts := s.split(":")
+	if parts.size() == 4:
+		parts[0] = parts[0].strip_edges()
+		parts[2] = parts[2].replace(" ", "")
+		parts[3] = parts[3].replace(" ", "")
 	if parts.size() != 4 or parts[0] != PREFIX:
 		return _fail("Kein gültiger Modell-String (erwartet LTA1:Name:Daten:Prüfsumme).")
 	if _checksum(parts[2]) != parts[3].to_lower():
@@ -124,6 +136,10 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.electronics_mass_kg = d.mass.el
 	ship.ballast_x = d.mass.bx
 	ship.ballast_auto_x = d.mass.bauto
+	ship.sail_enabled = d.sail.on
+	ship.sail_x = d.sail.sx
+	ship.sail_length_frac = d.sail.sl
+	ship.sail_height_frac = d.sail.sh
 
 	var fins: Array[ControlSurface] = []
 	for f in d.fins:
@@ -214,6 +230,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true)},
 		"fins": [], "motors": [],
 	}
+	var sd: Dictionary = d.get("sail", {}) if d.get("sail") is Dictionary else {}
+	out["sail"] = {"on": _flag(sd, "on", false), "sx": _num(sd, "sx", 0.30),
+		"sl": _num(sd, "sl", 0.12), "sh": _num(sd, "sh", 0.33)}
 	var fins = d.get("fins", [])
 	if fins is Array:
 		for f in fins.slice(0, MAX_FINS):

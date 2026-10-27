@@ -1,3 +1,4 @@
+# 2026-10-27 23:49 – Reiter Hülle: Turm an/aus mit Lage, Länge, Höhe; Turm zählt nicht als Canard
 # 2026-10-27 23:28 – Modellauswahl fest in der rechten Spalte; Schalter Elastisches Leitwerk für jede Bauart; neue Motorpaare seitlich unten (135°/225°)
 # 2026-10-27 16:07 – Reiter Hülle: Massen (Hülle, Elektronik, Restmasse-Anzeige, Lage mit Automatik); Antrieb: Masse je Gondel
 # 2026-10-27 15:12 – Umbau nach freigegebenem Entwurf: vier Reiter (Hülle, Leitwerk, Antrieb, Gestaltung); Leitwerk als symmetrische Anordnung (+, ×, Y, λ, gleichmäßig 1–8 Flossen; Klappe/Pendel; Fläche in cm², Streckung, Pfeilung, V-Winkel; Höhen-/Seitenleitwerk getrennt); Canards separat; Heckansicht; Hinweis und Knopf „Ansicht“ für Drehen/Zoomen; große Regler
@@ -47,6 +48,7 @@ var _hint: Label
 var _view_btn: Button
 var _preview: TailPreview
 var _hull_rows := {}
+var _sail_check: CheckBox         ## Turm an/aus
 var _ballast_auto: CheckBox        ## Restmasse automatisch austrimmen
 var _mass_info: Label              ## Anzeige Akku + Ballast / Übergewicht
 var _last_level := -1
@@ -190,6 +192,22 @@ func _build_hull_page(col: VBoxContainer) -> void:
 	for k in ["vol", "ld", "m", "cp"]:
 		col.add_child(_hull_rows[k])
 
+	# --- Turm an der Unterseite (U-Boot-Turm kopfüber, feste Flosse) -------
+	col.add_child(UITheme.make_title("Turm"))
+	_sail_check = CheckBox.new()
+	_sail_check.text = "Turm an der Unterseite"
+	_sail_check.button_pressed = ship.sail_enabled
+	_sail_check.toggled.connect(func(on): ship.sail_enabled = on; _changed())
+	col.add_child(_sail_check)
+	_hull_rows.sx = UITheme.make_slider_row("Turm Lage (0 Nase · 1 Heck)", 0.05, 0.95, 0.01, ship.sail_x,
+		func(v): ship.sail_x = v; _changed(), "%.2f")
+	_hull_rows.sl = UITheme.make_slider_row("Turm Länge (Anteil Rumpflänge)", 0.02, 0.40, 0.005, ship.sail_length_frac,
+		func(v): ship.sail_length_frac = v; _changed(), "%.3f")
+	_hull_rows.sh = UITheme.make_slider_row("Turm Höhe (Anteil Durchmesser)", 0.05, 1.0, 0.01, ship.sail_height_frac,
+		func(v): ship.sail_height_frac = v; _changed(), "%.2f")
+	for k in ["sx", "sl", "sh"]:
+		col.add_child(_hull_rows[k])
+
 	# --- Massen: Hülle, Elektronik und die unten angeklebte Restmasse ------
 	# Motormassen stehen im Reiter Antrieb (je Motorgondel mit Servo).
 	col.add_child(UITheme.make_title("Massen"))
@@ -330,7 +348,7 @@ func _create_tail() -> void:
 func _canards() -> Array[ControlSurface]:
 	var out: Array[ControlSurface] = []
 	for s in ship.surfaces:
-		if not s.tail_member:
+		if not s.tail_member and not s.sail_member:
 			out.append(s)
 	return out
 
@@ -606,8 +624,11 @@ func _changed() -> void:
 func _sync_from_ship() -> void:
 	var vals := {"vol": ship.hull.volume_m3, "ld": ship.hull.length_to_diameter,
 		"m": ship.hull.m, "cp": ship.hull.cp, "hm": ship.hull_mass_kg * 1000.0,
-		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x}
-	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hm": "%d g", "el": "%d g", "bx": "%.2f"}
+		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x,
+		"sx": ship.sail_x, "sl": ship.sail_length_frac, "sh": ship.sail_height_frac}
+	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hm": "%d g", "el": "%d g", "bx": "%.2f",
+		"sx": "%.2f", "sl": "%.3f", "sh": "%.2f"}
+	_sail_check.set_pressed_no_signal(ship.sail_enabled)
 	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)
 	for k in vals:
 		(_hull_rows[k].get_meta("slider") as HSlider).set_value_no_signal(vals[k])
