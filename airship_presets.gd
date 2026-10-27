@@ -1,3 +1,4 @@
+# 2026-10-27 14:36 – Chewie: λ-Leitwerk in Pendelausführung, je ca. 19 × 19 cm, Streckung 1 (Nutzerangabe); Motorschwenk max. 110°
 # 2026-10-27 12:23 – Chewie-Antrieb auf 2 × GEPRC SpeedX2 1804 mit 4"-Propellern umgestellt (ca. 7 N Standschub je Motor, 27 000 U/min, Steigung 3" – Annahmen, s. u.)
 # 2026-10-27 11:08 – Motorpaare mit pair_id, gegenläufige Propeller bei Chewie, Rückwärtsschub-Daten, Propellerdaten für den Klang; Auswahlliste enthält Modellsammlung und eigene Modelle; Presets setzen Name und Standard-Gestaltung
 # 2026-10-27 10:42 – Auf parametrische Platzierung umgestellt (make_fin/make_motor mit Längsposition + Umfangswinkel); Chewie korrigiert: keine Canards, Bugmotoren mit Pigleg-Schwenkachse 45° (gemeinsam = Nick, gegensinnig = Gier); Preset-Liste für das Auswahlmenü
@@ -100,19 +101,21 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
 	var fins: Array[ControlSurface] = [
-		make_fin("Seitenleitwerk oben", 0.90, 0.0, 0.09),
-		make_fin("Leitwerk unten rechts", 0.90, 135.0, 0.09),
-		make_fin("Leitwerk unten links", 0.90, 225.0, 0.09),
+		# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
+		# (0,036 m², Streckung 1). Neigung der unteren Flossen (±45°) = ANNAHME.
+		make_fin("Seitenleitwerk oben", 0.90, 0.0, 0.0361, ControlSurface.Kind.ALL_MOVING),
+		make_fin("Leitwerk unten rechts", 0.90, 135.0, 0.0361, ControlSurface.Kind.ALL_MOVING),
+		make_fin("Leitwerk unten links", 0.90, 225.0, 0.0361, ControlSurface.Kind.ALL_MOVING),
 	]
 	for s in fins:
-		s.pseudo_flex = true             # Depron mit Klebeband-Scharnier
+		s.aspect_ratio = 1.0             # 19 × 19 cm → Streckung 1
 	ship.surfaces = fins
 	# Antrieb laut Nutzer: 2 × GEPRC SpeedX2 1804 mit 4"-Propellern.
 	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots: Array[VectorMotor] = [
-		make_motor("Bugmotor rechts", 0.25, 90.0, 7.0, 60.0, 45.0),
-		make_motor("Bugmotor links", 0.25, 270.0, 7.0, 60.0, 45.0),
+		make_motor("Bugmotor rechts", 0.25, 90.0, 7.0, 110.0, 45.0),
+		make_motor("Bugmotor links", 0.25, 270.0, 7.0, 110.0, 45.0),
 	]
 	# Paar gemeinsam einstellbar; gegenläufige Propeller wie beim Quadcopter.
 	# Rückwärtsschub erlaubt (ESC vor/zurück), normaler Propeller ≈ 55 % rückwärts.

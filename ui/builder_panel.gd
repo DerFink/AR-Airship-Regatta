@@ -1,3 +1,4 @@
+# 2026-10-27 14:36 – Schwenkbereich der Motoren im Editor bis 120° (Chewie: 110°)
 # 2026-10-27 12:24 – Rechte Spalte und Validator-Banner per eigener Layout-Funktion platziert (lagen teils außerhalb des Bildes)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Reiter „Technik“ und „Gestaltung“ (Farbe, Schriftzug, Logo nach freigegebenem Entwurf); Motor-Editor wirkt auf das ganze Motorpaar (Rückwärtsschub, Wirkungsgrad rückwärts, Propeller, Drehzahl, Drehrichtung); Knopf „Teilen“; Signal ui_action für ruhige Töne; Modellauswahl inkl. Sammlung
@@ -445,7 +446,7 @@ func _on_part_selected(i: int) -> void:
 		var hint := UITheme.make_label("Normaler Propeller ≈ 0,55 · 3D-Propeller ≈ 0,95", "MutedLabel")
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_editor_box.add_child(hint)
-		_editor_box.add_child(UITheme.make_slider_row("Schwenk max", 0.0, 90.0, 1.0, mo.max_swivel_deg,
+		_editor_box.add_child(UITheme.make_slider_row("Schwenk max", 0.0, 120.0, 1.0, mo.max_swivel_deg,
 			func(v): set_all.call("max_swivel_deg", v, false), "%d°", 90))
 		_editor_box.add_child(UITheme.make_slider_row("Achsneigung", 0.0, 60.0, 1.0, mo.swivel_tilt_deg,
 			func(v): set_all.call("swivel_tilt_deg", v, true), "%d°", 90))
