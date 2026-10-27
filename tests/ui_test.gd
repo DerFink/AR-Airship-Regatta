@@ -48,6 +48,12 @@ func _process(_dt: float) -> bool:
 			main.hud.stick_right.value = Vector2.ZERO
 		420:
 			print("Rückwärts: v=%.2f m/s, Motor-Drehzahl %.0f U/min, rückwärts=%s" % [main.ship.airspeed, main.ship.motors[0].rpm(), main.ship.motors[0].is_reversing()])
+			main.hud.stick_left.value = Vector2.ZERO
+			main.reset_ship()
+		421:
+			pass
+		423:
+			print("Zurückgesetzt: Position %s, v=%.2f m/s, Kamera-Bildwinkel %.0f°" % [main.ship.global_position.snapped(Vector3.ONE * 0.1), main.ship.linear_velocity.length(), main.camera.fov])
 			main._set_view(main.View.BUILD)
 			main.ship.livery.text = "TEST"
 			main.builder.get_child(0).get_child(0).current_tab = 1   # Reiter Gestaltung

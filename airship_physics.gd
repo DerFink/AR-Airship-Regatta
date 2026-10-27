@@ -1,3 +1,4 @@
+# 2026-10-27 12:55 – reset_to(): Schiff im Physikschritt an den Startpunkt versetzen, Geschwindigkeiten/Motoren/Ruder nullen
 # 2026-10-27 12:23 – Motoren bekommen ihre Anströmung (Schubabfall mit der Fahrt); Anstellwinkel erst ab 1 m/s angezeigt (vorher z. B. 105° beim Absinken im Stand)
 # 2026-10-27 11:08 – Modellname und Gestaltung (livery) als Teil der Konfiguration
 # 2026-10-27 10:42 – rebuild_mass_properties() platziert alle Bauteile parametrisch neu (place_on_hull) und meldet Änderungen per Signal config_changed (für Darstellung/Baukasten)
@@ -83,6 +84,7 @@ var munk_moment: Vector3 = Vector3.ZERO
 var surface_moment: Vector3 = Vector3.ZERO
 var hull_viscous_moment: Vector3 = Vector3.ZERO
 var vector_moment: Vector3 = Vector3.ZERO
+var _reset_to = null                 ## Transform3D, wenn ein Zurücksetzen ansteht
 
 
 func _ready() -> void:
@@ -141,7 +143,26 @@ func rebuild_mass_properties() -> void:
 # =============================================================================
 # Der eigentliche 6-DOF-Schritt
 # =============================================================================
+## Schiff an eine Stelle zurücksetzen (Startpunkt). Wird im nächsten
+## Physikschritt ausgeführt – nur dort darf man einen RigidBody sicher
+## versetzen. Geschwindigkeiten, Motoren und Ruder werden genullt.
+func reset_to(xform: Transform3D) -> void:
+	_reset_to = xform
+	for m in motors:
+		m._throttle = 0.0
+		m._swivel_deg = 0.0
+	for s in surfaces:
+		s._servo_deg = 0.0
+		s._flex_deg = 0.0
+
+
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if _reset_to != null:
+		state.transform = _reset_to
+		state.linear_velocity = Vector3.ZERO
+		state.angular_velocity = Vector3.ZERO
+		_reset_to = null
+		return
 	var dt := state.step
 	var body_basis := state.transform.basis.orthonormalized()   # Körper → Welt
 	var to_body := body_basis.transposed()  # Welt → Körper (orthonormal)

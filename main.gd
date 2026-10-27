@@ -1,3 +1,4 @@
+# 2026-10-27 12:55 – Kein Zoom mehr (fester Bildwinkel 60°, Wunsch des Nutzers); Knopf „Zurücksetzen“ stellt das Schiff an den Startpunkt
 # 2026-10-27 12:52 – Pilotensicht wie beim RC-Fliegen: fester Standort (1 m Richtung Mitte, 3 m neben Pylon 1, Augenhöhe 1,7 m), Blick folgt dem Schiff mit sanftem Zoom; Strecke mit zwei Pylonen im Abstand von 25 m; Start 6 m vor dem Piloten in 4 m Höhe
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Teilen-Dialog als eigene Ansicht; Sound: Propellergeräusch je Motor (wird bei Bauteil-Änderungen neu aufgebaut), ruhige Töne + leiser Klangteppich nur im Baukasten, im Flug sonst Stille
@@ -26,11 +27,8 @@ const PYLON_HEIGHT := 5.0
 const PILOT_EYE := Vector3(1.0, 1.7, 3.0)
 ## Startpunkt des Luftschiffs: 6 m die Strecke hinauf, 4 m hoch, Nase Richtung Pylon 2
 const SHIP_START := Vector3(6.0, 4.0, 0.0)
-## Sanftes Mitzoomen wie mit einem Fernglas: bis ZOOM_NEAR m volles Blickfeld,
-## danach wird der Bildwinkel kleiner, damit das Schiff erkennbar bleibt.
-const FOV_WIDE := 60.0
-const FOV_TIGHT := 18.0
-const ZOOM_NEAR := 10.0
+## Fester Bildwinkel wie mit bloßem Auge (kein Zoom – weit weg = klein).
+const FOV := 60.0
 
 var ship: AirshipPhysics
 var visual: AirshipVisual
@@ -139,7 +137,7 @@ func _build_ship() -> void:
 	add_child(ui_sounds)
 
 	camera = Camera3D.new()
-	camera.fov = 60
+	camera.fov = FOV
 	add_child(camera)
 	camera.make_current()
 
@@ -191,6 +189,7 @@ func _build_ui() -> void:
 	hud.builder_requested.connect(func(): _set_view(View.BUILD))
 	hud.pid_requested.connect(func(): _set_view(View.PID))
 	hud.ar_requested.connect(ar.toggle)
+	hud.reset_requested.connect(reset_ship)
 	builder.closed.connect(func(): _set_view(View.FLY))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
 	builder.ui_action.connect(ui_sounds.chime)
@@ -199,6 +198,15 @@ func _build_ui() -> void:
 	pid.closed.connect(func(): _set_view(View.FLY))
 	watchdog.notice.connect(func(t): hud.show_notice(t, "warning"))
 	ar.ar_state_changed.connect(func(on, msg): hud.set_ar_active(on); hud.show_notice(msg, "info", 2.0))
+
+
+## Schiff an den Startpunkt zurück (Nase Richtung Pylon 2), Regler neu starten.
+## Der Motor-Schalter bleibt, wie er ist – der Gasknüppel steht ja in der Mitte.
+func reset_ship() -> void:
+	var xf := Transform3D(Basis(Vector3.UP, -PI * 0.5), SHIP_START)
+	ship.reset_to(xf)
+	fc._reset_integrators()
+	hud.show_notice("Zurückgesetzt", "info", 1.5)
 
 
 func _set_view(v: View) -> void:
@@ -226,12 +234,8 @@ func _process(dt: float) -> void:
 	if view == View.BUILD or view == View.SHARE:
 		# Baukasten: seitlich nah am Modell, normales Blickfeld
 		camera.global_position = camera.global_position.lerp(p + Vector3(0, L * 0.25, L * 1.4), a)
-		camera.fov = lerpf(camera.fov, FOV_WIDE, a)
 	else:
-		# Flug: fester Pilotenstandort, Blick folgt dem Schiff, sanft zoomen
+		# Flug: fester Pilotenstandort, Blick folgt dem Schiff (fester Bildwinkel)
 		camera.global_position = camera.global_position.lerp(PILOT_EYE, a)
-		var dist := PILOT_EYE.distance_to(p)
-		var fov_target := clampf(FOV_WIDE * ZOOM_NEAR / maxf(dist, ZOOM_NEAR), FOV_TIGHT, FOV_WIDE)
-		camera.fov = lerpf(camera.fov, fov_target, clampf(dt * 1.5, 0.0, 1.0))
 	if camera.global_position.distance_to(p) > 0.01:
 		camera.look_at(p, Vector3.UP)

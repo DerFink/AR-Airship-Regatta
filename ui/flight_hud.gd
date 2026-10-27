@@ -1,3 +1,4 @@
+# 2026-10-27 12:55 – Knopf „Zurücksetzen“ oben rechts (vor „Motoren“)
 # 2026-10-27 12:24 – Eigene Layout-Funktion: Telemetrie, Menüs, Knüppel und Hinweis werden aus der Bildschirmgröße platziert (Knüppel lagen sonst außerhalb des Bildes)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 10:42 – Erstversion: Flugansicht nach freigegebenem Entwurf (Telemetrie oben links, Menüs oben rechts, zwei Knüppel, Hinweis unten mittig) + Motor-Schalter (Failsafe-Armen)
@@ -19,6 +20,7 @@ extends Control
 signal builder_requested
 signal pid_requested
 signal ar_requested
+signal reset_requested
 
 var fc: FlightController
 var ship: AirshipPhysics
@@ -62,6 +64,8 @@ func _ready() -> void:
 	_btn_arm = UITheme.make_pill("Motoren aus", true)
 	_btn_arm.toggle_mode = true
 	_btn_arm.toggled.connect(_on_arm_toggled)
+	var b_reset := UITheme.make_pill("Zurücksetzen", true)
+	b_reset.pressed.connect(func(): reset_requested.emit())
 	var b_build := UITheme.make_pill("Bau", true)
 	b_build.pressed.connect(func(): builder_requested.emit())
 	var b_pid := UITheme.make_pill("PID", true)
@@ -69,7 +73,7 @@ func _ready() -> void:
 	_btn_ar = UITheme.make_pill("AR", true)
 	_btn_ar.toggle_mode = true
 	_btn_ar.pressed.connect(func(): ar_requested.emit())
-	for b in [_btn_arm, b_build, b_pid, _btn_ar]: tr.add_child(b)
+	for b in [b_reset, _btn_arm, b_build, b_pid, _btn_ar]: tr.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
