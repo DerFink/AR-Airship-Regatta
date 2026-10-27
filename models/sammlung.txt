@@ -1,0 +1,4 @@
+# Modellsammlung (Admin)
+# Jede Zeile = ein Modell-String (LTA1:Name:Daten:Prüfsumme), so wie ihn die App
+# unter Baukasten → Teilen → Kopieren erzeugt. Zeilen mit # werden ignoriert.
+# Logos zu den Modellen als PNG unter ihrem Dateinamen in models/logos/ ablegen.

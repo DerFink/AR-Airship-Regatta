@@ -1,0 +1,10 @@
+# Godot-Zwischenstände (werden beim Öffnen neu erzeugt)
+.godot/
+*.import
+# Exporte / Builds
+build/
+*.apk
+*.aab
+# Schlüssel niemals einchecken
+*.keystore
+*.jks

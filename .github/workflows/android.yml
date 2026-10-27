@@ -1,0 +1,67 @@
+# 2026-10-27 11:29 – Erstversion: bei jedem Push Headless-Tests ausführen, Android-Debug-APK bauen und als Release veröffentlichen (feste Download-Adresse fürs Handy)
+#
+# Ablauf auf GitHub (kostenlos für öffentliche Repositories):
+#   1. Godot 4.3 + Android-SDK kommen aus dem Open-Source-Container godot-ci
+#   2. Projekt importieren, Headless-Tests laufen lassen (Abbruch bei Skriptfehler)
+#   3. APK bauen (Debug-signiert – zum Selbst-Installieren, nicht für den Play Store)
+#   4. Neues Release "Android-Build N" mit der APK; die neueste APK ist immer unter
+#      https://github.com/<Konto>/<Repo>/releases/latest/download/ar-airship-regatta.apk
+name: Android-APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write          # nötig, um das Release anzulegen
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot-Vorlagen und Android-Einstellungen bereitstellen
+        run: |
+          # Der Container legt alles unter /root ab, GitHub nutzt ein anderes HOME
+          if [ "$HOME" != "/root" ]; then
+            mkdir -p ~/.local/share/godot/export_templates ~/.config/godot
+            cp -r /root/.local/share/godot/export_templates/* ~/.local/share/godot/export_templates/
+            cp /root/.config/godot/editor_settings-*.tres ~/.config/godot/
+          fi
+          ls ~/.local/share/godot/export_templates ~/.config/godot
+
+      - name: Projekt importieren
+        run: godot --headless --import --path . || true
+
+      - name: Headless-Tests
+        run: |
+          set -o pipefail
+          for t in smoke_test chewie_test v03_test ui_test; do
+            echo "=== $t"
+            godot --headless --path . -s tests/$t.gd 2>&1 | tee out.txt | grep -vE 'mesh_get_surface_count|Parameter "m" is null' || true
+            if grep -qE "SCRIPT ERROR|Parse Error" out.txt; then echo "Test $t fehlgeschlagen"; exit 1; fi
+          done
+
+      - name: APK bauen
+        run: |
+          mkdir -p build
+          godot --headless --verbose --export-debug "Android Debug" build/ar-airship-regatta.apk
+          ls -la build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ar-airship-regatta-apk
+          path: build/ar-airship-regatta.apk
+
+      - name: Als Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-build-${{ github.run_number }}
+          name: Android-Build ${{ github.run_number }}
+          body: Debug-APK vom Commit ${{ github.sha }}. Auf dem Handy herunterladen und installieren (Installation aus unbekannten Quellen erlauben).
+          files: build/ar-airship-regatta.apk
+          make_latest: true

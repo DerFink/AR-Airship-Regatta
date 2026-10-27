@@ -1,0 +1,27 @@
+{
+	"_info": "Design-Tokens der App. Hier ändern = überall ändern. Farben als #RRGGBB oder #RRGGBBAA.",
+	"color": {
+		"backdrop": "#0b0f14b3",
+		"surface": "#161c23e6",
+		"surface_alt": "#222a33",
+		"border": "#ffffff1f",
+		"border_strong": "#ffffff40",
+		"text": "#e9eef3",
+		"text_muted": "#9aa7b4",
+		"accent": "#3d8bfd",
+		"accent_bg": "#3d8bfd33",
+		"success": "#3fb27f",
+		"warning": "#e0a43a",
+		"warning_bg": "#e0a43a33",
+		"danger": "#e5534b",
+		"danger_bg": "#e5534b33",
+		"stick_ring": "#ffffff55",
+		"stick_knob": "#ffffffbb",
+		"plot_setpoint": "#9aa7b4",
+		"plot_measure": "#3d8bfd"
+	},
+	"radius": { "sm": 6, "md": 10, "lg": 16 },
+	"space": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24 },
+	"font": { "caption": 14, "body": 17, "title": 21 },
+	"size": { "control_height": 48, "stick_diameter": 240, "panel_side_width": 300 }
+}
