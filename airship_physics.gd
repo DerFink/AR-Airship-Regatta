@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Massenmodell aus Teilmassen: Hülle (verteilt), Motoren am Einbauort, Elektronik + Akku + Ballast als Masse unten an der Hülle (Menge aus Auftrieb, Lage automatisch getrimmt); Schwerpunkt und Trägheit daraus berechnet; Bauteile werden vor der Massenbilanz platziert
 # 2026-10-27 15:09 – Leitwerk als TailConfig: Flossen werden bei rebuild_mass_properties() daraus erzeugt, Canards bleiben erhalten
 # 2026-10-27 12:55 – reset_to(): Schiff im Physikschritt an den Startpunkt versetzen, Geschwindigkeiten/Motoren/Ruder nullen
 # 2026-10-27 12:23 – Motoren bekommen ihre Anströmung (Schubabfall mit der Fahrt); Anstellwinkel erst ab 1 m/s angezeigt (vorher z. B. 105° beim Absinken im Stand)
@@ -45,12 +46,24 @@ signal config_changed
 @export var tail: TailConfig
 
 @export_group("Massen")
-## Masse aller Bauteile ohne Traggas (Hülle, Elektronik, Akku, Ballast) in kg.
+## Hülle mit Nähten (ohne Traggas), in kg. Verteilt über die Hüllenfläche.
+@export_range(0.0, 10000.0, 0.001, "or_greater") var hull_mass_kg: float = 0.086
+## Elektronik ohne Akku (Flugcontroller, Empfänger, BEC), in kg.
+## Sitzt zusammen mit Akku und Ballast unten an der Hülle.
+@export_range(0.0, 10000.0, 0.001, "or_greater") var electronics_mass_kg: float = 0.030
+## Längsposition der unten angeklebten Restmasse (0 = Nase, 1 = Heck).
+@export_range(0.0, 1.0, 0.01) var ballast_x: float = 0.45
+## true = Restmasse wird so verschoben, dass der Schwerpunkt genau unter dem
+## Auftriebszentrum liegt (Schiff hängt waagrecht).
+@export var ballast_auto_x: bool = true
+## Gesamte Strukturmasse ohne Traggas (Summe aller Teile), kg. Bei auto_trim
+## wird sie aus dem Auftrieb bestimmt, sonst gilt der eingetragene Wert.
 @export_range(0.0, 10000.0, 0.001, "or_greater") var structure_mass_kg: float = 0.25
-## Schwerpunkt relativ zum Auftriebszentrum (unten = pendelstabil).
+## Gesamtschwerpunkt relativ zum Auftriebszentrum – wird in
+## rebuild_mass_properties() aus allen Teilmassen berechnet.
 @export var cg_offset: Vector3 = Vector3(0, -0.12, 0)
-## Bei true wird die Strukturmasse so gesetzt, dass das Schiff um
-## trim_heaviness_n schwerer als Luft ist (bequem für Tests).
+## Bei true wird die Restmasse (Akku + Ballast) so gesetzt, dass das Schiff
+## um trim_heaviness_n schwerer als Luft ist (schwebt fast neutral).
 @export var auto_trim: bool = true
 @export var trim_heaviness_n: float = 0.05
 
@@ -74,6 +87,14 @@ signal config_changed
 
 # --- Abgeleitete Größen -------------------------------------------------------
 var total_mass: float = 0.0
+## Akku + Ballast (aus dem Auftrieb berechnet), kg
+var rest_mass_kg: float = 0.0
+## Elektronik + Akku + Ballast als eine Masse unten an der Hülle, kg
+var bottom_mass_kg: float = 0.0
+## Ort dieser Masse im Körpersystem (direkt am Hüllenboden)
+var bottom_mass_pos: Vector3 = Vector3.ZERO
+## true = Hülle, Motoren und Elektronik wiegen schon mehr als der Auftrieb trägt
+var overweight: bool = false
 var added_mass: Vector3 = Vector3.ZERO      ## Ma (diagonal, Körperachsen)
 var inertia_rb: Vector3 = Vector3.ZERO      ## I  (diagonal)
 var added_inertia: Vector3 = Vector3.ZERO   ## Ia (diagonal)
@@ -114,29 +135,8 @@ func set_hull(h: GertlerHull) -> void:
 # Massen, Trägheiten und virtuelle Massen aus der Hüllengeometrie
 # =============================================================================
 func rebuild_mass_properties() -> void:
-	var V := hull.volume_m3
-	var a := hull.length_m * 0.5           # Halbachse längs
-	var b := hull.diameter_m * 0.5         # Halbachse quer
-	var gas_mass := gas_density * V
-
-	if auto_trim:
-		# Auftrieb = ρ_Luft·V·g ; Gewicht = (Struktur + Gas)·g
-		structure_mass_kg = maxf(0.0, air_density * V - gas_mass + trim_heaviness_n / gravity_mps2)
-	total_mass = structure_mass_kg + gas_mass
-	mass = maxf(total_mass, 0.001)         # für Godots Kollisionsantwort
-
-	# Trägheit als Vollellipsoid (Näherung; Akku/Gondel ergänzt später der Baukasten)
-	var i_lat := total_mass * (a * a + b * b) / 5.0
-	var i_ax := total_mass * 2.0 * b * b / 5.0
-	inertia_rb = Vector3(i_lat, i_lat, i_ax)
-
-	# Virtuelle Massen (ATTAS): Längs k1, quer k2, Drehung k'
-	var m_air := air_density * V
-	added_mass = Vector3(hull.k2 * m_air, hull.k2 * m_air, hull.k1 * m_air)
-	var i_air := m_air * (a * a + b * b) / 5.0
-	added_inertia = Vector3(hull.k_rot * i_air, hull.k_rot * i_air, 0.0)
-
-	# Leitwerk aus der Konfiguration neu erzeugen, freie Flächen (Canards) behalten
+	# --- 1) Leitwerk erzeugen und alle Bauteile an die Hülle setzen ---------
+	# (zuerst, weil die Motormassen ihren Einbauort brauchen)
 	if tail:
 		var free: Array[ControlSurface] = []
 		for s in surfaces:
@@ -145,11 +145,75 @@ func rebuild_mass_properties() -> void:
 		var fins := tail.generate()
 		fins.append_array(free)
 		surfaces = fins
-	# Bauteile an die (evtl. neu skalierte) Hülle setzen
 	for s in surfaces:
 		s.place_on_hull(hull)
 	for mot in motors:
 		mot.place_on_hull(hull)
+
+	# --- 2) Massenbilanz ------------------------------------------------------
+	#   Traggas      im Auftriebszentrum (Ursprung)
+	#   Hülle        verteilt, Schwerpunkt ≈ Auftriebszentrum
+	#   Motoren      je an ihrem Einbauort (mit Schwenkservo)
+	#   Unten        Elektronik + Akku + Ballast, direkt am Hüllenboden
+	var V := hull.volume_m3
+	var a := hull.length_m * 0.5           # Halbachse längs
+	var b := hull.diameter_m * 0.5         # Halbachse quer
+	var gas_mass := gas_density * V
+	var motor_mass := 0.0
+	for mot in motors:
+		motor_mass += mot.mass_kg
+	var fixed := hull_mass_kg + motor_mass + electronics_mass_kg
+	if auto_trim:
+		# Auftrieb = ρ_Luft·V·g ; Gewicht = (Struktur + Gas)·g + gewünschte Schwere
+		var needed := air_density * V - gas_mass + trim_heaviness_n / gravity_mps2
+		rest_mass_kg = maxf(0.0, needed - fixed)
+		overweight = fixed > needed
+	else:
+		rest_mass_kg = maxf(0.0, structure_mass_kg - fixed)
+		overweight = false
+	structure_mass_kg = fixed + rest_mass_kg
+	bottom_mass_kg = electronics_mass_kg + rest_mass_kg
+	total_mass = structure_mass_kg + gas_mass
+	mass = maxf(total_mass, 0.001)         # für Godots Kollisionsantwort
+
+	# Längsmoment der Motoren (Körper-Z, + = hinten) – für das Austrimmen
+	var mz_motors := 0.0
+	for mot in motors:
+		mz_motors += mot.mass_kg * mot.position.z
+	if ballast_auto_x and bottom_mass_kg > 1e-6:
+		# Unten-Masse so legen, dass der Gesamtschwerpunkt unter dem Auftriebszentrum liegt
+		var z_needed := -mz_motors / bottom_mass_kg
+		ballast_x = clampf((z_needed + hull.cb_from_nose) / hull.length_m, 0.05, 0.95)
+	var zb := ballast_x * hull.length_m - hull.cb_from_nose
+	bottom_mass_pos = Vector3(0, -hull.radius_at(ballast_x), zb)   # klebt am Hüllenboden
+
+	# Gesamtschwerpunkt (Gas und Hülle sitzen im Ursprung)
+	var moment := bottom_mass_pos * bottom_mass_kg
+	for mot in motors:
+		moment += mot.position * mot.mass_kg
+	cg_offset = moment / maxf(total_mass, 1e-6)
+
+	# --- 3) Trägheitsmomente um das Auftriebszentrum (Diagonale) -----------
+	# X = Nickachse, Y = Gierachse, Z = Rollachse (Längsachse)
+	# Traggas als Vollellipsoid, Hülle als dünne Schale (Näherung),
+	# Motoren und Unten-Masse als Punktmassen (Steiner).
+	var i_lat := gas_mass * (a * a + b * b) / 5.0 + hull_mass_kg * (a * a / 3.0 + b * b / 2.0)
+	var i_ax := gas_mass * 2.0 * b * b / 5.0 + hull_mass_kg * 2.0 * b * b / 3.0
+	var I := Vector3(i_lat, i_lat, i_ax)
+	var pts: Array = [[bottom_mass_kg, bottom_mass_pos]]
+	for mot in motors:
+		pts.append([mot.mass_kg, mot.position])
+	for p in pts:
+		var m: float = p[0]
+		var r: Vector3 = p[1]
+		I += m * Vector3(r.y * r.y + r.z * r.z, r.x * r.x + r.z * r.z, r.x * r.x + r.y * r.y)
+	inertia_rb = I
+
+	# --- 4) Virtuelle Massen (ATTAS): Längs k1, quer k2, Drehung k' ---------
+	var m_air := air_density * V
+	added_mass = Vector3(hull.k2 * m_air, hull.k2 * m_air, hull.k1 * m_air)
+	var i_air := m_air * (a * a + b * b) / 5.0
+	added_inertia = Vector3(hull.k_rot * i_air, hull.k_rot * i_air, 0.0)
 	config_changed.emit()
 
 

@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Teilmassen im String (Hülle, Elektronik, Lage/Automatik der Restmasse, Gondelmasse); alte Strings bekommen Standardwerte
 # 2026-10-27 15:09 – Leitwerk als Beschreibung im String (tail: Anordnung, Anzahl, Bauart, Fläche, Streckung, Pfeilung …); Flossen-Zuspitzung; ältere Strings ohne tail bleiben lesbar
 # 2026-10-27 12:23 – Propellersteigung (pit) im Modell-String; fehlt sie in älteren Strings, gilt 3"
 # 2026-10-27 11:08 – Erstversion: Modell als Textstring (LTA1) exportieren/importieren – komprimiert, mit Prüfsumme, Versionskennung und Grenzwertprüfung jedes Werts; Logo nur als Verweis
@@ -31,6 +32,7 @@ const LIMITS := {
 	"m": [0.2, 0.6], "r0": [0.0, 1.0], "r1": [0.0, 0.5], "cp": [0.5, 0.75],
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
+	"hm": [0.0, 1000.0], "el": [0.0, 1000.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
@@ -48,7 +50,10 @@ static func encode(ship: AirshipPhysics) -> String:
 	var data := {
 		"v": 1,
 		"hull": {"m": h.m, "r0": h.r0, "r1": h.r1, "cp": h.cp, "ld": h.length_to_diameter, "vol": h.volume_m3},
-		"mass": {"cg_y": ship.cg_offset.y, "trim": ship.trim_heaviness_n},
+		# Massen: Hülle, Elektronik, Lage der unten angeklebten Restmasse
+		# (Schwerpunkt wird beim Laden daraus neu berechnet)
+		"mass": {"trim": ship.trim_heaviness_n, "hm": ship.hull_mass_kg, "el": ship.electronics_mass_kg,
+			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x},
 		"fins": [], "motors": [],
 	}
 	# Symmetrisches Leitwerk als Beschreibung (nicht Flosse für Flosse)
@@ -68,7 +73,8 @@ static func encode(ship: AirshipPhysics) -> String:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
 			"swv": m.max_swivel_deg, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
-			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir})
+			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir,
+			"mk": m.mass_kg})
 	var l := ship.livery
 	data["look"] = {"col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
@@ -113,8 +119,11 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	h.length_to_diameter = hd.ld; h.volume_m3 = hd.vol
 	ship.set_hull(h)
 	ship.model_name = name
-	ship.cg_offset = Vector3(0, d.mass.cg_y, 0)
 	ship.trim_heaviness_n = d.mass.trim
+	ship.hull_mass_kg = d.mass.hm
+	ship.electronics_mass_kg = d.mass.el
+	ship.ballast_x = d.mass.bx
+	ship.ballast_auto_x = d.mass.bauto
 
 	var fins: Array[ControlSurface] = []
 	for f in d.fins:
@@ -140,6 +149,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		mo.reverse_allowed = m.rev; mo.reverse_efficiency = m.reff
 		mo.prop_diameter_in = m.d; mo.prop_pitch_in = m.pit; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
 		mo.spin_dir = int(m.dir)
+		mo.mass_kg = m.mk
 		mots.append(mo)
 	ship.motors = mots
 
@@ -199,7 +209,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 	var out := {
 		"hull": {"m": _num(hd, "m", 0.4), "r0": _num(hd, "r0", 0.5), "r1": _num(hd, "r1", 0.0),
 			"cp": _num(hd, "cp", 0.65), "ld": _num(hd, "ld", 5.0), "vol": _num(hd, "vol", 0.25)},
-		"mass": {"cg_y": _num(md, "cg_y", -0.12), "trim": _num(md, "trim", 0.05)},
+		# ältere Strings ohne Teilmassen bekommen die Standardwerte
+		"mass": {"trim": _num(md, "trim", 0.05), "hm": _num(md, "hm", 0.086), "el": _num(md, "el", 0.030),
+			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true)},
 		"fins": [], "motors": [],
 	}
 	var fins = d.get("fins", [])
@@ -227,7 +239,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				"tilt": _num(m, "tilt", 0.0), "thrust": _num(m, "thrust", 1.2), "swv": _num(m, "swv", 60.0),
 				"rev": _flag(m, "rev", true), "reff": _num(m, "reff", 0.55), "d": _num(m, "d", 5.0),
 				"pit": _num(m, "pit", 3.0), "bl": _num(m, "bl", 2), "rpm": _num(m, "rpm", 18000.0),
-				"dir": -1 if _num(m, "dir", 1) < 0 else 1})
+				"dir": -1 if _num(m, "dir", 1) < 0 else 1, "mk": _num(m, "mk", 0.030)})
 	var lk: Dictionary = d.get("look", {}) if d.get("look") is Dictionary else {}
 	var logo := _txt(lk, "logo", "", 40)
 	# Logo-Verweis darf nur ein schlichter Dateiname sein (kein Pfad!)

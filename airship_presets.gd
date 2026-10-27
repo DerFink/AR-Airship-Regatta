@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Chewie laut Nutzer: L/D 6, Hülle 86 g, Motoren seitlich unten bei 135°/225°, Massen (90 g Antrieb + Elektronik, Aufteilung angenommen); Massenwerte in beiden Presets
 # 2026-10-27 15:09 – Presets nutzen TailConfig: Albacore = + mit Klappen, Chewie = λ in Pendelausführung (19 × 19 cm, Streckung 1, Pfeilung 0,8, 45°)
 # 2026-10-27 14:36 – Chewie: λ-Leitwerk in Pendelausführung, je ca. 19 × 19 cm, Streckung 1 (Nutzerangabe); Motorschwenk max. 110°
 # 2026-10-27 12:23 – Chewie-Antrieb auf 2 × GEPRC SpeedX2 1804 mit 4"-Propellern umgestellt (ca. 7 N Standschub je Motor, 27 000 U/min, Steigung 3" – Annahmen, s. u.)
@@ -70,6 +71,10 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.set_hull(GertlerHull.new())     # Standardwerte = Albacore-Näherung
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
+	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
+	ship.hull_mass_kg = 0.086
+	ship.electronics_mass_kg = 0.030
+	ship.ballast_auto_x = true
 	# Kreuzleitwerk (+) mit Ruderklappen, 0,14 m² je Flosse (0,08 war instabil, s. Kopf)
 	var t := TailConfig.new()
 	t.layout = TailConfig.Layout.PLUS
@@ -91,16 +96,27 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 # =============================================================================
 # Chewie: umgekehrtes Y-Leitwerk (1 oben, 2 unten bei ±45° zur Senkrechten,
 # die auch Seite mitsteuern), KEINE Canards.
-# 2 Bugmotoren links/rechts, jede Gondel schwenkt um eine eigene Achse, die
+# 2 Bugmotoren seitlich unten (45° unter der Waagrechten), jede Gondel schwenkt um eine eigene Achse, die
 # um die Längsachse 45° nach unten gedreht ist (Pigleg-Anordnung):
 #   – beide Gondeln gleichsinnig geschwenkt → Schub kippt nach oben/unten → Nick
 #   – gegensinnig geschwenkt → Seitenkräfte addieren sich → Gier
 # ANNAHME (bitte am Modell nachmessen): Längsposition der Motoren 0,25.
 # =============================================================================
 static func chewie(ship: AirshipPhysics) -> void:
-	ship.set_hull(GertlerHull.new())
+	# Hülle laut Nutzer: 0,25 m³, L/D 6, Octax mit Nähten 86 g
+	var h := GertlerHull.new()
+	h.length_to_diameter = 6.0
+	h.volume_m3 = 0.25
+	ship.set_hull(h)
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
+	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
+	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.
+	# Akku + Ballast klebt mit der Elektronik unten an der Hülle; die Menge
+	# ergibt sich aus dem Auftrieb, die Längslage trimmt sich automatisch.
+	ship.hull_mass_kg = 0.086
+	ship.electronics_mass_kg = 0.030
+	ship.ballast_auto_x = true
 	# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
 	# (0,036 m²), Streckung 1, Pfeilung (Zuspitzung) 0,8, untere Flossen 45°
 	# unter der Waagrechten.
@@ -117,8 +133,9 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots: Array[VectorMotor] = [
-		make_motor("Bugmotor rechts", 0.25, 90.0, 7.0, 110.0, 45.0),
-		make_motor("Bugmotor links", 0.25, 270.0, 7.0, 110.0, 45.0),
+		# seitlich unten, 45° unter der Waagrechten (135° rechts, 225° links)
+		make_motor("Bugmotor rechts", 0.25, 135.0, 7.0, 110.0, 45.0),
+		make_motor("Bugmotor links", 0.25, 225.0, 7.0, 110.0, 45.0),
 	]
 	# Paar gemeinsam einstellbar; gegenläufige Propeller wie beim Quadcopter.
 	# Rückwärtsschub erlaubt (ESC vor/zurück), normaler Propeller ≈ 55 % rückwärts.
@@ -132,5 +149,6 @@ static func chewie(ship: AirshipPhysics) -> void:
 		mots[i].prop_blades = 2
 		mots[i].max_rpm = 27000.0
 		mots[i].spool_time_s = 0.08      # kleine Motoren drehen schnell hoch
+		mots[i].mass_kg = 0.030          # Motor + Propeller + Schwenkservo (Annahme, s. o.)
 	ship.motors = mots
 	ship.rebuild_mass_properties()

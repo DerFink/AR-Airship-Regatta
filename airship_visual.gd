@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Restmasse (Block am Hüllenboden) und Schwerpunkt (rote Kugel) im Baukasten sichtbar
 # 2026-10-27 15:09 – Flossen als Trapez mit Zuspitzung (Pfeilung) statt Quader
 # 2026-10-27 11:08 – Hülle trägt die Gestaltungs-Textur (LiveryCanvas: Farbe, Schriftzug, Logo); bei Änderungen der Gestaltung wird nur neu gemalt
 # 2026-10-27 10:42 – Erstversion: 3D-Darstellung aus der Konfiguration (Hülle, Flossen, Motorgondeln mit Live-Schwenk und Ruderausschlag), Einfärbung nach Validator-Ergebnis, Kollisionsform passend zur Hülle
@@ -24,12 +25,32 @@ var _collision: CollisionShape3D
 var _fin_mat := StandardMaterial3D.new()
 var _canvas := LiveryCanvas.new()        ## malt Farbe, Schriftzug und Logo
 var _livery: Livery                      ## aktuell angezeigte Gestaltung
+var _mass_node := MeshInstance3D.new()   ## Restmasse unten an der Hülle (nur im Baukasten)
+var _cg_node := MeshInstance3D.new()     ## Gesamtschwerpunkt (nur im Baukasten)
+var _workshop := false
 
 
 func _ready() -> void:
 	ship = get_parent() as AirshipPhysics
 	add_child(_hull_mesh)
 	add_child(_canvas)
+	add_child(_mass_node)
+	add_child(_cg_node)
+	# Restmasse: halbtransparenter Block (türkis), Schwerpunkt: rote Kugel,
+	# die durch die Hülle hindurch sichtbar bleibt
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.11, 0.62, 0.46, 0.75)
+	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_mass_node.material_override = bm
+	var cm := StandardMaterial3D.new()
+	cm.albedo_color = Color("e24b4a")
+	cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cm.no_depth_test = true
+	_cg_node.material_override = cm
+	var sph := SphereMesh.new()
+	sph.radius = 0.012; sph.height = 0.024
+	_cg_node.mesh = sph
+	set_workshop(false)
 	_fin_mat.albedo_color = fin_color
 	_fin_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	# Kollisionsform als Geschwister des Visuals (muss direktes Kind des Bodys sein)
@@ -57,6 +78,17 @@ func rebuild() -> void:
 	_hull_mesh.material_override = hm
 	_hook_livery()
 	_repaint()
+
+	# --- Restmasse (Elektronik + Akku + Ballast) und Schwerpunkt ----------
+	# Blockgröße aus der Masse (Dichte ≈ 2 g/cm³, Seiten 3 : 1,5 : 1),
+	# Oberseite liegt am Hüllenboden an.
+	var vol := maxf(ship.bottom_mass_kg, 0.001) / 2000.0
+	var k := pow(vol / 4.5, 1.0 / 3.0)
+	var box := BoxMesh.new()
+	box.size = Vector3(1.5 * k, k, 3.0 * k)
+	_mass_node.mesh = box
+	_mass_node.position = ship.bottom_mass_pos - Vector3(0, 0.5 * k, 0)
+	_cg_node.position = ship.cg_offset
 
 	# --- Kollision: Kapsel entlang der Längsachse ---------------------------
 	var cap := CapsuleShape3D.new()
@@ -117,6 +149,13 @@ func rebuild() -> void:
 		g.add_child(prop)
 		g.set_meta("motor", m)
 		_motor_nodes.append(g)
+
+
+## Restmasse und Schwerpunkt nur im Baukasten zeigen (im Flug unsichtbar).
+func set_workshop(on: bool) -> void:
+	_workshop = on
+	_mass_node.visible = on
+	_cg_node.visible = on
 
 
 ## Flache Flosse als Trapez (zweiseitig gerendert): Wurzeltiefe c_r an der

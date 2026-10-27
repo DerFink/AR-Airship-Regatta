@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Gondelmasse mass_kg (mit Schwenkservo); Pigleg-Neigung der Schwenkachse gilt jetzt gegen die Waagrechte (unabhängig vom Einbauwinkel)
 # 2026-10-27 12:23 – Schubabfall mit der Fahrt über die Propellersteigung (prop_pitch_in); compute_force bekommt die Anströmung des Motors
 # 2026-10-27 11:08 – Rückwärtsschub: pro Motor(paar) zuschaltbar (reverse_allowed) mit reduziertem Wirkungsgrad (reverse_efficiency); Propellerdaten für Sound (Durchmesser, Blattzahl, max. Drehzahl, Drehrichtung); pair_id für gemeinsame Einstellung im Baukasten; signed_thrust_estimate() für den Mischer; rpm() / is_reversing() für den Sound
 # 2026-10-27 10:42 – Parametrische Platzierung (hull_x, hull_angle_deg, standoff_m) und Pigleg-Schwenkachse: swivel_tilt_deg dreht die Querachse um die Längsachse nach unten; invert_swivel automatisch für linke Seite
@@ -38,6 +39,9 @@ extends Resource
 
 # --- Schub vor / zurück -------------------------------------------------------
 ## Maximaler Standschub VORWÄRTS in Newton (je Motor).
+## Masse der Gondel mit Motor, Propeller und Schwenkservo, in kg.
+## Wirkt am Einbauort (geht in Schwerpunkt und Trägheit ein).
+@export_range(0.0, 50.0, 0.001, "or_greater") var mass_kg: float = 0.030
 @export_range(0.0, 500.0, 0.01, "or_greater") var max_thrust_n: float = 1.5
 ## Darf der Regler rückwärts drehen (Knüppel unter der Mitte)?
 @export var reverse_allowed: bool = true
@@ -93,9 +97,13 @@ func place_on_hull(hull: GertlerHull) -> void:
 	var d := Vector3(sin(a), cos(a), 0.0)                  # vom Rumpf weg
 	var z := hull_x * hull.length_m - hull.cb_from_nose
 	position = d * (hull.radius_at(hull_x) + standoff_m) + Vector3(0, 0, z)
-	# Querachse der Gondel = Abstehrichtung, um die Längsachse nach unten geneigt
+	# Schwenkachse: waagrechte Querachse zur Motorseite, um die Längsachse um
+	# swivel_tilt_deg nach unten geneigt (Pigleg). Die Neigung gilt gegen die
+	# Waagrechte – unabhängig vom Einbauwinkel. Sitzt der Motor 45° unten
+	# (135°/225°), zeigt eine 45°-Achse also genau radial durch den Motorfuß.
 	var side := signf(d.x) if absf(d.x) > 0.01 else 1.0
-	swivel_axis = d.rotated(Vector3(0, 0, 1), -side * deg_to_rad(swivel_tilt_deg)).normalized()
+	var horiz := Vector3(side, 0.0, 0.0)
+	swivel_axis = horiz.rotated(Vector3(0, 0, 1), -side * deg_to_rad(swivel_tilt_deg)).normalized()
 	invert_swivel = side < 0.0
 
 

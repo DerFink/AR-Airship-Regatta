@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Reiter Hülle: Massen (Hülle, Elektronik, Restmasse-Anzeige, Lage mit Automatik); Antrieb: Masse je Gondel
 # 2026-10-27 15:12 – Umbau nach freigegebenem Entwurf: vier Reiter (Hülle, Leitwerk, Antrieb, Gestaltung); Leitwerk als symmetrische Anordnung (+, ×, Y, λ, gleichmäßig 1–8 Flossen; Klappe/Pendel; Fläche in cm², Streckung, Pfeilung, V-Winkel; Höhen-/Seitenleitwerk getrennt); Canards separat; Heckansicht; Hinweis und Knopf „Ansicht“ für Drehen/Zoomen; große Regler
 # 2026-10-27 14:36 – Schwenkbereich der Motoren im Editor bis 120° (Chewie: 110°)
 # 2026-10-27 12:24 – Rechte Spalte und Validator-Banner per eigener Layout-Funktion platziert (lagen teils außerhalb des Bildes)
@@ -45,6 +46,8 @@ var _hint: Label
 var _view_btn: Button
 var _preview: TailPreview
 var _hull_rows := {}
+var _ballast_auto: CheckBox        ## Restmasse automatisch austrimmen
+var _mass_info: Label              ## Anzeige Akku + Ballast / Übergewicht
 var _last_level := -1
 var _file_dialog: FileDialog
 var _left: PanelContainer
@@ -183,6 +186,28 @@ func _build_hull_page(col: VBoxContainer) -> void:
 		func(v): ship.hull.cp = v, "%.3f")
 	for k in ["vol", "ld", "m", "cp"]:
 		col.add_child(_hull_rows[k])
+
+	# --- Massen: Hülle, Elektronik und die unten angeklebte Restmasse ------
+	# Motormassen stehen im Reiter Antrieb (je Motorgondel mit Servo).
+	col.add_child(UITheme.make_title("Massen"))
+	_hull_rows.hm = UITheme.make_slider_row("Hülle mit Nähten", 10.0, 2000.0, 1.0, ship.hull_mass_kg * 1000.0,
+		func(v): ship.hull_mass_kg = v / 1000.0; _changed(), "%d g")
+	_hull_rows.el = UITheme.make_slider_row("Elektronik (FC, RX, BEC)", 0.0, 1000.0, 1.0, ship.electronics_mass_kg * 1000.0,
+		func(v): ship.electronics_mass_kg = v / 1000.0; _changed(), "%d g")
+	col.add_child(_hull_rows.hm)
+	col.add_child(_hull_rows.el)
+	_mass_info = UITheme.make_label("", "MutedLabel")
+	_mass_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_mass_info)
+	_ballast_auto = CheckBox.new()
+	_ballast_auto.text = "Restmasse automatisch unter den Auftriebspunkt"
+	_ballast_auto.button_pressed = ship.ballast_auto_x
+	_ballast_auto.toggled.connect(func(on): ship.ballast_auto_x = on; _changed())
+	col.add_child(_ballast_auto)
+	# Von Hand verschieben schaltet die Automatik ab
+	_hull_rows.bx = UITheme.make_slider_row("Lage der Restmasse (0 Nase · 1 Heck)", 0.05, 0.95, 0.01, ship.ballast_x,
+		_on_ballast_x, "%.2f")
+	col.add_child(_hull_rows.bx)
 
 
 ## Auswahlliste neu füllen (Presets + Sammlung + eigene Modelle).
@@ -399,6 +424,8 @@ func _on_part_selected(i: int) -> void:
 	var set_all := func(prop: String, v, relayout: bool):
 		for m in pair: m.set(prop, v)
 		if relayout: _changed()
+	_editor_box.add_child(UITheme.make_slider_row("Masse je Gondel (mit Servo)", 0.0, 300.0, 1.0, mo.mass_kg * 1000.0,
+		func(v): set_all.call("mass_kg", v / 1000.0, true), "%d g"))
 	_editor_box.add_child(UITheme.make_slider_row("Schub vor", 0.1, 20.0, 0.1, mo.max_thrust_n,
 		func(v): set_all.call("max_thrust_n", v, true), "%.1f N"))
 	var rev := CheckBox.new()
@@ -553,6 +580,7 @@ func _refresh() -> void:
 	_stats.text = "%s\n%.2f × %.2f m\nV_T Nick %.2f\nV_T Gier %.2f\nStab. Nick %.2f\nStab. Gier %.2f\nMasse %.0f g" % [
 		ship.model_name, h.length_m, h.diameter_m, r.vt_pitch, r.vt_yaw, r.ratio_pitch, r.ratio_yaw,
 		ship.total_mass * 1000.0]
+	_update_mass_info()
 	var level := "success"
 	if r.level == TailValidator.Level.UNSTABLE: level = "danger"
 	elif r.level == TailValidator.Level.MARGINAL: level = "warning"
@@ -573,8 +601,10 @@ func _changed() -> void:
 ## Regler auf das aktuelle Modell setzen (nach Modellwechsel/Import).
 func _sync_from_ship() -> void:
 	var vals := {"vol": ship.hull.volume_m3, "ld": ship.hull.length_to_diameter,
-		"m": ship.hull.m, "cp": ship.hull.cp}
-	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f"}
+		"m": ship.hull.m, "cp": ship.hull.cp, "hm": ship.hull_mass_kg * 1000.0,
+		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x}
+	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hm": "%d g", "el": "%d g", "bx": "%.2f"}
+	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)
 	for k in vals:
 		(_hull_rows[k].get_meta("slider") as HSlider).set_value_no_signal(vals[k])
 		(_hull_rows[k].get_meta("out") as Label).text = fmts[k] % vals[k]
@@ -583,6 +613,33 @@ func _sync_from_ship() -> void:
 	_fill_tail_page()
 	_fill_look_page()
 	_refresh()
+
+
+## Regler „Lage der Restmasse“: Wert übernehmen, Automatik abschalten.
+func _on_ballast_x(v: float) -> void:
+	ship.ballast_x = v
+	if ship.ballast_auto_x:
+		ship.ballast_auto_x = false
+		_ballast_auto.set_pressed_no_signal(false)
+	_changed()
+
+
+## Massenanzeige im Reiter Hülle: Restmasse aus dem Auftrieb, Schwerpunkt,
+## Warnung bei Übergewicht; Lage-Regler folgt der Automatik.
+func _update_mass_info() -> void:
+	if _mass_info == null:
+		return
+	var cg := ship.cg_offset
+	if ship.overweight:
+		_mass_info.text = "Zu schwer: Hülle, Motoren und Elektronik wiegen mehr, als der Auftrieb trägt."
+		_mass_info.add_theme_color_override("font_color", UITheme.color("danger"))
+	else:
+		_mass_info.text = "Akku + Ballast: %d g (aus dem Auftrieb) · klebt unten an der Hülle\nSchwerpunkt %d cm unter der Achse" % [
+			roundi(ship.rest_mass_kg * 1000.0), roundi(-cg.y * 100.0)]
+		_mass_info.remove_theme_color_override("font_color")
+	var bx: HSlider = _hull_rows.bx.get_meta("slider")
+	bx.set_value_no_signal(ship.ballast_x)
+	(_hull_rows.bx.get_meta("out") as Label).text = "%.2f" % ship.ballast_x
 
 
 func _on_preset(idx: int) -> void:

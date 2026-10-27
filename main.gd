@@ -1,3 +1,4 @@
+# 2026-10-27 16:07 – Startmodell Chewie; Restmasse/Schwerpunkt nur im Baukasten einblenden
 # 2026-10-27 15:12 – Baukasten: Modell mit einem Finger drehen, mit zwei Fingern zoomen (PC: Maus ziehen / Mausrad); Knopf „Ansicht zurücksetzen“
 # 2026-10-27 12:55 – Kein Zoom mehr (fester Bildwinkel 60°, Wunsch des Nutzers); Knopf „Zurücksetzen“ stellt das Schiff an den Startpunkt
 # 2026-10-27 12:52 – Pilotensicht wie beim RC-Fliegen: fester Standort (1 m Richtung Mitte, 3 m neben Pylon 1, Augenhöhe 1,7 m), Blick folgt dem Schiff mit sanftem Zoom; Strecke mit zwei Pylonen im Abstand von 25 m; Start 6 m vor dem Piloten in 4 m Höhe
@@ -119,7 +120,7 @@ func _build_world() -> void:
 func _build_ship() -> void:
 	ship = AirshipPhysics.new()
 	ship.name = "Airship"
-	AirshipPresets.albacore_default(ship)
+	AirshipPresets.chewie(ship)              # Startmodell: Chewie
 	ship.position = SHIP_START
 	ship.rotation.y = -PI * 0.5             # Nase (−Z des Schiffs) zeigt nach +X, zu Pylon 2
 	visual = AirshipVisual.new()
@@ -274,6 +275,7 @@ func _set_view(v: View) -> void:
 	if workshop:
 		fc.armed = false
 	ship.freeze = workshop
+	visual.set_workshop(workshop)          # Restmasse + Schwerpunkt nur im Baukasten zeigen
 	ui_sounds.set_pad(workshop)
 
 
