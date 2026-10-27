@@ -1,3 +1,4 @@
+# 2026-10-27 12:25 – make_banner(width): feste Textbreite, damit der Zeilenumbruch nicht jedes Wort einzeln umbricht
 # 2026-10-27 11:08 – Stile für Reiter (TabContainer), Textfeld (TextEdit) und Kontrollkästchen ergänzt
 # 2026-10-27 10:42 – Erstversion: zentrales Design-System (Tokens aus theme_tokens.json mit eingebauten Standardwerten), Godot-Theme-Erzeugung, einheitliche Bausteine (Panel, Pill, Knopf, Slider-Zeile, Banner, Abschnittstitel)
 # =============================================================================
@@ -304,11 +305,14 @@ static func make_slider_row(label: String, min_v: float, max_v: float, step: flo
 # -----------------------------------------------------------------------------
 # Hinweis-Banner (Warnung / Fehler / Info). set_banner() ändert Text & Stil.
 # -----------------------------------------------------------------------------
-static func make_banner() -> PanelContainer:
+## width = feste Breite des Banners; der Text bricht innerhalb dieser Breite um
+## (ohne feste Breite würde der Umbruch jedes Wort in eine eigene Zeile setzen).
+static func make_banner(width := 360) -> PanelContainer:
 	var p := PanelContainer.new()
 	var l := make_label("")
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = width - 2 * space("sm")
 	p.add_child(l)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_banner(p, "", "info")

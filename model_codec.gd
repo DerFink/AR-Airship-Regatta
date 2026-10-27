@@ -1,3 +1,4 @@
+# 2026-10-27 12:23 – Propellersteigung (pit) im Modell-String; fehlt sie in älteren Strings, gilt 3"
 # 2026-10-27 11:08 – Erstversion: Modell als Textstring (LTA1) exportieren/importieren – komprimiert, mit Prüfsumme, Versionskennung und Grenzwertprüfung jedes Werts; Logo nur als Verweis
 # =============================================================================
 # ModelCodec.gd
@@ -32,7 +33,7 @@ const LIMITS := {
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
-	"reff": [0.1, 1.0], "d": [1.0, 30.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
+	"reff": [0.1, 1.0], "d": [1.0, 30.0], "pit": [1.0, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
 	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 0.8], "lpos": [0.05, 0.9],
 }
 
@@ -56,7 +57,7 @@ static func encode(ship: AirshipPhysics) -> String:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
 			"swv": m.max_swivel_deg, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
-			"d": m.prop_diameter_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir})
+			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir})
 	var l := ship.livery
 	data["look"] = {"col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
@@ -117,7 +118,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		var mo := AirshipPresets.make_motor(m.n, m.x, m.a, m.thrust, m.swv, m.tilt)
 		mo.pair_id = m.p; mo.standoff_m = m.so
 		mo.reverse_allowed = m.rev; mo.reverse_efficiency = m.reff
-		mo.prop_diameter_in = m.d; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
+		mo.prop_diameter_in = m.d; mo.prop_pitch_in = m.pit; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
 		mo.spin_dir = int(m.dir)
 		mots.append(mo)
 	ship.motors = mots
@@ -197,7 +198,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				"x": _num(m, "x", 0.25), "a": _num(m, "a", 90.0), "so": _num(m, "so", 0.08),
 				"tilt": _num(m, "tilt", 0.0), "thrust": _num(m, "thrust", 1.2), "swv": _num(m, "swv", 60.0),
 				"rev": _flag(m, "rev", true), "reff": _num(m, "reff", 0.55), "d": _num(m, "d", 5.0),
-				"bl": _num(m, "bl", 2), "rpm": _num(m, "rpm", 18000.0),
+				"pit": _num(m, "pit", 3.0), "bl": _num(m, "bl", 2), "rpm": _num(m, "rpm", 18000.0),
 				"dir": -1 if _num(m, "dir", 1) < 0 else 1})
 	var lk: Dictionary = d.get("look", {}) if d.get("look") is Dictionary else {}
 	var logo := _txt(lk, "logo", "", 40)

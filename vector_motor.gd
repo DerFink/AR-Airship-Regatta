@@ -1,3 +1,4 @@
+# 2026-10-27 12:23 – Schubabfall mit der Fahrt über die Propellersteigung (prop_pitch_in); compute_force bekommt die Anströmung des Motors
 # 2026-10-27 11:08 – Rückwärtsschub: pro Motor(paar) zuschaltbar (reverse_allowed) mit reduziertem Wirkungsgrad (reverse_efficiency); Propellerdaten für Sound (Durchmesser, Blattzahl, max. Drehzahl, Drehrichtung); pair_id für gemeinsame Einstellung im Baukasten; signed_thrust_estimate() für den Mischer; rpm() / is_reversing() für den Sound
 # 2026-10-27 10:42 – Parametrische Platzierung (hull_x, hull_angle_deg, standoff_m) und Pigleg-Schwenkachse: swivel_tilt_deg dreht die Querachse um die Längsachse nach unten; invert_swivel automatisch für linke Seite
 # 2026-10-27 10:28 – Erstversion: schwenkbare Motorgondel mit Schub vor/zurück, Servo-Ratenbegrenzung, Momentenbeitrag für Mischer
@@ -44,9 +45,11 @@ extends Resource
 ## Normaler Propeller ≈ 0,5–0,6 · 3D-Propeller (symmetrisch) ≈ 0,9–1,0
 @export_range(0.1, 1.0, 0.05) var reverse_efficiency: float = 0.55
 
-# --- Propeller (für Klang; Schub kommt aus max_thrust_n) ----------------------
+# --- Propeller (Klang und Schubabfall mit der Fahrt) --------------------------
 ## Propellerdurchmesser in Zoll (5" = 12,7 cm).
 @export_range(1.0, 30.0, 0.5) var prop_diameter_in: float = 5.0
+## Propellersteigung in Zoll (z. B. 4024 → 2,4"). Begrenzt die Endgeschwindigkeit.
+@export_range(1.0, 20.0, 0.1) var prop_pitch_in: float = 3.0
 @export_range(2, 6, 1) var prop_blades: int = 2
 ## Drehzahl bei Vollgas (U/min).
 @export_range(1000.0, 60000.0, 500.0) var max_rpm: float = 18000.0
@@ -110,7 +113,8 @@ func thrust_for(t: float) -> float:
 
 
 ## Schubkraft (N) im Körpersystem für diesen Physikschritt.
-func compute_force(dt: float) -> Vector3:
+## v_local = Geschwindigkeit des Motors gegenüber der Luft (Körpersystem).
+func compute_force(dt: float, v_local := Vector3.ZERO) -> Vector3:
 	# Sollwert: Failsafe (nicht scharf → aus), Rückwärts nur wenn erlaubt
 	var t_target := clampf(throttle_cmd, -1.0, 1.0) if armed else 0.0
 	if not reverse_allowed:
@@ -124,7 +128,21 @@ func compute_force(dt: float) -> Vector3:
 
 	var s := -swivel_cmd if invert_swivel else swivel_cmd
 	_swivel_deg = move_toward(_swivel_deg, clampf(s, -1.0, 1.0) * max_swivel_deg, servo_speed_dps * dt)
-	return current_direction() * thrust_for(_throttle)
+	var d := current_direction()
+	return d * thrust_for(_throttle) * speed_factor(v_local.dot(d))
+
+
+## Schubabfall mit der Fahrt: Ein Propeller "schraubt" sich mit seiner
+## Steigung durch die Luft. Je näher die Anströmung an die Steiggeschwindigkeit
+## (Drehzahl × Steigung) kommt, desto weniger Schub bleibt (einfaches lineares
+## Modell). v_along = Fahrt in Schubrichtung (m/s), positiv = Motor zieht in
+## Fahrtrichtung. Gegenwind auf den Propeller erhöht den Schub leicht.
+func speed_factor(v_along: float) -> float:
+	var v_pitch := rpm() / 60.0 * prop_pitch_in * 0.0254          # m/s
+	if v_pitch < 0.5:
+		return 1.0
+	var v_in := v_along * (-1.0 if _throttle < 0.0 else 1.0)     # rückwärts: Strahl dreht sich um
+	return clampf(1.0 - v_in / v_pitch, 0.0, 1.3)
 
 
 ## Für den Mischer: erwarteter Schub mit Vorzeichen bei Gas-Kommando t.

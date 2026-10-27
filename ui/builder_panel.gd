@@ -1,3 +1,5 @@
+# 2026-10-27 12:24 – Rechte Spalte und Validator-Banner per eigener Layout-Funktion platziert (lagen teils außerhalb des Bildes)
+# 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Reiter „Technik“ und „Gestaltung“ (Farbe, Schriftzug, Logo nach freigegebenem Entwurf); Motor-Editor wirkt auf das ganze Motorpaar (Rückwärtsschub, Wirkungsgrad rückwärts, Propeller, Drehzahl, Drehrichtung); Knopf „Teilen“; Signal ui_action für ruhige Töne; Modellauswahl inkl. Sammlung
 # 2026-10-27 10:42 – Erstversion: Baukasten nach freigegebenem Entwurf (links Hülle + Bauteil-Palette + Bauteil-Editor, Mitte freie Sicht auf das Modell, rechts Kennwerte, unten Validator-Banner); Preset-Auswahl
 # =============================================================================
@@ -34,6 +36,7 @@ var _banner: PanelContainer
 var _hull_rows := {}           ## Name → Slider-Zeile (zum Nachziehen nach Modellwechsel)
 var _last_level := -1
 var _file_dialog: FileDialog
+var _right: PanelContainer
 
 
 func setup(airship: AirshipPhysics, airship_visual: AirshipVisual) -> void:
@@ -42,7 +45,7 @@ func setup(airship: AirshipPhysics, airship_visual: AirshipVisual) -> void:
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE      # Mitte bleibt durchlässig
 	var m := UITheme.space("lg")
 
@@ -59,7 +62,7 @@ func _ready() -> void:
 	# ===================== rechte Spalte: Kennwerte ==========================
 	var right := UITheme.make_panel(190)
 	add_child(right)
-	right.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE, Control.PRESET_MODE_MINSIZE, m)
+	_right = right
 	var rcol := UITheme.make_vbox("sm")
 	right.add_child(rcol)
 	rcol.add_child(UITheme.make_title("Kennwerte"))
@@ -76,10 +79,10 @@ func _ready() -> void:
 	rcol.add_child(done)
 
 	# ===================== Validator-Banner unten mittig =====================
-	_banner = UITheme.make_banner()
+	_banner = UITheme.make_banner(420)
 	add_child(_banner)
-	_banner.custom_minimum_size.x = 420
-	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, m)
+	resized.connect(_layout)
+	_layout.call_deferred()
 
 	# Dateiauswahl für das Logo (nutzt den Systemdialog, wo verfügbar)
 	_file_dialog = FileDialog.new()
@@ -93,6 +96,16 @@ func _ready() -> void:
 	ship.config_changed.connect(_refresh)
 	visibility_changed.connect(_on_visibility)
 	_refresh()
+
+
+## Rechte Spalte und Banner aus der aktuellen Größe platzieren (robuster als
+## Anker, deren Mindestgrößen beim Aufbau noch nicht feststehen).
+func _layout() -> void:
+	var m := float(UITheme.space("lg"))
+	_right.size = Vector2(_right.get_combined_minimum_size().x, size.y - 2.0 * m)
+	_right.position = Vector2(size.x - _right.size.x - m, m)
+	_banner.size = _banner.get_combined_minimum_size()
+	_banner.position = Vector2((size.x - _banner.size.x) * 0.5, size.y - _banner.size.y - m)
 
 
 ## Beim Öffnen: Modellliste (evtl. neu gespeicherte) und Regler auffrischen.
@@ -298,6 +311,7 @@ func _refresh() -> void:
 	_last_level = r.level
 	if visual:
 		visual.set_validation_level(r.level)
+	_layout.call_deferred()
 
 
 func _changed() -> void:

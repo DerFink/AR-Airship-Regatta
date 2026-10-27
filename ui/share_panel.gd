@@ -1,3 +1,4 @@
+# 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Erstversion: Teilen-Dialog nach freigegebenem Entwurf – Modell-String anzeigen/kopieren, eingefügten String prüfen und laden, eigenes Modell speichern, Hinweis aufs separat zu schickende Logo
 # =============================================================================
 # SharePanel.gd
@@ -29,11 +30,11 @@ func setup(airship: AirshipPhysics) -> void:
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var m := UITheme.space("lg")
 	var bg := ColorRect.new()
 	bg.color = UITheme.color("backdrop")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
 	var row := UITheme.make_hbox("md")

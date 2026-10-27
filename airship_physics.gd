@@ -1,3 +1,4 @@
+# 2026-10-27 12:23 – Motoren bekommen ihre Anströmung (Schubabfall mit der Fahrt); Anstellwinkel erst ab 1 m/s angezeigt (vorher z. B. 105° beim Absinken im Stand)
 # 2026-10-27 11:08 – Modellname und Gestaltung (livery) als Teil der Konfiguration
 # 2026-10-27 10:42 – rebuild_mass_properties() platziert alle Bauteile parametrisch neu (place_on_hull) und meldet Änderungen per Signal config_changed (für Darstellung/Baukasten)
 # 2026-10-27 10:35 – Erstversion: 6-DOF-Integrator mit virtuellen Massen (Kirchhoff), Munk-Moment, Querstrom-Rumpfkräfte, Leitwerke/Canards, Vektormotoren, Telemetrie, vereinfachter Modus
@@ -195,7 +196,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# --- 5) Schubvektor-Motoren ----------------------------------------------
 	vector_moment = Vector3.ZERO
 	for mot in motors:
-		var fm := mot.compute_force(dt)
+		var fm := mot.compute_force(dt, v_rel + w_b.cross(mot.position))   # Anströmung am Motor
 		F += fm
 		var tm := mot.position.cross(fm)
 		T += tm
@@ -229,7 +230,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 # =============================================================================
 func _update_telemetry(v_rel: Vector3) -> void:
 	airspeed = v_rel.length()
-	if airspeed > 0.1:
+	# Unter ~1 m/s ist die Anströmrichtung zufällig (Schweben, Absinken) –
+	# der Anstellwinkel wäre dann sinnlos (z. B. 105° beim Sinken im Stand).
+	if airspeed > 1.0:
 		# Vorwärtsfahrt = -Z; Anstellwinkel positiv, wenn die Nase über der Bahn liegt
 		alpha_deg = rad_to_deg(atan2(-v_rel.y, -v_rel.z))
 		beta_deg = rad_to_deg(atan2(v_rel.x, -v_rel.z))

@@ -1,3 +1,5 @@
+# 2026-10-27 12:24 – Eigene Layout-Funktion: Telemetrie, Menüs, Knüppel und Hinweis werden aus der Bildschirmgröße platziert (Knüppel lagen sonst außerhalb des Bildes)
+# 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 10:42 – Erstversion: Flugansicht nach freigegebenem Entwurf (Telemetrie oben links, Menüs oben rechts, zwei Knüppel, Hinweis unten mittig) + Motor-Schalter (Failsafe-Armen)
 # =============================================================================
 # FlightHUD.gd
@@ -30,6 +32,8 @@ var _btn_arm: Button
 var _btn_ar: Button
 var _banner: PanelContainer
 var _banner_timer := 0.0
+var _tl: HBoxContainer
+var _tr: HBoxContainer
 
 
 func setup(controller: FlightController, airship: AirshipPhysics) -> void:
@@ -38,21 +42,22 @@ func setup(controller: FlightController, airship: AirshipPhysics) -> void:
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var m := UITheme.space("lg")
 
 	# --- Telemetrie oben links ---------------------------------------------
-	var tl := UITheme.make_hbox("xs")
+	_tl = UITheme.make_hbox("xs")
+	var tl := _tl
 	add_child(tl)
 	_pill_speed = UITheme.make_pill("0,0 km/h")
 	_pill_alpha = UITheme.make_pill("α 0°")
 	_pill_mode = UITheme.make_pill("FC: Mode 1")
 	for p in [_pill_speed, _pill_alpha, _pill_mode]: tl.add_child(p)
-	tl.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, m)
 
 	# --- Menüs oben rechts --------------------------------------------------
-	var tr := UITheme.make_hbox("xs")
+	_tr = UITheme.make_hbox("xs")
+	var tr := _tr
 	add_child(tr)
 	_btn_arm = UITheme.make_pill("Motoren aus", true)
 	_btn_arm.toggle_mode = true
@@ -65,22 +70,41 @@ func _ready() -> void:
 	_btn_ar.toggle_mode = true
 	_btn_ar.pressed.connect(func(): ar_requested.emit())
 	for b in [_btn_arm, b_build, b_pid, _btn_ar]: tr.add_child(b)
-	tr.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, m)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
 	stick_right = TouchStick.new()
 	for s in [stick_left, stick_right]:
 		add_child(s)
-	stick_left.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, m * 2)
-	stick_right.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, m * 2)
 	_refresh_stick_captions()
 
 	# --- Hinweis-Banner unten mittig ---------------------------------------
-	_banner = UITheme.make_banner()
+	_banner = UITheme.make_banner(360)
 	add_child(_banner)
-	_banner.custom_minimum_size.x = 360
-	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, m * 2)
+	resized.connect(_layout)
+	_layout.call_deferred()
+
+
+# =============================================================================
+# Platzierung (bei jeder Größenänderung und jedem Frame – billig):
+# Positionen werden direkt aus der aktuellen Bildschirmgröße berechnet,
+# statt sich auf Godot-Anker zu verlassen, deren Mindestgrößen beim Aufbau
+# noch nicht feststehen.
+# =============================================================================
+func _layout() -> void:
+	var m := float(UITheme.space("lg"))
+	var sz := size
+	_tl.size = _tl.get_combined_minimum_size()
+	_tl.position = Vector2(m, m)
+	_tr.size = _tr.get_combined_minimum_size()
+	_tr.position = Vector2(sz.x - _tr.size.x - m, m)
+	for s in [stick_left, stick_right]:
+		s.size = s.custom_minimum_size
+	var sy := sz.y - stick_left.size.y - m
+	stick_left.position = Vector2(m * 3.0, sy)
+	stick_right.position = Vector2(sz.x - stick_right.size.x - m * 3.0, sy)
+	_banner.size = _banner.get_combined_minimum_size()
+	_banner.position = Vector2((sz.x - _banner.size.x) * 0.5, sz.y - _banner.size.y - m * 2.0)
 
 
 ## Knüppel-Beschriftung nach aktuellem Stick-Mode (Gier immer rechts).
@@ -122,6 +146,7 @@ func _process(dt: float) -> void:
 	if ship:
 		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")
 		_pill_alpha.text = "α %d°" % roundi(ship.alpha_deg)
+	_layout()                                         # Texte ändern Breiten
 	# Banner ausblenden
 	if _banner_timer > 0.0:
 		_banner_timer -= dt

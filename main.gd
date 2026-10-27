@@ -1,3 +1,4 @@
+# 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Teilen-Dialog als eigene Ansicht; Sound: Propellergeräusch je Motor (wird bei Bauteil-Änderungen neu aufgebaut), ruhige Töne + leiser Klangteppich nur im Baukasten, im Flug sonst Stille
 # 2026-10-27 10:42 – Erstversion: Hauptszene setzt alles zusammen (Testgelände mit Regatta-Pylonen, Luftschiff, Flugcontroller, Watchdog, AR-Schalter, Verfolgerkamera / Baukasten-Kamera, UI mit zentralem Theme)
 # =============================================================================
@@ -152,7 +153,7 @@ func _build_ui() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.theme = UITheme.build_theme()          # ein Theme für alles
 	layer.add_child(root)

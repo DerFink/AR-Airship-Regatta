@@ -1,3 +1,4 @@
+# 2026-10-27 12:23 – Chewie-Antrieb auf 2 × GEPRC SpeedX2 1804 mit 4"-Propellern umgestellt (ca. 7 N Standschub je Motor, 27 000 U/min, Steigung 3" – Annahmen, s. u.)
 # 2026-10-27 11:08 – Motorpaare mit pair_id, gegenläufige Propeller bei Chewie, Rückwärtsschub-Daten, Propellerdaten für den Klang; Auswahlliste enthält Modellsammlung und eigene Modelle; Presets setzen Name und Standard-Gestaltung
 # 2026-10-27 10:42 – Auf parametrische Platzierung umgestellt (make_fin/make_motor mit Längsposition + Umfangswinkel); Chewie korrigiert: keine Canards, Bugmotoren mit Pigleg-Schwenkachse 45° (gemeinsam = Nick, gegensinnig = Gier); Preset-Liste für das Auswahlmenü
 # 2026-10-27 10:23 – Albacore-Flossen von 0,08 auf 0,14 m² vergrößert (Validator + Flugtest: ruhigeres Einschwingen); vorher: Erstversion Presets Albacore/Chewie
@@ -106,9 +107,12 @@ static func chewie(ship: AirshipPhysics) -> void:
 	for s in fins:
 		s.pseudo_flex = true             # Depron mit Klebeband-Scharnier
 	ship.surfaces = fins
+	# Antrieb laut Nutzer: 2 × GEPRC SpeedX2 1804 mit 4"-Propellern.
+	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
+	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots: Array[VectorMotor] = [
-		make_motor("Bugmotor rechts", 0.25, 90.0, 1.2, 60.0, 45.0),
-		make_motor("Bugmotor links", 0.25, 270.0, 1.2, 60.0, 45.0),
+		make_motor("Bugmotor rechts", 0.25, 90.0, 7.0, 60.0, 45.0),
+		make_motor("Bugmotor links", 0.25, 270.0, 7.0, 60.0, 45.0),
 	]
 	# Paar gemeinsam einstellbar; gegenläufige Propeller wie beim Quadcopter.
 	# Rückwärtsschub erlaubt (ESC vor/zurück), normaler Propeller ≈ 55 % rückwärts.
@@ -117,5 +121,10 @@ static func chewie(ship: AirshipPhysics) -> void:
 		mots[i].spin_dir = 1 if i == 0 else -1
 		mots[i].reverse_allowed = true
 		mots[i].reverse_efficiency = 0.55
+		mots[i].prop_diameter_in = 4.0
+		mots[i].prop_pitch_in = 3.0
+		mots[i].prop_blades = 2
+		mots[i].max_rpm = 27000.0
+		mots[i].spool_time_s = 0.08      # kleine Motoren drehen schnell hoch
 	ship.motors = mots
 	ship.rebuild_mass_properties()
