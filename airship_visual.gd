@@ -1,3 +1,4 @@
+# 2026-10-27 15:09 – Flossen als Trapez mit Zuspitzung (Pfeilung) statt Quader
 # 2026-10-27 11:08 – Hülle trägt die Gestaltungs-Textur (LiveryCanvas: Farbe, Schriftzug, Logo); bei Änderungen der Gestaltung wird nur neu gemalt
 # 2026-10-27 10:42 – Erstversion: 3D-Darstellung aus der Konfiguration (Hülle, Flossen, Motorgondeln mit Live-Schwenk und Ruderausschlag), Einfärbung nach Validator-Ergebnis, Kollisionsform passend zur Hülle
 # =============================================================================
@@ -80,10 +81,7 @@ func rebuild() -> void:
 		# (rechtshändig: X = Y × Z)
 		pivot.basis = Basis(d.cross(Vector3(0, 0, 1)), d, Vector3(0, 0, 1)).orthonormalized()
 		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.006, span, chord)
-		mi.mesh = bm
-		mi.position = Vector3(0, span * 0.5, 0)
+		mi.mesh = _fin_mesh(span, chord, s.taper)
 		mi.material_override = _fin_mat
 		pivot.add_child(mi)
 		pivot.set_meta("surface", s)
@@ -119,6 +117,25 @@ func rebuild() -> void:
 		g.add_child(prop)
 		g.set_meta("motor", m)
 		_motor_nodes.append(g)
+
+
+## Flache Flosse als Trapez (zweiseitig gerendert): Wurzeltiefe c_r an der
+## Hülle, Endtiefe c_t = Zuspitzung · c_r außen, Hinterkante gerade.
+## Lokal: Y = Spannweite (abstehend), Z = Längsachse (+Z = hinten).
+func _fin_mesh(span: float, mean_chord: float, taper: float) -> ArrayMesh:
+	var c_r := 2.0 * mean_chord / (1.0 + taper)
+	var c_t := c_r * taper
+	var te := c_r * 0.5                                   # Hinterkante (gerade)
+	var p0 := Vector3(0, 0, te - c_r)                     # Wurzel vorn
+	var p1 := Vector3(0, 0, te)                           # Wurzel hinten
+	var p2 := Vector3(0, span, te)                        # Spitze hinten
+	var p3 := Vector3(0, span, te - c_t)                  # Spitze vorn
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for v in [p0, p1, p2, p0, p2, p3]:
+		st.add_vertex(v)
+	st.generate_normals()
+	return st.commit()
 
 
 # =============================================================================

@@ -1,3 +1,4 @@
+# 2026-10-27 15:09 – Leitwerk als Beschreibung im String (tail: Anordnung, Anzahl, Bauart, Fläche, Streckung, Pfeilung …); Flossen-Zuspitzung; ältere Strings ohne tail bleiben lesbar
 # 2026-10-27 12:23 – Propellersteigung (pit) im Modell-String; fehlt sie in älteren Strings, gilt 3"
 # 2026-10-27 11:08 – Erstversion: Modell als Textstring (LTA1) exportieren/importieren – komprimiert, mit Prüfsumme, Versionskennung und Grenzwertprüfung jedes Werts; Logo nur als Verweis
 # =============================================================================
@@ -34,6 +35,7 @@ const LIMITS := {
 	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
 	"reff": [0.1, 1.0], "d": [1.0, 30.0], "pit": [1.0, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
+	"v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
 	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 0.8], "lpos": [0.05, 0.9],
 }
 
@@ -49,10 +51,19 @@ static func encode(ship: AirshipPhysics) -> String:
 		"mass": {"cg_y": ship.cg_offset.y, "trim": ship.trim_heaviness_n},
 		"fins": [], "motors": [],
 	}
+	# Symmetrisches Leitwerk als Beschreibung (nicht Flosse für Flosse)
+	if ship.tail:
+		var t := ship.tail
+		data["tail"] = {"lay": int(t.layout), "cnt": t.count, "v": t.v_angle_deg, "rot": t.rotation_deg,
+			"k": int(t.kind), "area": t.area_m2, "split": t.split_hv, "ah": t.area_h_m2, "av": t.area_v_m2,
+			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex}
+	# Freie Flächen (Canards u. Ä.)
 	for s in ship.surfaces:
+		if s.tail_member and ship.tail:
+			continue
 		data.fins.append({"n": s.display_name, "k": int(s.kind), "x": s.hull_x, "a": s.hull_angle_deg,
 			"area": s.area_m2, "ar": s.aspect_ratio, "defl": s.max_deflection_deg,
-			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex})
+			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper})
 	for m in ship.motors:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
@@ -109,9 +120,18 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	for f in d.fins:
 		var s := AirshipPresets.make_fin(f.n, f.x, f.a, f.area, int(f.k))
 		s.aspect_ratio = f.ar; s.max_deflection_deg = f.defl
-		s.flap_chord_ratio = f.flap; s.pseudo_flex = f.flex
+		s.flap_chord_ratio = f.flap; s.pseudo_flex = f.flex; s.taper = f.tp
 		fins.append(s)
 	ship.surfaces = fins
+	ship.tail = null
+	if d.has("tail"):
+		var td: Dictionary = d.tail
+		var t := TailConfig.new()
+		t.layout = td.lay; t.count = td.cnt; t.v_angle_deg = td.v; t.rotation_deg = td.rot
+		t.kind = td.k; t.area_m2 = td.area; t.split_hv = td.split
+		t.area_h_m2 = td.ah; t.area_v_m2 = td.av; t.aspect_ratio = td.ar; t.taper = td.tp
+		t.hull_x = td.tx; t.max_deflection_deg = td.defl; t.pseudo_flex = td.flex
+		ship.tail = t
 
 	var mots: Array[VectorMotor] = []
 	for m in d.motors:
@@ -189,7 +209,15 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			out.fins.append({"n": _txt(f, "n", "Flosse", 32), "k": clampi(int(_num(f, "k", 0)), 0, 2),
 				"x": _num(f, "x", 0.9), "a": _num(f, "a", 0.0), "area": _num(f, "area", 0.08),
 				"ar": _num(f, "ar", 1.5), "defl": _num(f, "defl", 25.0), "flap": _num(f, "flap", 0.3),
-				"flex": _flag(f, "flex", false)})
+				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0)})
+	var td = d.get("tail")
+	if td is Dictionary:
+		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 8),
+			"v": _num(td, "v", 45.0), "rot": _num(td, "rot", 0.0), "k": clampi(int(_num(td, "k", 0)), 0, 2),
+			"area": _num(td, "area", 0.08), "split": _flag(td, "split", false),
+			"ah": _num(td, "ah", 0.08), "av": _num(td, "av", 0.08), "ar": _num(td, "ar", 1.5),
+			"tp": _num(td, "tp", 1.0), "tx": _num(td, "tx", 0.9), "defl": _num(td, "defl", 25.0),
+			"flex": _flag(td, "flex", false)}
 	var mots = d.get("motors", [])
 	if mots is Array:
 		for m in mots.slice(0, MAX_MOTORS):

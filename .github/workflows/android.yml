@@ -1,3 +1,4 @@
+# 2026-10-27 15:13 – Test tail_test (Leitwerk-Konfiguration, Baukasten-Gesten) in die Testliste aufgenommen
 # 2026-10-27 11:41 – Schritte laufen mit bash (sh im Container kannte pipefail nicht → Abbruch); Testausgaben erscheinen in der Lauf-Zusammenfassung
 # 2026-10-27 11:29 – Erstversion: bei jedem Push Headless-Tests ausführen, Android-Debug-APK bauen und als Release veröffentlichen (feste Download-Adresse fürs Handy)
 #
@@ -45,7 +46,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test ui_test; do
+          for t in smoke_test chewie_test v03_test tail_test ui_test; do
             echo "=== $t"
             godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || true
             grep -vE 'mesh_get_surface_count|Parameter "m" is null|at: mesh' out.txt | tee clean.txt

@@ -26,11 +26,11 @@ func _process(_dt: float) -> bool:
 			main.builder._on_preset(2)                       # Chewie
 		250:
 			print("Chewie geladen: Teile=%d Banner=%s" % [main.builder._parts_list.item_count, main.builder._banner.get_child(0).text])
-			main.builder._add_fin(ControlSurface.Kind.CANARD)
+			main.builder._add_canard()
 			main.ship.hull.volume_m3 = 0.4
 		255:
 			print("Nach Canard + 0,4 m³: L=%.2f Teile=%d Stats=%s" % [main.ship.hull.length_m, main.builder._parts_list.item_count, main.builder._stats.text.replace("\n", " | ")])
-			main.builder._on_part_selected(main.ship.surfaces.size() + 0)   # erster Motor
+			main.builder._on_part_selected(0)   # erster Motor
 			print("Editor-Zeilen für Motor: ", main.builder._editor_box.get_child_count())
 			main._set_view(main.View.PID)
 		260:
@@ -56,7 +56,7 @@ func _process(_dt: float) -> bool:
 			print("Zurückgesetzt: Position %s, v=%.2f m/s, Kamera-Bildwinkel %.0f°" % [main.ship.global_position.snapped(Vector3.ONE * 0.1), main.ship.linear_velocity.length(), main.camera.fov])
 			main._set_view(main.View.BUILD)
 			main.ship.livery.text = "TEST"
-			main.builder.get_child(0).get_child(0).current_tab = 1   # Reiter Gestaltung
+			main.builder.get_child(0).get_child(0).current_tab = 3   # Reiter Gestaltung
 			main._set_view(main.View.SHARE)
 		425:
 			print("Teilen: armed=%s String=%s… Hinweis=%s" % [main.fc.armed, main.share._code.text.left(20), main.share._logo_hint.text])

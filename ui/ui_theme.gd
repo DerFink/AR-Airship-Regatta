@@ -1,3 +1,4 @@
+# 2026-10-27 15:10 – Größere Bedienelemente fürs Handy: dicke Slider-Spur, großer Griff, −/+-Knöpfe an jedem Regler; neue Bausteine make_stepper() und make_choice_row(); größere Schrift und Seitenleiste
 # 2026-10-27 12:25 – make_banner(width): feste Textbreite, damit der Zeilenumbruch nicht jedes Wort einzeln umbricht
 # 2026-10-27 11:08 – Stile für Reiter (TabContainer), Textfeld (TextEdit) und Kontrollkästchen ergänzt
 # 2026-10-27 10:42 – Erstversion: zentrales Design-System (Tokens aus theme_tokens.json mit eingebauten Standardwerten), Godot-Theme-Erzeugung, einheitliche Bausteine (Panel, Pill, Knopf, Slider-Zeile, Banner, Abschnittstitel)
@@ -38,8 +39,8 @@ const DEFAULTS := {
 	},
 	"radius": {"sm": 6, "md": 10, "lg": 16},
 	"space": {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24},
-	"font": {"caption": 14, "body": 17, "title": 21},
-	"size": {"control_height": 48, "stick_diameter": 240, "panel_side_width": 300},
+	"font": {"caption": 16, "body": 19, "title": 22},
+	"size": {"control_height": 52, "stick_diameter": 240, "panel_side_width": 400},
 }
 
 static var _tokens: Dictionary = {}
@@ -155,15 +156,16 @@ static func build_theme() -> Theme:
 		t.set_stylebox(st, "Pill", box(color("accent_bg"), color("accent"), radius("sm"), space("sm")))
 
 	# Schieberegler
-	var track := box(color("surface_alt"), Color(0, 0, 0, 0), 3, 0)
-	track.content_margin_top = 3; track.content_margin_bottom = 3
-	var fill := box(color("accent"), Color(0, 0, 0, 0), 3, 0)
-	fill.content_margin_top = 3; fill.content_margin_bottom = 3
+	# dicke Spur und großer Griff – am Handy gut zu treffen
+	var track := box(color("surface_alt"), color("border"), 5, 0)
+	track.content_margin_top = 5; track.content_margin_bottom = 5
+	var fill := box(color("accent"), Color(0, 0, 0, 0), 5, 0)
+	fill.content_margin_top = 5; fill.content_margin_bottom = 5
 	t.set_stylebox("slider", "HSlider", track)
 	t.set_stylebox("grabber_area", "HSlider", fill)
 	t.set_stylebox("grabber_area_highlight", "HSlider", fill)
-	t.set_icon("grabber", "HSlider", _circle_icon(22, color("accent")))
-	t.set_icon("grabber_highlight", "HSlider", _circle_icon(24, color("accent").lightened(0.15)))
+	t.set_icon("grabber", "HSlider", _circle_icon(34, color("accent")))
+	t.set_icon("grabber_highlight", "HSlider", _circle_icon(38, color("accent").lightened(0.15)))
 
 	# Listen / Auswahl
 	t.set_stylebox("panel", "ItemList", box(color("surface_alt"), color("border"), radius("md"), space("sm")))
@@ -276,11 +278,21 @@ static func make_toggle_group() -> ButtonGroup:
 # Wertanzeige (z. B. "%.2f m³").
 # -----------------------------------------------------------------------------
 static func make_slider_row(label: String, min_v: float, max_v: float, step: float,
-		value: float, on_change: Callable, fmt := "%.2f", label_width := 110) -> HBoxContainer:
-	var row := make_hbox("sm")
+		value: float, on_change: Callable, fmt := "%.2f", _label_width := 110) -> VBoxContainer:
+	# Zwei Zeilen, damit der Regler am Handy die ganze Breite bekommt:
+	#   Beschriftung ………………… Wert
+	#   [−] ─────────●───────── [+]
+	# −/+ ändern um einen Schritt (feine Werte), der Griff ist groß.
+	var box := make_vbox("xs")
+	var top := make_hbox("sm")
 	var l := make_label(label, "MutedLabel")
-	l.custom_minimum_size.x = label_width
-	row.add_child(l)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(l)
+	var out := make_label(fmt % value)
+	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	top.add_child(out)
+	box.add_child(top)
+	var row := make_hbox("sm")
 	var s := HSlider.new()
 	s.min_value = min_v
 	s.max_value = max_v
@@ -288,17 +300,63 @@ static func make_slider_row(label: String, min_v: float, max_v: float, step: flo
 	s.value = value
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	s.custom_minimum_size.y = _min_height * 0.75
+	s.custom_minimum_size = Vector2(120, _min_height)
 	s.focus_mode = Control.FOCUS_NONE
+	row.add_child(_step_button("−", func(): s.value = s.value - step))
 	row.add_child(s)
-	var out := make_label(fmt % value)
-	out.custom_minimum_size.x = 72
-	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	row.add_child(out)
+	row.add_child(_step_button("+", func(): s.value = s.value + step))
+	box.add_child(row)
 	s.value_changed.connect(func(v: float):
 		out.text = fmt % v
 		on_change.call(v))
-	row.set_meta("slider", s)          # für späteres Setzen von außen
+	box.set_meta("slider", s)          # für späteres Setzen von außen
+	box.set_meta("out", out)           # Wertanzeige
+	return box
+
+
+## Kleiner quadratischer −/+-Knopf mit Touch-tauglicher Größe.
+static func _step_button(text: String, action: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(_min_height * 0.85, _min_height * 0.85)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.pressed.connect(action)
+	return b
+
+
+## Zahl mit −/+ (z. B. Flossenanzahl). on_change(int) bei jeder Änderung.
+static func make_stepper(label: String, min_v: int, max_v: int, value: int,
+		on_change: Callable, label_width := 110) -> HBoxContainer:
+	var row := make_hbox("xs")
+	var l := make_label(label, "MutedLabel")
+	l.custom_minimum_size.x = label_width
+	row.add_child(l)
+	var out := make_label(str(value))
+	out.custom_minimum_size.x = 40
+	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var set_v := func(v: int):
+		v = clampi(v, min_v, max_v)
+		out.text = str(v)
+		on_change.call(v)
+	row.add_child(_step_button("−", func(): set_v.call(int(out.text) - 1)))
+	row.add_child(out)
+	row.add_child(_step_button("+", func(): set_v.call(int(out.text) + 1)))
+	row.set_meta("out", out)
+	return row
+
+
+## Reihe von Umschaltern (genau einer aktiv). on_pick(index).
+static func make_choice_row(labels: Array, selected: int, on_pick: Callable) -> HBoxContainer:
+	var row := make_hbox("xs")
+	var g := make_toggle_group()
+	for i in labels.size():
+		var b := make_button(str(labels[i]), true)
+		b.button_group = g
+		b.button_pressed = i == selected
+		b.custom_minimum_size.x = _min_height
+		b.pressed.connect(func(): on_pick.call(i))
+		row.add_child(b)
 	return row
 
 
@@ -313,6 +371,7 @@ static func make_banner(width := 360) -> PanelContainer:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = width - 2 * space("sm")
+	l.add_theme_font_size_override("font_size", font_size("caption"))   # Hinweise kompakt
 	p.add_child(l)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_banner(p, "", "info")

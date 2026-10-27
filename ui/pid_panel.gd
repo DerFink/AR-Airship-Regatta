@@ -1,3 +1,4 @@
+# 2026-10-27 15:10 – Wertanzeige über row.get_meta("out") (Regler haben jetzt −/+-Knöpfe)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 10:42 – Regler und Modus-Knöpfe werden beim Öffnen und bei jedem Moduswechsel mit dem Flugcontroller abgeglichen (vorher nur beim Start)
 # 2026-10-27 10:42 – Erstversion: PID-Submenü nach freigegebenem Entwurf (links Modus-Wahl wie 3-Stufen-Schalter, Mitte Achse + Regler aus FlightController.UI_PARAMS + Mischung, rechts Live-Sprungantwort)
@@ -135,9 +136,9 @@ func _on_mode_changed(_m: int) -> void:
 
 
 ## Prozentanzeige für den Ausschlag-Regler (Wert 0..1 → 0..100 %).
-func _fix_percent(row: HBoxContainer) -> void:
+func _fix_percent(row: Control) -> void:
 	var s: HSlider = row.get_meta("slider")
-	var out: Label = row.get_child(2)
+	var out: Label = row.get_meta("out")
 	var upd := func(v: float): out.text = "%d %%" % roundi(v * 100.0)
 	s.value_changed.connect(upd)
 	upd.call(s.value)

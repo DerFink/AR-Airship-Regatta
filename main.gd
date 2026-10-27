@@ -1,3 +1,4 @@
+# 2026-10-27 15:12 – Baukasten: Modell mit einem Finger drehen, mit zwei Fingern zoomen (PC: Maus ziehen / Mausrad); Knopf „Ansicht zurücksetzen“
 # 2026-10-27 12:55 – Kein Zoom mehr (fester Bildwinkel 60°, Wunsch des Nutzers); Knopf „Zurücksetzen“ stellt das Schiff an den Startpunkt
 # 2026-10-27 12:52 – Pilotensicht wie beim RC-Fliegen: fester Standort (1 m Richtung Mitte, 3 m neben Pylon 1, Augenhöhe 1,7 m), Blick folgt dem Schiff mit sanftem Zoom; Strecke mit zwei Pylonen im Abstand von 25 m; Start 6 m vor dem Piloten in 4 m Höhe
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
@@ -45,6 +46,12 @@ var view := View.FLY
 var _world_env: WorldEnvironment
 var _scenery: Node3D
 var _prop_sounds: Array[PropSound] = []
+
+# --- Baukasten-Ansicht: Modell drehen und zoomen ----------------------------
+var _orbit_yaw := 0.0            ## Drehung um die Hochachse (rad), 0 = von der Seite
+var _orbit_pitch := 0.25         ## Blick von oben (rad)
+var _orbit_zoom := 1.0           ## 1 = Standardabstand, < 1 näher, > 1 weiter
+var _touches := {}               ## aktive Finger: Index → Position
 
 
 func _ready() -> void:
@@ -192,6 +199,7 @@ func _build_ui() -> void:
 	hud.reset_requested.connect(reset_ship)
 	builder.closed.connect(func(): _set_view(View.FLY))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
+	builder.view_reset_requested.connect(reset_view)
 	builder.ui_action.connect(ui_sounds.chime)
 	share.ui_action.connect(ui_sounds.chime)
 	share.closed.connect(func(): _set_view(View.BUILD))
@@ -207,6 +215,51 @@ func reset_ship() -> void:
 	ship.reset_to(xf)
 	fc._reset_integrators()
 	hud.show_notice("Zurückgesetzt", "info", 1.5)
+
+
+## Baukasten-Ansicht auf Standard zurück (seitlich, leicht von oben).
+func reset_view() -> void:
+	_orbit_yaw = 0.0
+	_orbit_pitch = 0.25
+	_orbit_zoom = 1.0
+
+
+# =============================================================================
+# Gesten im Baukasten (nur in der freien Mitte – Bedienfelder fangen ihre
+# Berührungen selbst ab):  1 Finger ziehen = drehen, 2 Finger = zoomen.
+# Am PC: mit gedrückter Maus ziehen = drehen, Mausrad = zoomen.
+# =============================================================================
+func _unhandled_input(event: InputEvent) -> void:
+	if view != View.BUILD:
+		_touches.clear()
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed: _touches[event.index] = event.position
+		else: _touches.erase(event.index)
+	elif event is InputEventScreenDrag:
+		if _touches.size() >= 2 and _touches.has(event.index):
+			var ids := _touches.keys()
+			var other: Vector2 = _touches[ids[1] if ids[0] == event.index else ids[0]]
+			var before: float = (_touches[event.index] as Vector2).distance_to(other)
+			var after: float = event.position.distance_to(other)
+			if before > 1.0 and after > 1.0:
+				_orbit_zoom = clampf(_orbit_zoom * before / after, 0.35, 3.0)
+		elif _touches.size() == 1:
+			_rotate_view(event.relative)
+		_touches[event.index] = event.position
+	elif event is InputEventMagnifyGesture:
+		_orbit_zoom = clampf(_orbit_zoom / event.factor, 0.35, 3.0)
+	elif event is InputEventMouseButton and not DisplayServer.is_touchscreen_available():
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP: _orbit_zoom = clampf(_orbit_zoom * 0.9, 0.35, 3.0)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN: _orbit_zoom = clampf(_orbit_zoom * 1.1, 0.35, 3.0)
+	elif event is InputEventMouseMotion and not DisplayServer.is_touchscreen_available() \
+			and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
+		_rotate_view(event.relative)
+
+
+func _rotate_view(rel: Vector2) -> void:
+	_orbit_yaw -= rel.x * 0.008
+	_orbit_pitch = clampf(_orbit_pitch + rel.y * 0.006, -1.3, 1.4)
 
 
 func _set_view(v: View) -> void:
@@ -232,8 +285,10 @@ func _process(dt: float) -> void:
 	var L := ship.hull.length_m
 	var a := clampf(dt * 3.0, 0.0, 1.0)
 	if view == View.BUILD or view == View.SHARE:
-		# Baukasten: seitlich nah am Modell, normales Blickfeld
-		camera.global_position = camera.global_position.lerp(p + Vector3(0, L * 0.25, L * 1.4), a)
+		# Baukasten: um das Modell kreisen (drehen/zoomen per Gesten)
+		var dist := L * 1.45 * _orbit_zoom
+		var off := Vector3(0, 0, dist).rotated(Vector3.RIGHT, -_orbit_pitch).rotated(Vector3.UP, _orbit_yaw)
+		camera.global_position = camera.global_position.lerp(p + off, clampf(dt * 10.0, 0.0, 1.0))
 	else:
 		# Flug: fester Pilotenstandort, Blick folgt dem Schiff (fester Bildwinkel)
 		camera.global_position = camera.global_position.lerp(PILOT_EYE, a)

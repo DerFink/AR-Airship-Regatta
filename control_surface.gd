@@ -1,3 +1,4 @@
+# 2026-10-27 15:09 – Zuspitzung (taper, im LTA-Simulator „Pfeilung“) und Kennung tail_member für Flossen aus dem symmetrischen Leitwerk
 # 2026-10-27 10:42 – Parametrische Platzierung: hull_x (Längsposition) + hull_angle_deg (Umfangswinkel) → place_on_hull() berechnet Druckpunkt und Normale; span_m() für Darstellung; Servo/Flex wird auch im Stand nachgeführt (Ruder bewegen sich beim Bodentest sichtbar)
 # 2026-10-27 10:25 – Erstversion: Ruderklappe, Pendelleitwerk, Canard; Pseudo-Flex-Gelenk; Klappenwirksamkeit; Stall-Modell
 # =============================================================================
@@ -41,6 +42,12 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 @export_range(0.001, 50.0, 0.001, "or_greater") var area_m2: float = 0.04
 ## Seitenverhältnis (Spannweite² / Fläche). Kleine Flossen: 1–3.
 @export_range(0.3, 10.0, 0.1) var aspect_ratio: float = 1.5
+## Pfeilung wie im LTA-Simulator = Zuspitzung: Endtiefe / Wurzeltiefe
+## (1 = Rechteck). Ändert Form und Druckpunkt, nicht die Fläche.
+@export_range(0.2, 1.0, 0.05) var taper: float = 1.0
+## Gehört zum symmetrischen Leitwerk (wird aus TailConfig erzeugt). Freie
+## Flächen wie Canards haben false und bleiben beim Neuaufbau erhalten.
+@export var tail_member: bool = false
 ## Profil-Nullwiderstand (flache Depronplatte ≈ 0,02).
 @export_range(0.0, 0.2, 0.001) var cd0: float = 0.02
 ## Leitwerks-Wirkungsgrad (Abschattung durch den Rumpf).

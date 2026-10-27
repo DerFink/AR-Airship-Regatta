@@ -20,8 +20,26 @@
 		"plot_setpoint": "#9aa7b4",
 		"plot_measure": "#3d8bfd"
 	},
-	"radius": { "sm": 6, "md": 10, "lg": 16 },
-	"space": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24 },
-	"font": { "caption": 14, "body": 17, "title": 21 },
-	"size": { "control_height": 48, "stick_diameter": 240, "panel_side_width": 300 }
+	"radius": {
+		"sm": 6,
+		"md": 10,
+		"lg": 16
+	},
+	"space": {
+		"xs": 4,
+		"sm": 8,
+		"md": 12,
+		"lg": 16,
+		"xl": 24
+	},
+	"font": {
+		"caption": 16,
+		"body": 19,
+		"title": 22
+	},
+	"size": {
+		"control_height": 52,
+		"stick_diameter": 240,
+		"panel_side_width": 400
+	}
 }

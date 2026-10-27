@@ -1,3 +1,4 @@
+# 2026-10-27 15:09 – Presets nutzen TailConfig: Albacore = + mit Klappen, Chewie = λ in Pendelausführung (19 × 19 cm, Streckung 1, Pfeilung 0,8, 45°)
 # 2026-10-27 14:36 – Chewie: λ-Leitwerk in Pendelausführung, je ca. 19 × 19 cm, Streckung 1 (Nutzerangabe); Motorschwenk max. 110°
 # 2026-10-27 12:23 – Chewie-Antrieb auf 2 × GEPRC SpeedX2 1804 mit 4"-Propellern umgestellt (ca. 7 N Standschub je Motor, 27 000 U/min, Steigung 3" – Annahmen, s. u.)
 # 2026-10-27 11:08 – Motorpaare mit pair_id, gegenläufige Propeller bei Chewie, Rückwärtsschub-Daten, Propellerdaten für den Klang; Auswahlliste enthält Modellsammlung und eigene Modelle; Presets setzen Name und Standard-Gestaltung
@@ -69,14 +70,14 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.set_hull(GertlerHull.new())     # Standardwerte = Albacore-Näherung
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
-	var a := 0.14                        # je Flosse (0,08 war instabil, s. Kopf)
-	var fins: Array[ControlSurface] = [
-		make_fin("Seitenleitwerk oben", 0.90, 0.0, a),
-		make_fin("Höhenleitwerk rechts", 0.90, 90.0, a),
-		make_fin("Seitenleitwerk unten", 0.90, 180.0, a),
-		make_fin("Höhenleitwerk links", 0.90, 270.0, a),
-	]
-	ship.surfaces = fins
+	# Kreuzleitwerk (+) mit Ruderklappen, 0,14 m² je Flosse (0,08 war instabil, s. Kopf)
+	var t := TailConfig.new()
+	t.layout = TailConfig.Layout.PLUS
+	t.kind = ControlSurface.Kind.FLAP
+	t.area_m2 = 0.14
+	t.aspect_ratio = 1.5
+	ship.tail = t
+	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	var heck := make_motor("Heckmotor", 1.0, 0.0, 1.5, 0.0)
 	heck.standoff_m = 0.0                # sitzt auf der Längsachse an der Heckspitze
 	heck.pair_id = "heck"
@@ -94,22 +95,24 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 # um die Längsachse 45° nach unten gedreht ist (Pigleg-Anordnung):
 #   – beide Gondeln gleichsinnig geschwenkt → Schub kippt nach oben/unten → Nick
 #   – gegensinnig geschwenkt → Seitenkräfte addieren sich → Gier
-# ANNAHME (bitte am Modell nachmessen): Längsposition 0,25, Flossen 0,09 m².
+# ANNAHME (bitte am Modell nachmessen): Längsposition der Motoren 0,25.
 # =============================================================================
 static func chewie(ship: AirshipPhysics) -> void:
 	ship.set_hull(GertlerHull.new())
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
-	var fins: Array[ControlSurface] = [
-		# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
-		# (0,036 m², Streckung 1). Neigung der unteren Flossen (±45°) = ANNAHME.
-		make_fin("Seitenleitwerk oben", 0.90, 0.0, 0.0361, ControlSurface.Kind.ALL_MOVING),
-		make_fin("Leitwerk unten rechts", 0.90, 135.0, 0.0361, ControlSurface.Kind.ALL_MOVING),
-		make_fin("Leitwerk unten links", 0.90, 225.0, 0.0361, ControlSurface.Kind.ALL_MOVING),
-	]
-	for s in fins:
-		s.aspect_ratio = 1.0             # 19 × 19 cm → Streckung 1
-	ship.surfaces = fins
+	# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
+	# (0,036 m²), Streckung 1, Pfeilung (Zuspitzung) 0,8, untere Flossen 45°
+	# unter der Waagrechten.
+	var t := TailConfig.new()
+	t.layout = TailConfig.Layout.LAMBDA
+	t.v_angle_deg = 45.0
+	t.kind = ControlSurface.Kind.ALL_MOVING
+	t.area_m2 = 0.0361
+	t.aspect_ratio = 1.0
+	t.taper = 0.8
+	ship.tail = t
+	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	# Antrieb laut Nutzer: 2 × GEPRC SpeedX2 1804 mit 4"-Propellern.
 	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.

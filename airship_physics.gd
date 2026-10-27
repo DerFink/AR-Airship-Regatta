@@ -1,3 +1,4 @@
+# 2026-10-27 15:09 – Leitwerk als TailConfig: Flossen werden bei rebuild_mass_properties() daraus erzeugt, Canards bleiben erhalten
 # 2026-10-27 12:55 – reset_to(): Schiff im Physikschritt an den Startpunkt versetzen, Geschwindigkeiten/Motoren/Ruder nullen
 # 2026-10-27 12:23 – Motoren bekommen ihre Anströmung (Schubabfall mit der Fahrt); Anstellwinkel erst ab 1 m/s angezeigt (vorher z. B. 105° beim Absinken im Stand)
 # 2026-10-27 11:08 – Modellname und Gestaltung (livery) als Teil der Konfiguration
@@ -39,6 +40,9 @@ signal config_changed
 @export var model_name := "Albacore Standard"
 ## Gestaltung der Hülle (Farbe, Schriftzug, Logo) – rein optisch.
 @export var livery: Livery = Livery.new()
+## Symmetrisches Leitwerk. Seine Flossen werden bei jedem Neuaufbau aus dieser
+## Beschreibung erzeugt; null = nur freie Flächen (z. B. alte Modell-Strings).
+@export var tail: TailConfig
 
 @export_group("Massen")
 ## Masse aller Bauteile ohne Traggas (Hülle, Elektronik, Akku, Ballast) in kg.
@@ -132,6 +136,15 @@ func rebuild_mass_properties() -> void:
 	var i_air := m_air * (a * a + b * b) / 5.0
 	added_inertia = Vector3(hull.k_rot * i_air, hull.k_rot * i_air, 0.0)
 
+	# Leitwerk aus der Konfiguration neu erzeugen, freie Flächen (Canards) behalten
+	if tail:
+		var free: Array[ControlSurface] = []
+		for s in surfaces:
+			if not s.tail_member:
+				free.append(s)
+		var fins := tail.generate()
+		fins.append_array(free)
+		surfaces = fins
 	# Bauteile an die (evtl. neu skalierte) Hülle setzen
 	for s in surfaces:
 		s.place_on_hull(hull)
