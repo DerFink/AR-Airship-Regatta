@@ -1,3 +1,4 @@
+# 2026-10-27 11:41 – Schritte laufen mit bash (sh im Container kannte pipefail nicht → Abbruch); Testausgaben erscheinen in der Lauf-Zusammenfassung
 # 2026-10-27 11:29 – Erstversion: bei jedem Push Headless-Tests ausführen, Android-Debug-APK bauen und als Release veröffentlichen (feste Download-Adresse fürs Handy)
 #
 # Ablauf auf GitHub (kostenlos für öffentliche Repositories):
@@ -21,6 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
+    defaults:
+      run:
+        shell: bash        # im Container sonst "sh" – der kennt z. B. pipefail nicht
     steps:
       - uses: actions/checkout@v4
 
@@ -39,10 +43,13 @@ jobs:
 
       - name: Headless-Tests
         run: |
-          set -o pipefail
+          # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
+          echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
           for t in smoke_test chewie_test v03_test ui_test; do
             echo "=== $t"
-            godot --headless --path . -s tests/$t.gd 2>&1 | tee out.txt | grep -vE 'mesh_get_surface_count|Parameter "m" is null' || true
+            godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || true
+            grep -vE 'mesh_get_surface_count|Parameter "m" is null|at: mesh' out.txt | tee clean.txt
+            { echo "### $t"; echo '```'; tail -n 25 clean.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             if grep -qE "SCRIPT ERROR|Parse Error" out.txt; then echo "Test $t fehlgeschlagen"; exit 1; fi
           done
 
