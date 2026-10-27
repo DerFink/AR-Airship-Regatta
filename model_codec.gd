@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – PID-Vorgaben (pid) im Modell-String, geprüft je Achse 3 Werte 0…3
 # 2026-10-27 23:51 – Fix: Leerzeichen im Modellnamen bleiben beim Import erhalten
 # 2026-10-27 23:49 – Turm im Modell-String (sail: an, Lage, Länge, Höhe); alte Strings ohne Turm
 # 2026-10-27 16:07 – Teilmassen im String (Hülle, Elektronik, Lage/Automatik der Restmasse, Gondelmasse); alte Strings bekommen Standardwerte
@@ -80,6 +81,8 @@ static func encode(ship: AirshipPhysics) -> String:
 			"swv": m.max_swivel_deg, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
 			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir,
 			"mk": m.mass_kg})
+	if not ship.fc_gains.is_empty():
+		data["pid"] = ship.fc_gains                  # PID-Vorgaben des Modells
 	var l := ship.livery
 	data["look"] = {"col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
@@ -136,6 +139,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.electronics_mass_kg = d.mass.el
 	ship.ballast_x = d.mass.bx
 	ship.ballast_auto_x = d.mass.bauto
+	ship.fc_gains = d.get("pid", {})
 	ship.sail_enabled = d.sail.on
 	ship.sail_x = d.sail.sx
 	ship.sail_length_frac = d.sail.sl
@@ -230,6 +234,21 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true)},
 		"fins": [], "motors": [],
 	}
+	# PID-Vorgaben: je Achse genau 3 Zahlen, je 0…3
+	var pd = d.get("pid")
+	if pd is Dictionary:
+		var pid_out := {}
+		for ax in ["roll", "pitch", "yaw"]:
+			var g = pd.get(ax)
+			if g is Array and g.size() == 3:
+				var ok := true
+				var vals := []
+				for x in g:
+					if not (x is float or x is int): ok = false; break
+					vals.append(clampf(float(x), 0.0, 3.0))
+				if ok: pid_out[ax] = vals
+		if not pid_out.is_empty():
+			out["pid"] = pid_out
 	var sd: Dictionary = d.get("sail", {}) if d.get("sail") is Dictionary else {}
 	out["sail"] = {"on": _flag(sd, "on", false), "sx": _num(sd, "sx", 0.30),
 		"sl": _num(sd, "sl", 0.12), "sh": _num(sd, "sh", 0.33)}

@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Albacore nach Bauplan: L/D 7,5, X-Flossen ca. 2,4 % von L·D je Flosse, Streckung 1,2, Pfeilung 0,8, Turm bei 36 % / 13,5 % L / 0,59 D; PID-Vorgaben Albacore (P3 I0,1 D3) und Chewie (P2 I0 D2)
 # 2026-10-27 23:49 – Albacore mit Turm an der Unterseite (30 % Länge, 12 % L lang, 1/3 D hoch); Chewie ohne Turm
 # 2026-10-27 23:28 – Albacore wieder Standard: X-Heck mit Ruderklappen wie das Original, Schriftzug USS ALBACORE, Heckmotor an der Hüllenunterseite; Chewie: Schriftzug aerarium e.V., Pendel 35°, starres Leitwerk
 # 2026-10-27 16:07 – Chewie laut Nutzer: L/D 6, Hülle 86 g, Motoren seitlich unten bei 135°/225°, Massen (90 g Antrieb + Elektronik, Aufteilung angenommen); Massenwerte in beiden Presets
@@ -70,28 +71,39 @@ static func make_motor(name: String, x: float, angle_deg: float, thrust_n: float
 # starrer Heckmotor.
 # =============================================================================
 static func albacore_default(ship: AirshipPhysics) -> void:
-	ship.set_hull(GertlerHull.new())     # Standardwerte = Albacore-Näherung
+	# Schlankheit wie das Original (62,6 m / 8,3 m ≈ 7,5)
+	var h := GertlerHull.new()
+	h.length_to_diameter = 7.5
+	h.volume_m3 = 0.25
+	ship.set_hull(h)
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
 	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
 	# Turm wie beim Original, aber an der Unterseite (Optik + Wirkung als feste Flosse)
 	ship.sail_enabled = true
-	ship.sail_x = 0.30
-	ship.sail_length_frac = 0.12
-	ship.sail_height_frac = 0.33
+	# Maße aus dem Bauplan abgemessen (Genauigkeit ca. ±10 %)
+	ship.sail_x = 0.36
+	ship.sail_length_frac = 0.135
+	ship.sail_height_frac = 0.59
 	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
 	ship.hull_mass_kg = 0.086
 	ship.electronics_mass_kg = 0.030
 	ship.ballast_auto_x = true
-	# X-Heck wie das Original in seiner bekanntesten Ausbaustufe (Phase III,
-	# heute auch am Museumsschiff zu sehen): 4 diagonale Flossen mit Ruder-
-	# klappen VOR dem Heckpropeller. 0,14 m² je Flosse – beim X wirkt jede
-	# Flosse zur Hälfte auf Nick und Seite, die Stabilität entspricht dem +.
+	# X-Heck wie das Original (Phase III): 4 diagonale Flossen mit Ruderklappen
+	# direkt VOR dem Heckpropeller. Maße aus dem Bauplan abgemessen:
+	# Fläche je Flosse ≈ 2,4 % von L·D, Spannweite ≈ 0,47 D, Streckung ≈ 1,2,
+	# Pfeilung (Endtiefe/Wurzeltiefe) 0,8, Hinterkante senkrecht.
+	# Damit ist die Albacore aerodynamisch instabil → fliegt nur mit Regler.
 	var t := TailConfig.new()
 	t.layout = TailConfig.Layout.CROSS
 	t.kind = ControlSurface.Kind.FLAP
-	t.area_m2 = 0.14
-	t.aspect_ratio = 1.5
+	t.area_m2 = 0.024 * h.length_m * h.diameter_m
+	t.aspect_ratio = 1.2
+	t.taper = 0.8
+	t.hull_x = 0.95
+	# PID-Standard aus der automatischen Suche (64 Kombinationen, 50/75/100 %
+	# Schub + Nickböe): Nick und Roll P 3,0 · I 0,1 · D 3,0
+	ship.fc_gains = {"pitch": [3.0, 0.1, 3.0], "roll": [3.0, 0.1, 3.0]}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	# Winkel 180° = Hüllenunterseite: wird der Motor im Baukasten nach vorn
@@ -124,6 +136,9 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
 	ship.livery.text = "aerarium e.V."       # fester Schriftzug
+	# PID-Standard aus der automatischen Suche im Simulator (144 Kombinationen,
+	# 50/75/100 % Schub + Nickböe): Nick und Roll P 2,0 · I 0 · D 2,0
+	ship.fc_gains = {"pitch": [2.0, 0.0, 2.0], "roll": [2.0, 0.0, 2.0]}
 	ship.sail_enabled = false                # Chewie hat keinen Turm
 	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
 	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.

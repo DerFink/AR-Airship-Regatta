@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Modusschalter oben Mitte: Direkt / Geregelt / Luftschiff (ersetzt die Anzeige „FC: Mode n“)
 # 2026-10-27 13:03 – Motor-Schalter heißt jetzt wie bei FPV-Drohnen: „Disarmed“ / „Armed“
 # 2026-10-27 12:55 – Knopf „Zurücksetzen“ oben rechts (vor „Motoren“)
 # 2026-10-27 12:24 – Eigene Layout-Funktion: Telemetrie, Menüs, Knüppel und Hinweis werden aus der Bildschirmgröße platziert (Knüppel lagen sonst außerhalb des Bildes)
@@ -30,7 +31,8 @@ var stick_left: TouchStick
 var stick_right: TouchStick
 var _pill_speed: Button
 var _pill_alpha: Button
-var _pill_mode: Button
+var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
+var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
 var _btn_ar: Button
 var _banner: PanelContainer
@@ -55,8 +57,21 @@ func _ready() -> void:
 	add_child(tl)
 	_pill_speed = UITheme.make_pill("0,0 km/h")
 	_pill_alpha = UITheme.make_pill("α 0°")
-	_pill_mode = UITheme.make_pill("FC: Mode 1")
-	for p in [_pill_speed, _pill_alpha, _pill_mode]: tl.add_child(p)
+	for p in [_pill_speed, _pill_alpha]: tl.add_child(p)
+
+	# --- Modusschalter oben Mitte (3 Stellungen wie Kanal 13) ----------------
+	# „Geregelt ohne Vektor“ bleibt im PID-Menü wählbar; ist er aktiv, ist hier
+	# keine Stellung markiert.
+	_mode_box = UITheme.make_hbox("xs")
+	add_child(_mode_box)
+	var grp := UITheme.make_toggle_group()
+	for md in [FlightController.Mode.DIRECT, FlightController.Mode.STABILIZED, FlightController.Mode.AIRSHIP]:
+		var b := UITheme.make_pill(FlightController.MODE_NAMES[md], true)
+		b.toggle_mode = true
+		b.button_group = grp
+		b.pressed.connect(func(): if fc: fc.mode = md)
+		_mode_box.add_child(b)
+		_mode_btns[md] = b
 
 	# --- Menüs oben rechts --------------------------------------------------
 	_tr = UITheme.make_hbox("xs")
@@ -103,6 +118,11 @@ func _layout() -> void:
 	_tl.position = Vector2(m, m)
 	_tr.size = _tr.get_combined_minimum_size()
 	_tr.position = Vector2(sz.x - _tr.size.x - m, m)
+	# Schalter mittig zwischen Telemetrie und Menüs
+	_mode_box.size = _mode_box.get_combined_minimum_size()
+	var free0 := _tl.position.x + _tl.size.x + m
+	var free1 := _tr.position.x - m
+	_mode_box.position = Vector2(maxf(free0, (free0 + free1 - _mode_box.size.x) * 0.5), m)
 	for s in [stick_left, stick_right]:
 		s.size = s.custom_minimum_size
 	var sy := sz.y - stick_left.size.y - m
@@ -147,7 +167,10 @@ func _process(dt: float) -> void:
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
 			_btn_arm.text = "Armed" if fc.armed else "Disarmed"
-		_pill_mode.text = "FC: Mode %d" % (int(fc.mode) + 1)
+		for mm in _mode_btns:                         # Stellung nachziehen (auch nach PID-Menü)
+			var on: bool = int(fc.mode) == int(mm)
+			if _mode_btns[mm].button_pressed != on:
+				_mode_btns[mm].set_pressed_no_signal(on)
 	if ship:
 		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")
 		_pill_alpha.text = "α %d°" % roundi(ship.alpha_deg)

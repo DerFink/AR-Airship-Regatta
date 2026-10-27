@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Mode 4 Luftschiff im Modus-Menü
 # 2026-10-27 15:10 – Wertanzeige über row.get_meta("out") (Regler haben jetzt −/+-Knöpfe)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 10:42 – Regler und Modus-Knöpfe werden beim Öffnen und bei jedem Moduswechsel mit dem Flugcontroller abgeglichen (vorher nur beim Start)
@@ -49,8 +50,8 @@ func _ready() -> void:
 	left.add_child(lcol)
 	lcol.add_child(UITheme.make_title("Flugcontroller"))
 	var g := UITheme.make_toggle_group()
-	var names := ["Mode 1 direkt", "Mode 2 geregelt", "Mode 3 ohne Vektor"]
-	for i in 3:
+	var names := ["Mode 1 direkt", "Mode 2 geregelt", "Mode 3 ohne Vektor", "Mode 4 Luftschiff"]
+	for i in names.size():
 		var b := UITheme.make_button(names[i], true)
 		b.button_group = g
 		b.button_pressed = int(fc.mode) == i

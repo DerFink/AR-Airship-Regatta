@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – PID-Vorgaben beim Modellwechsel an den Flugcontroller
 # 2026-10-27 23:28 – Startmodell wieder Albacore
 # 2026-10-27 16:07 – Startmodell Chewie; Restmasse/Schwerpunkt nur im Baukasten einblenden
 # 2026-10-27 15:12 – Baukasten: Modell mit einem Finger drehen, mit zwei Fingern zoomen (PC: Maus ziehen / Mausrad); Knopf „Ansicht zurücksetzen“
@@ -199,6 +200,8 @@ func _build_ui() -> void:
 	hud.pid_requested.connect(func(): _set_view(View.PID))
 	hud.ar_requested.connect(ar.toggle)
 	hud.reset_requested.connect(reset_ship)
+	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
+	ship.model_applied.connect(func(): fc.apply_model_gains(ship.fc_gains))
 	builder.closed.connect(func(): _set_view(View.FLY))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
 	builder.view_reset_requested.connect(reset_view)

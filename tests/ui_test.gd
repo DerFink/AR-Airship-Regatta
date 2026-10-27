@@ -13,12 +13,14 @@ func _process(_dt: float) -> bool:
 	f += 1
 	match f:
 		5:
+			main.hud._mode_btns[FlightController.Mode.AIRSHIP].emit_signal("pressed")   # Schalter testen
+			print("Modus nach Schalter: ", FlightController.MODE_NAMES[main.fc.mode])
 			main.fc.mode = FlightController.Mode.STABILIZED
 			main.hud._btn_arm.button_pressed = true          # Motoren an über den Schalter
 			main.hud.stick_left.value = Vector2(0, 0.7)       # Gas
 			main.hud.stick_right.value = Vector2(0.5, 0.2)    # Gier rechts + Nick
 		240:
-			print("Flug: v=%.2f m/s armed=%s alpha=%.1f pills=%s | %s" % [main.ship.airspeed, main.fc.armed, main.ship.alpha_deg, main.hud._pill_speed.text, main.hud._pill_mode.text])
+			print("Flug: v=%.2f m/s armed=%s alpha=%.1f pills=%s | %s" % [main.ship.airspeed, main.fc.armed, main.ship.alpha_deg, main.hud._pill_speed.text, FlightController.MODE_NAMES[main.fc.mode]])
 			print("Knüppel-Beschriftung: ", main.hud.stick_left.caption, " / ", main.hud.stick_right.caption)
 			main._set_view(main.View.BUILD)
 		245:

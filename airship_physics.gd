@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Signal model_applied und fc_gains (PID-Vorgaben je Modell)
 # 2026-10-27 23:49 – Turm an der Hüllenunterseite als feste Flosse (sail_*), wird wie das Leitwerk bei jedem Neuaufbau erzeugt
 # 2026-10-27 16:07 – Massenmodell aus Teilmassen: Hülle (verteilt), Motoren am Einbauort, Elektronik + Akku + Ballast als Masse unten an der Hülle (Menge aus Auftrieb, Lage automatisch getrimmt); Schwerpunkt und Trägheit daraus berechnet; Bauteile werden vor der Massenbilanz platziert
 # 2026-10-27 15:09 – Leitwerk als TailConfig: Flossen werden bei rebuild_mass_properties() daraus erzeugt, Canards bleiben erhalten
@@ -33,6 +34,8 @@ extends RigidBody3D
 signal telemetry_updated(data: Dictionary)
 ## Hülle oder Bauteile wurden geändert → Darstellung und Validator neu aufbauen.
 signal config_changed
+## Ein Modell wurde ausgewählt (Preset/Sammlung) → z. B. PID-Standardwerte übernehmen.
+signal model_applied
 
 # --- Konfiguration aus dem Baukasten -----------------------------------------
 @export var hull: GertlerHull
@@ -67,6 +70,10 @@ signal config_changed
 ## um trim_heaviness_n schwerer als Luft ist (schwebt fast neutral).
 @export var auto_trim: bool = true
 @export var trim_heaviness_n: float = 0.05
+
+## PID-Standardwerte dieses Modells für die geregelten Modi:
+## {"pitch": [kp, ki, kd], "roll": [...], "yaw": [...]}; leer = keine Vorgabe.
+@export var fc_gains: Dictionary = {}
 
 @export_group("Turm")
 ## Fester Turm an der Hüllenunterseite (wie der U-Boot-Turm, nur kopfüber).

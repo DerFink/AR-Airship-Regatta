@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Test airship_mode_test aufgenommen
 # 2026-10-27 16:19 – Zeitlimit 3 min je Headless-Test (ein hängender Test blockierte den Lauf)
 # 2026-10-27 15:13 – Test tail_test (Leitwerk-Konfiguration, Baukasten-Gesten) in die Testliste aufgenommen
 # 2026-10-27 11:41 – Schritte laufen mit bash (sh im Container kannte pipefail nicht → Abbruch); Testausgaben erscheinen in der Lauf-Zusammenfassung
@@ -47,7 +48,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test tail_test ui_test; do
+          for t in smoke_test chewie_test v03_test tail_test airship_mode_test ui_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
             rc=0; timeout 180 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?

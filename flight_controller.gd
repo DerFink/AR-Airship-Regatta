@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Mode 4 „Luftschiff“ (Roll frei/ungedämpft, Nick gegen Horizont, Gier um die Senkrechte, in die Schräglage umgerechnet); MODE_NAMES; apply_model_gains() für PID-Vorgaben je Modell
 # 2026-10-27 23:28 – Ruderausschlag standardmäßig 100 % (vorher 50 %, ältere Einstellungsdateien übernehmen ihn nicht); Differenzschub relativ zum Gas ohne Rückwärtslauf; Mischer blendet nach Vorwärtsfahrt; Gier mit Vorsteuerung; D-Anteil Nick/Roll 1,0 und Reglerbereich bis 3,0
 # 2026-10-27 12:41 – Nick-Knüppel umgedreht wie beim RC-Sender: nach vorn = Nase runter, ziehen = Nase hoch
 # 2026-10-27 11:08 – Mischer nutzt den Schub mit Vorzeichen (Rückwärtsschub kehrt die Schwenkwirkung um) und den reduzierten Rückwärts-Wirkungsgrad
@@ -16,6 +17,11 @@
 #                             Ruder UND Schwenkmotoren werden genutzt
 #   STABILIZED_NO_VEC Mode 3: eigener PID-Satz, Schwenkmotoren NICHT geregelt
 #                             (folgen direkt dem Nick-Stick)
+#   AIRSHIP           Mode 4 „Luftschiff“: Roll frei und ungedämpft (Krängung
+#                             egal); Nicklage gegen den Horizont und Drehrate um
+#                             die SENKRECHTE werden geregelt und in die aktuelle
+#                             Schräglage umgerechnet → jede Flosse bekommt den
+#                             Ausschlag, der das gewünschte Moment liefert
 #
 # Der Mischer verteilt die gewünschten Drehmomente automatisch anhand der
 # Bauteil-Geometrie auf alle Stellglieder – egal wo im Baukasten sie sitzen.
@@ -33,7 +39,9 @@ signal pid_changed(mode: int, axis: int, term: String, value: float)
 ## Für die Live-Sprungantwort im PID-Menü.
 signal loop_sample(axis: int, setpoint: float, measurement: float)
 
-enum Mode { DIRECT, STABILIZED, STABILIZED_NO_VEC }
+enum Mode { DIRECT, STABILIZED, STABILIZED_NO_VEC, AIRSHIP }
+## Namen für Schalter und Menüs
+const MODE_NAMES := ["Direkt", "Geregelt", "Geregelt ohne Vektor", "Luftschiff"]
 enum Axis { ROLL, PITCH, YAW }
 enum MixMode { BLEND, AERO_ONLY, VECTOR_ONLY }
 
@@ -133,6 +141,24 @@ func _init() -> void:
 	pids[Mode.STABILIZED_NO_VEC][Axis.PITCH].kp = 0.7
 
 
+## Modell-Standardwerte übernehmen (z. B. für Chewie erflogene/ermittelte PIDs).
+## gains: {"pitch": [kp, ki, kd], "roll": [...], "yaw": [...]} – gilt für die
+## geregelten Modi (Geregelt, Luftschiff). Wird gespeichert.
+func apply_model_gains(gains: Dictionary) -> void:
+	if gains.is_empty():
+		return
+	var axes := {"roll": Axis.ROLL, "pitch": Axis.PITCH, "yaw": Axis.YAW}
+	for key in gains:
+		if not axes.has(key):
+			continue
+		var g: Array = gains[key]
+		for m in [Mode.STABILIZED, Mode.AIRSHIP]:
+			var p: PID = pids[m][axes[key]]
+			p.kp = g[0]; p.ki = g[1]; p.kd = g[2]
+			p.reset()
+	save_settings()
+
+
 func _ready() -> void:
 	load_settings()
 
@@ -193,6 +219,9 @@ func _physics_process(dt: float) -> void:
 	var u_yaw := 0.0
 	if mode == Mode.DIRECT:
 		u_roll = cmd_roll; u_pitch = cmd_pitch; u_yaw = cmd_yaw
+	elif mode == Mode.AIRSHIP:
+		_airship_mode(b, dt, pitch)
+		return
 	else:
 		var pid_set: Dictionary = pids[mode]
 		var sp_pitch := cmd_pitch * deg_to_rad(max_angle_deg)
@@ -210,6 +239,38 @@ func _physics_process(dt: float) -> void:
 	# Wunsch-Drehmoment im Körpersystem (Vorzeichen siehe Kopfkommentar)
 	var tau_cmd := Vector3(u_pitch, -u_yaw, -u_roll)
 	_mix(tau_cmd)
+
+
+# =============================================================================
+# Mode 4 „Luftschiff“: Regelung in Erd-Achsen, Roll frei
+# -----------------------------------------------------------------------------
+#   Nickachse  = waagrechte Querachse (Nase × oben) – Nase hoch/runter gegen
+#                den Horizont, egal wie stark das Schiff gekrängt ist
+#   Gierachse  = Senkrechte der Erde
+#   Rollachse  = nicht geregelt, nicht gedämpft
+# Die Wunschmomente werden ins Körpersystem gedreht. Ist das Schiff z. B.
+# 40° gekrängt, liefert der Mischer „Nase hoch“ teils über die Höhen-, teils
+# über die Seitenflossen – genau so, wie die Flossen jetzt im Raum stehen.
+# =============================================================================
+func _airship_mode(b: Basis, dt: float, pitch: float) -> void:
+	var pid_set: Dictionary = pids[Mode.AIRSHIP]
+	var nose := -b.z                                  # Nase in Weltkoordinaten
+	var axis_pitch := nose.cross(Vector3.UP)          # Nase hoch = Drehung um diese Achse
+	if axis_pitch.length() < 0.05:                    # Schiff steht senkrecht: Querachse nehmen
+		axis_pitch = b.x
+	axis_pitch = axis_pitch.normalized()
+	var w := airship.angular_velocity                 # Welt
+	var rate_pitch := w.dot(axis_pitch)
+	var rate_yaw := -w.y                              # Gier rechts = +
+	var sp_pitch := cmd_pitch * deg_to_rad(max_angle_deg)
+	var sp_yaw := cmd_yaw * deg_to_rad(max_yaw_rate_dps)
+	var u_pitch: float = pid_set[Axis.PITCH].update(sp_pitch - pitch, rate_pitch, dt)
+	var u_yaw := clampf(cmd_yaw + pid_set[Axis.YAW].update(sp_yaw - rate_yaw, 0.0, dt), -1.0, 1.0)
+	loop_sample.emit(Axis.PITCH, sp_pitch, pitch)
+	loop_sample.emit(Axis.YAW, sp_yaw, rate_yaw)
+	# Wunschmoment in Welt (Gier rechts = Drehung um −Y), dann ins Körpersystem
+	var tau_world := axis_pitch * u_pitch + Vector3.DOWN * u_yaw
+	_mix(b.transposed() * tau_world)
 
 
 # =============================================================================

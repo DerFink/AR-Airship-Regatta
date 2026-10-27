@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Import meldet model_applied (PID-Vorgaben übernehmen)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Erstversion: Teilen-Dialog nach freigegebenem Entwurf – Modell-String anzeigen/kopieren, eingefügten String prüfen und laden, eigenes Modell speichern, Hinweis aufs separat zu schickende Logo
 # =============================================================================
@@ -136,6 +137,7 @@ func _on_paste_load() -> void:
 		ui_action.emit("warn")
 		return
 	ModelCodec.apply(ship, r.name, r.data)
+	ship.model_applied.emit()          # PID-Vorgaben des Modells übernehmen
 	_name.text = ship.model_name
 	_export()
 	var msg := "Geladen: %s · %d Flossen, %d Motoren." % [r.name, r.data.fins.size(), r.data.motors.size()]

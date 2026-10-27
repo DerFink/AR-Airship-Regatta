@@ -1,3 +1,4 @@
+# 2026-10-28 00:15 – Modellwahl meldet model_applied (PID-Vorgaben übernehmen)
 # 2026-10-27 23:49 – Reiter Hülle: Turm an/aus mit Lage, Länge, Höhe; Turm zählt nicht als Canard
 # 2026-10-27 23:28 – Modellauswahl fest in der rechten Spalte; Schalter Elastisches Leitwerk für jede Bauart; neue Motorpaare seitlich unten (135°/225°)
 # 2026-10-27 16:07 – Reiter Hülle: Massen (Hülle, Elektronik, Restmasse-Anzeige, Lage mit Automatik); Antrieb: Masse je Gondel
@@ -671,6 +672,7 @@ func _on_preset(idx: int) -> void:
 	if idx <= 0:
 		return
 	AirshipPresets.list()[idx - 1].build.call(ship)
+	ship.model_applied.emit()          # Flugcontroller übernimmt die PID-Vorgaben des Modells
 	_preset.select(0)
 	ui_action.emit("ok")
 	_sync_from_ship()
