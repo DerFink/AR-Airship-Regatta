@@ -1,3 +1,4 @@
+# 2026-10-27 12:52 – Pilotensicht wie beim RC-Fliegen: fester Standort (1 m Richtung Mitte, 3 m neben Pylon 1, Augenhöhe 1,7 m), Blick folgt dem Schiff mit sanftem Zoom; Strecke mit zwei Pylonen im Abstand von 25 m; Start 6 m vor dem Piloten in 4 m Höhe
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Teilen-Dialog als eigene Ansicht; Sound: Propellergeräusch je Motor (wird bei Bauteil-Änderungen neu aufgebaut), ruhige Töne + leiser Klangteppich nur im Baukasten, im Flug sonst Stille
 # 2026-10-27 10:42 – Erstversion: Hauptszene setzt alles zusammen (Testgelände mit Regatta-Pylonen, Luftschiff, Flugcontroller, Watchdog, AR-Schalter, Verfolgerkamera / Baukasten-Kamera, UI mit zentralem Theme)
@@ -14,6 +15,22 @@
 extends Node3D
 
 enum View { FLY, BUILD, PID, SHARE }
+
+# --- Strecke und Pilot (Meter) ------------------------------------------------
+# Draufsicht: Pylon 1 bei x = 0, Pylon 2 bei x = 25 m, beide auf der Linie z = 0.
+# Der Pilot steht wie ein RC-Pilot fest am Boden: 1 m Richtung Streckenmitte,
+# 3 m seitlich neben Pylon 1, Augenhöhe 1,7 m – Blick die Strecke entlang.
+const PYLON_1 := Vector3(0.0, 0.0, 0.0)
+const PYLON_2 := Vector3(25.0, 0.0, 0.0)
+const PYLON_HEIGHT := 5.0
+const PILOT_EYE := Vector3(1.0, 1.7, 3.0)
+## Startpunkt des Luftschiffs: 6 m die Strecke hinauf, 4 m hoch, Nase Richtung Pylon 2
+const SHIP_START := Vector3(6.0, 4.0, 0.0)
+## Sanftes Mitzoomen wie mit einem Fernglas: bis ZOOM_NEAR m volles Blickfeld,
+## danach wird der Bildwinkel kleiner, damit das Schiff erkennbar bleibt.
+const FOV_WIDE := 60.0
+const FOV_TIGHT := 18.0
+const ZOOM_NEAR := 10.0
 
 var ship: AirshipPhysics
 var visual: AirshipVisual
@@ -78,17 +95,16 @@ func _build_world() -> void:
 	ground.add_child(gm)
 	_scenery.add_child(ground)
 
-	# Regatta-Pylone (rot) im Kreis
+	# Regatta-Strecke: zwei Pylone im Abstand von 25 m entlang der X-Achse
 	var pm := StandardMaterial3D.new()
 	pm.albedo_color = Color("e5534b")
-	for i in 6:
-		var a := TAU * i / 6.0
+	for x in [PYLON_1.x, PYLON_2.x]:
 		var py := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.15; cyl.bottom_radius = 0.4; cyl.height = 6.0
+		cyl.top_radius = 0.12; cyl.bottom_radius = 0.35; cyl.height = PYLON_HEIGHT
 		py.mesh = cyl
 		py.material_override = pm
-		py.position = Vector3(cos(a) * 30.0, 3.0, sin(a) * 30.0)
+		py.position = Vector3(x, PYLON_HEIGHT * 0.5, 0.0)
 		_scenery.add_child(py)
 
 
@@ -99,7 +115,8 @@ func _build_ship() -> void:
 	ship = AirshipPhysics.new()
 	ship.name = "Airship"
 	AirshipPresets.albacore_default(ship)
-	ship.position = Vector3(0, 3, 0)
+	ship.position = SHIP_START
+	ship.rotation.y = -PI * 0.5             # Nase (−Z des Schiffs) zeigt nach +X, zu Pylon 2
 	visual = AirshipVisual.new()
 	ship.add_child(visual)
 	fc = FlightController.new()
@@ -205,13 +222,16 @@ func _set_view(v: View) -> void:
 func _process(dt: float) -> void:
 	var p := ship.global_position
 	var L := ship.hull.length_m
-	var target: Vector3
+	var a := clampf(dt * 3.0, 0.0, 1.0)
 	if view == View.BUILD or view == View.SHARE:
-		target = p + Vector3(L * 1.4, L * 0.25, 0)            # Seitenansicht
+		# Baukasten: seitlich nah am Modell, normales Blickfeld
+		camera.global_position = camera.global_position.lerp(p + Vector3(0, L * 0.25, L * 1.4), a)
+		camera.fov = lerpf(camera.fov, FOV_WIDE, a)
 	else:
-		var back := ship.global_transform.basis.z
-		back.y = 0.0
-		back = back.normalized() if back.length() > 0.01 else Vector3.BACK
-		target = p + back * L * 2.2 + Vector3.UP * L * 0.6    # leicht erhöht dahinter
-	camera.global_position = camera.global_position.lerp(target, clampf(dt * 3.0, 0.0, 1.0))
-	camera.look_at(p, Vector3.UP)
+		# Flug: fester Pilotenstandort, Blick folgt dem Schiff, sanft zoomen
+		camera.global_position = camera.global_position.lerp(PILOT_EYE, a)
+		var dist := PILOT_EYE.distance_to(p)
+		var fov_target := clampf(FOV_WIDE * ZOOM_NEAR / maxf(dist, ZOOM_NEAR), FOV_TIGHT, FOV_WIDE)
+		camera.fov = lerpf(camera.fov, fov_target, clampf(dt * 1.5, 0.0, 1.0))
+	if camera.global_position.distance_to(p) > 0.01:
+		camera.look_at(p, Vector3.UP)
