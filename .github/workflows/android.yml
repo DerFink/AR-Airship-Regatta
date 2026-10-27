@@ -1,3 +1,4 @@
+# 2026-10-27 16:19 – Zeitlimit 3 min je Headless-Test (ein hängender Test blockierte den Lauf)
 # 2026-10-27 15:13 – Test tail_test (Leitwerk-Konfiguration, Baukasten-Gesten) in die Testliste aufgenommen
 # 2026-10-27 11:41 – Schritte laufen mit bash (sh im Container kannte pipefail nicht → Abbruch); Testausgaben erscheinen in der Lauf-Zusammenfassung
 # 2026-10-27 11:29 – Erstversion: bei jedem Push Headless-Tests ausführen, Android-Debug-APK bauen und als Release veröffentlichen (feste Download-Adresse fürs Handy)
@@ -48,9 +49,11 @@ jobs:
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
           for t in smoke_test chewie_test v03_test tail_test ui_test; do
             echo "=== $t"
-            godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || true
+            # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
+            rc=0; timeout 180 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
             grep -vE 'mesh_get_surface_count|Parameter "m" is null|at: mesh' out.txt | tee clean.txt
-            { echo "### $t"; echo '```'; tail -n 25 clean.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo "### $t (Rückgabe $rc)"; echo '```'; tail -n 25 clean.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            if [ "$rc" = "124" ]; then echo "Test $t hängt (Zeitlimit)"; exit 1; fi
             if grep -qE "SCRIPT ERROR|Parse Error" out.txt; then echo "Test $t fehlgeschlagen"; exit 1; fi
           done
 
