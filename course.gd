@@ -1,3 +1,4 @@
+# 2026-10-28 09:02 – Startlage 1 m neben dem vorderen Pylon (Pilotenseite) statt genau davor
 # 2026-10-28 08:51 – Acht um beide Pylone: 4 Kontrollpunkte mit Seite und Richtung, falsche Durchgänge zählen nicht (weiterfliegen bis korrekt), Rundenzeiten; hinterer Pylon grün auf Höhe von Pylon 2 als Kurvensignal
 # 2026-10-28 08:14 – Erstversion: Strecke mit zwei Pylonen (Abstand einstellbar, Vorgabe „FN Hugo Eckener Cup“ = 18 m), weißes Rechteck (Pylonabstand + 2 × 3,5 m lang, 20 m breit), Farbwechsel des hinteren Pylons, Rundenzähler (3 Runden) mit fliegendem Start
 # =============================================================================
@@ -50,6 +51,7 @@ const FIELD_MARGIN := 3.5        ## Rechteck reicht so weit vor/hinter die Pylon
 const FIELD_WIDTH := 20.0
 const LINE_WIDTH := 0.10
 const START_BEHIND := 1.0        ## Bug steht so weit hinter der Linie des vorderen Pylons
+const START_BESIDE := 1.0        ## Abstand Hüllenseite ↔ vorderer Pylon (zur Pilotenseite hin)
 const START_HEIGHT := 4.0
 const LAPS := 3
 const SETTINGS_PATH := "user://strecke.cfg"
@@ -134,10 +136,13 @@ func rebuild() -> void:
 
 
 ## Startlage des Schiffs: Bug 1 m hinter der Linie des vorderen Pylons,
+## Hüllenseite 1 m neben dem Pylon auf der Pilotenseite,
 ## Nase Richtung hinterer Pylon (+X), freischwebend in 4 m Höhe.
 func start_transform(ship: AirshipPhysics) -> Transform3D:
 	var x := -START_BEHIND - ship.hull.cb_from_nose
-	return Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(x, START_HEIGHT, 0.0))
+	# seitlich zur Pilotenseite versetzt, damit der Start über Punkt 1 zählt
+	var z := START_BESIDE + ship.hull.diameter_m * 0.5
+	return Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(x, START_HEIGHT, z))
 
 
 # =============================================================================
