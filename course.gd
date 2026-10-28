@@ -1,3 +1,4 @@
+# 2026-10-29 00:19 – course_key() für die Bestenliste
 # 2026-10-28 15:12 – Start in 1,5 m Höhe
 # 2026-10-28 09:02 – Startlage 1 m neben dem vorderen Pylon (Pilotenseite) statt genau davor
 # 2026-10-28 08:51 – Acht um beide Pylone: 4 Kontrollpunkte mit Seite und Richtung, falsche Durchgänge zählen nicht (weiterfliegen bis korrekt), Rundenzeiten; hinterer Pylon grün auf Höhe von Pylon 2 als Kurvensignal
@@ -92,6 +93,11 @@ func distance() -> float:
 
 
 ## Name für die Anzeige.
+## Schlüssel für die Bestenliste: eigene Liste je Strecke/Abstand.
+func course_key() -> String:
+	return "cup" if preset == 0 else "frei_%.1f" % free_distance
+
+
 func title() -> String:
 	return CUP_NAME if preset == 0 else "Freie Strecke %d m" % roundi(free_distance)
 

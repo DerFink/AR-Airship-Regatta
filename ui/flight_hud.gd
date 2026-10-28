@@ -1,3 +1,4 @@
+# 2026-10-29 00:19 – Modusschalter rückt in die zweite Reihe, wenn oben kein Platz ist
 # 2026-10-28 08:51 – Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten
 # 2026-10-28 08:14 – Knopf „Strecke“ und Rundenanzeige (Runde/Zeit) oben links
 # 2026-10-28 00:15 – Modusschalter oben Mitte: Direkt / Geregelt / Luftschiff (ersetzt die Anzeige „FC: Mode n“)
@@ -135,7 +136,11 @@ func _layout() -> void:
 	_mode_box.size = _mode_box.get_combined_minimum_size()
 	var free0 := _tl.position.x + _tl.size.x + m
 	var free1 := _tr.position.x - m
-	_mode_box.position = Vector2(maxf(free0, (free0 + free1 - _mode_box.size.x) * 0.5), m)
+	if free1 - free0 >= _mode_box.size.x:
+		_mode_box.position = Vector2((free0 + free1 - _mode_box.size.x) * 0.5, m)
+	else:
+		# zu schmal (Handy): Schalter in die zweite Reihe unter die Menüknöpfe
+		_mode_box.position = Vector2(sz.x - _mode_box.size.x - m, _tr.position.y + _tr.size.y + m * 0.5)
 	for s in [stick_left, stick_right]:
 		s.size = s.custom_minimum_size
 	var sy := sz.y - stick_left.size.y - m

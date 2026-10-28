@@ -1,3 +1,4 @@
+# 2026-10-29 00:19 – Bestenliste in den Test aufgenommen
 # 2026-10-28 08:51 – Acht um beide Pylone: Kontrollpunkte mit Seite und Richtung, falscher Durchgang zählt nicht, Rundenzeiten
 extends SceneTree
 # Prüft die Rennlogik mit einer vorgegebenen Bug-Bahn (x = Strecke, z = quer,
@@ -24,6 +25,12 @@ func _initialize() -> void:
 	print(" ".join(seen))
 	print("Ergebnis: ", c.race_text(), " | ", c.lap_text())
 	print("Rundenzeiten: ", c.lap_times, " fertig=", c.race == Course.Race.DONE)
+	# Bestenliste: Ergebnis eintragen, Platz prüfen, Liste lesen
+	var key := "test_%d" % Time.get_ticks_usec()
+	var p1 := Leaderboard.add(key, c.time_s, c.lap_times, "Testpilot", "Chewie")
+	var p2 := Leaderboard.add(key, c.time_s - 5.0, c.lap_times, "Schneller", "Albacore")
+	print("Bestenliste: Platz %d dann %d, Liste %s, Platz für 1:00,0 wäre %d" % [p1, p2,
+		Leaderboard.entries(key).map(func(e): return "%s %s" % [e.name, Course.format_time(e.total)]), Leaderboard.rank_for(key, 60.0)])
 	c.set_course(1, 30.0)
 	print("Frei: ", c.title(), " Abstand ", c.distance())
 	c.set_course(0, 30.0)

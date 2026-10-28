@@ -1,3 +1,4 @@
+# 2026-10-29 00:19 – Bestenliste: nach dem Ziel Namen eintragen (Top 10), Ansicht LEADER
 # 2026-10-28 15:12 – Pilot 6 m neben Pylon 1; Startmodell Chewie; PID-Vorgaben beim ersten Start bzw. nach Update übernehmen
 # 2026-10-28 08:51 – Bug-Position x und z an die Strecke (Seite am Pylon)
 # 2026-10-28 08:14 – Strecke als eigener Node (Course): einstellbarer Pylonabstand, weißes Feld, Rundenzählung; Start 1 m hinter dem vorderen Pylon; Ansicht „Strecke“
@@ -22,7 +23,7 @@
 # =============================================================================
 extends Node3D
 
-enum View { FLY, BUILD, PID, SHARE, COURSE }
+enum View { FLY, BUILD, PID, SHARE, COURSE, LEADER }
 
 # --- Strecke und Pilot (Meter) ------------------------------------------------
 # Draufsicht: vorderer Pylon bei x = 0, hinterer Pylon bei x = Abstand (Course).
@@ -44,6 +45,7 @@ var pid: PIDPanel
 var share: SharePanel
 var course: Course
 var course_panel: CoursePanel
+var leader_panel: LeaderboardPanel
 var ui_sounds: UISounds
 var view := View.FLY
 var _world_env: WorldEnvironment
@@ -191,6 +193,9 @@ func _build_ui() -> void:
 	course_panel = CoursePanel.new()
 	course_panel.setup(course)
 	root.add_child(course_panel)
+	leader_panel = LeaderboardPanel.new()
+	leader_panel.setup(course, ship)
+	root.add_child(leader_panel)
 
 	hud.builder_requested.connect(func(): _set_view(View.BUILD))
 	hud.pid_requested.connect(func(): _set_view(View.PID))
@@ -199,6 +204,9 @@ func _build_ui() -> void:
 	hud.course_requested.connect(func(): _set_view(View.COURSE))
 	course_panel.closed.connect(func(): _set_view(View.FLY))
 	course_panel.course_changed.connect(reset_ship)
+	course_panel.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
+	leader_panel.closed.connect(func(): _set_view(View.FLY))
+	course.race_changed.connect(_on_race_changed)
 	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
 	ship.model_applied.connect(func(): fc.apply_model_gains(ship.fc_gains))
 	# Erster Start (oder Einstellungen aus älterer Version): PID-Vorgaben des
@@ -223,6 +231,19 @@ func reset_ship() -> void:
 	fc._reset_integrators()
 	course.reset_race()
 	hud.show_notice("Zurückgesetzt", "info", 1.5)
+
+
+## Rennen im Ziel: Schafft die Zeit die Top 10, Namen für die Bestenliste
+## abfragen (Motoren aus, damit das Schiff nicht weiterfliegt).
+func _on_race_changed() -> void:
+	if course.race != Course.Race.DONE or view == View.LEADER:
+		return
+	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
+		fc.armed = false
+		leader_panel.show_result()
+		_set_view(View.LEADER)
+	else:
+		hud.show_notice("Ziel · %s – nicht unter den besten %d" % [Course.format_time(course.time_s), Leaderboard.MAX_ENTRIES], "info", 4.0)
 
 
 ## Rundenzählung: Bug-Position an die Strecke melden, Anzeige im HUD.
@@ -286,6 +307,7 @@ func _set_view(v: View) -> void:
 	pid.visible = v == View.PID
 	share.visible = v == View.SHARE
 	course_panel.visible = v == View.COURSE
+	leader_panel.visible = v == View.LEADER
 	# Baukasten/Teilen: Motoren aus, Schiff festhalten, ruhiger Klangteppich.
 	# Flug/PID: kein Klangteppich – zu hören sind nur die Motoren.
 	var workshop := v == View.BUILD or v == View.SHARE

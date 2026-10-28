@@ -1,3 +1,4 @@
+# 2026-10-29 00:19 – Knopf „Bestenliste“
 # 2026-10-28 08:14 – Erstversion: Einstellfeld „Strecke“ (FN Hugo Eckener Cup 18 m oder frei mit Pylonabstand 5–50 m)
 # =============================================================================
 # CoursePanel.gd
@@ -16,6 +17,8 @@ extends Control
 signal closed
 ## Strecke wurde geändert → Schiff an den Start, Rennen zurücksetzen
 signal course_changed
+## Bestenliste der aktuellen Strecke öffnen
+signal leaderboard_requested
 
 var course: Course
 var _box: VBoxContainer
@@ -55,6 +58,9 @@ func _fill() -> void:
 		roundi(d + 2.0 * Course.FIELD_MARGIN), roundi(Course.FIELD_WIDTH), Course.LAPS], "MutedLabel")
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(info)
+	var lb := UITheme.make_button("Bestenliste")
+	lb.pressed.connect(func(): leaderboard_requested.emit())
+	_box.add_child(lb)
 	var done := UITheme.make_button("Fertig")
 	done.pressed.connect(func(): closed.emit())
 	_box.add_child(done)

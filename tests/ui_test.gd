@@ -1,3 +1,4 @@
+# 2026-10-29 00:21 – Bestenliste im Ablauf geprüft
 # 2026-10-28 08:15 – Strecken-Einstellung im Ablauf geprüft
 # 2026-10-28 08:04 – Szene vor dem Beenden abbauen (Test hing gelegentlich beim Aufräumen)
 extends SceneTree
@@ -61,6 +62,11 @@ func _process(_dt: float) -> bool:
 			main.course_panel._on_distance(30.0)
 			print("Strecke frei: %s, Start x=%.1f, Rennanzeige: %s" % [main.course.title(), main.course.start_transform(main.ship).origin.x, main.hud._pill_race.text])
 			main.course.set_course(0, 30.0)
+			main.course.lap_times = PackedFloat32Array([20.0, 21.0, 22.0]); main.course.time_s = 63.0
+			main.leader_panel.show_result()
+			main.leader_panel._name_edit.text = "UI-Test"
+			main.leader_panel._on_enter()
+			print("Bestenliste: %d Einträge, Liste sichtbar=%s" % [Leaderboard.entries("cup").size(), main.leader_panel._box.get_child_count() > 2])
 			main._set_view(main.View.FLY)
 			print("Zurückgesetzt: Position %s, v=%.2f m/s, Kamera-Bildwinkel %.0f°" % [main.ship.global_position.snapped(Vector3.ONE * 0.1), main.ship.linear_velocity.length(), main.camera.fov])
 			main._set_view(main.View.BUILD)

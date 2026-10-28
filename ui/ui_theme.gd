@@ -1,3 +1,4 @@
+# 2026-10-29 00:19 – Größere Knöpfe (PillButton: Schrift 19, Mindesthöhe 52); Reiter-Schrift größer
 # 2026-10-27 15:10 – Größere Bedienelemente fürs Handy: dicke Slider-Spur, großer Griff, −/+-Knöpfe an jedem Regler; neue Bausteine make_stepper() und make_choice_row(); größere Schrift und Seitenleiste
 # 2026-10-27 12:25 – make_banner(width): feste Textbreite, damit der Zeilenumbruch nicht jedes Wort einzeln umbricht
 # 2026-10-27 11:08 – Stile für Reiter (TabContainer), Textfeld (TextEdit) und Kontrollkästchen ergänzt
@@ -155,6 +156,15 @@ static func build_theme() -> Theme:
 	for st in ["pressed", "hover_pressed"]:
 		t.set_stylebox(st, "Pill", box(color("accent_bg"), color("accent"), radius("sm"), space("sm")))
 
+	# PillButton = antippbare Pill (Schalter/Knöpfe in der Flugansicht):
+	# größere Schrift und mehr Innenabstand – am Handy gut zu treffen
+	t.set_type_variation("PillButton", "Button")
+	t.set_font_size("font_size", "PillButton", font_size("body"))
+	for st in ["normal", "hover", "disabled"]:
+		t.set_stylebox(st, "PillButton", box(color("surface"), color("border_strong"), radius("md"), space("md")))
+	for st in ["pressed", "hover_pressed"]:
+		t.set_stylebox(st, "PillButton", box(color("accent_bg"), color("accent"), radius("md"), space("md")))
+
 	# Schieberegler
 	# dicke Spur und großer Griff – am Handy gut zu treffen
 	var track := box(color("surface_alt"), color("border"), 5, 0)
@@ -184,7 +194,7 @@ static func build_theme() -> Theme:
 	t.set_color("font_unselected_color", "TabContainer", color("text_muted"))
 	t.set_color("font_hovered_color", "TabContainer", color("text"))
 	t.set_constant("side_margin", "TabContainer", 0)
-	t.set_font_size("font_size", "TabContainer", font_size("caption"))
+	t.set_font_size("font_size", "TabContainer", font_size("body"))
 	t.set_stylebox("normal", "TextEdit", box(color("surface_alt"), color("border_strong"), radius("md")))
 	t.set_color("font_color", "TextEdit", color("text"))
 	t.set_color("font_color", "CheckBox", color("text"))
@@ -258,8 +268,10 @@ static func make_button(text: String, toggle := false, icon_text := "") -> Butto
 ## Kleine Kachel (Telemetrie-Anzeige oder Menüschalter in der Flugansicht).
 static func make_pill(text: String, clickable := false) -> Button:
 	var b := Button.new()
-	b.theme_type_variation = "Pill"
+	b.theme_type_variation = "PillButton" if clickable else "Pill"
 	b.text = text
+	if clickable:                                  # Mindestgröße für den Finger
+		b.custom_minimum_size = Vector2(64, size("control_height"))
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_filter = Control.MOUSE_FILTER_STOP if clickable else Control.MOUSE_FILTER_IGNORE
 	return b
