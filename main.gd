@@ -1,3 +1,4 @@
+# 2026-10-28 15:12 – Pilot 6 m neben Pylon 1; Startmodell Chewie; PID-Vorgaben beim ersten Start bzw. nach Update übernehmen
 # 2026-10-28 08:51 – Bug-Position x und z an die Strecke (Seite am Pylon)
 # 2026-10-28 08:14 – Strecke als eigener Node (Course): einstellbarer Pylonabstand, weißes Feld, Rundenzählung; Start 1 m hinter dem vorderen Pylon; Ansicht „Strecke“
 # 2026-10-28 00:15 – PID-Vorgaben beim Modellwechsel an den Flugcontroller
@@ -26,8 +27,8 @@ enum View { FLY, BUILD, PID, SHARE, COURSE }
 # --- Strecke und Pilot (Meter) ------------------------------------------------
 # Draufsicht: vorderer Pylon bei x = 0, hinterer Pylon bei x = Abstand (Course).
 # Der Pilot steht wie ein RC-Pilot fest am Boden: 1 m Richtung Streckenmitte,
-# 3 m seitlich neben Pylon 1, Augenhöhe 1,7 m – Blick die Strecke entlang.
-const PILOT_EYE := Vector3(1.0, 1.7, 3.0)
+# 6 m seitlich neben Pylon 1, Augenhöhe 1,7 m – Blick die Strecke entlang.
+const PILOT_EYE := Vector3(1.0, 1.7, 6.0)
 ## Fester Bildwinkel wie mit bloßem Auge (kein Zoom – weit weg = klein).
 const FOV := 60.0
 
@@ -114,7 +115,7 @@ func _build_world() -> void:
 func _build_ship() -> void:
 	ship = AirshipPhysics.new()
 	ship.name = "Airship"
-	AirshipPresets.albacore_default(ship)    # Startmodell: Albacore
+	AirshipPresets.chewie(ship)              # Startmodell: Chewie
 	# Start: Bug 1 m hinter dem vorderen Pylon, Nase Richtung hinterer Pylon
 	ship.transform = course.start_transform(ship)
 	visual = AirshipVisual.new()
@@ -200,6 +201,10 @@ func _build_ui() -> void:
 	course_panel.course_changed.connect(reset_ship)
 	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
 	ship.model_applied.connect(func(): fc.apply_model_gains(ship.fc_gains))
+	# Erster Start (oder Einstellungen aus älterer Version): PID-Vorgaben des
+	# Startmodells übernehmen; danach bleiben die eigenen Werte erhalten.
+	if fc.settings_outdated:
+		fc.apply_model_gains(ship.fc_gains)
 	builder.closed.connect(func(): _set_view(View.FLY))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
 	builder.view_reset_requested.connect(reset_view)

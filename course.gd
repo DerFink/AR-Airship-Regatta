@@ -1,3 +1,4 @@
+# 2026-10-28 15:12 – Start in 1,5 m Höhe
 # 2026-10-28 09:02 – Startlage 1 m neben dem vorderen Pylon (Pilotenseite) statt genau davor
 # 2026-10-28 08:51 – Acht um beide Pylone: 4 Kontrollpunkte mit Seite und Richtung, falsche Durchgänge zählen nicht (weiterfliegen bis korrekt), Rundenzeiten; hinterer Pylon grün auf Höhe von Pylon 2 als Kurvensignal
 # 2026-10-28 08:14 – Erstversion: Strecke mit zwei Pylonen (Abstand einstellbar, Vorgabe „FN Hugo Eckener Cup“ = 18 m), weißes Rechteck (Pylonabstand + 2 × 3,5 m lang, 20 m breit), Farbwechsel des hinteren Pylons, Rundenzähler (3 Runden) mit fliegendem Start
@@ -52,7 +53,7 @@ const FIELD_WIDTH := 20.0
 const LINE_WIDTH := 0.10
 const START_BEHIND := 1.0        ## Bug steht so weit hinter der Linie des vorderen Pylons
 const START_BESIDE := 1.0        ## Abstand Hüllenseite ↔ vorderer Pylon (zur Pilotenseite hin)
-const START_HEIGHT := 4.0
+const START_HEIGHT := 1.5        ## Schwebehöhe am Start (m)
 const LAPS := 3
 const SETTINGS_PATH := "user://strecke.cfg"
 

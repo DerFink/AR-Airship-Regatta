@@ -1,3 +1,4 @@
+# 2026-10-28 15:12 – Startmodus „Geregelt“; settings_outdated (Einstellungen Version 4)
 # 2026-10-28 08:51 – Testhilfe Nick begrenzen (Standard an, ±5°), gespeichert; Weitergabe an die Physik
 # 2026-10-28 07:53 – Mischer ohne Fahrtabhängigkeit (kein Fahrtmesser am echten Modell): Leitwerk und Schwenkmotoren je eigene Zuordnung, Stärke getrennt (tail_gain, vec_gain); Mischmodi und Ausschlag-max ersetzt; Einstellungen Version 3
 # 2026-10-28 00:15 – Mode 4 „Luftschiff“ (Roll frei/ungedämpft, Nick gegen Horizont, Gier um die Senkrechte, in die Schräglage umgerechnet); MODE_NAMES; apply_model_gains() für PID-Vorgaben je Modell
@@ -49,10 +50,12 @@ enum Axis { ROLL, PITCH, YAW }
 const SETTINGS_PATH := "user://flight_controller.cfg"
 ## Version der gespeicherten Einstellungen. Ab 2 gilt der volle Ruderausschlag
 ## als Standard – ältere Dateien (mit 50 %) übernehmen ihn nicht mehr.
-const SETTINGS_VERSION := 3
+const SETTINGS_VERSION := 4
+## true = keine oder ältere Einstellungsdatei → Modell-Vorgaben übernehmen
+var settings_outdated := true
 
 @export var airship: AirshipPhysics
-@export var mode: Mode = Mode.DIRECT:
+@export var mode: Mode = Mode.STABILIZED:     ## Start in „Geregelt“
 	set(v): mode = v; _reset_integrators(); mode_changed.emit(v)
 ## Stick-Belegung. Gier liegt IMMER auf dem rechten Knüppel (links/rechts),
 ## weil aktives Rollen beim Luftschiff keine Rolle spielt.
@@ -399,6 +402,7 @@ func load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) != OK:
 		return
+	settings_outdated = int(cfg.get_value("general", "version", 1)) < SETTINGS_VERSION
 	for m in pids:
 		for a in pids[m]:
 			for p in UI_PARAMS:
@@ -406,7 +410,7 @@ func load_settings() -> void:
 				pids[m][a].set(p.term, cfg.get_value(key, p.term, pids[m][a].get(p.term)))
 	stick_mode = cfg.get_value("general", "stick_mode", stick_mode)
 	# Stärken erst ab Version 3 (vorher gab es den fahrtabhängigen Mischer)
-	if int(cfg.get_value("general", "version", 1)) >= SETTINGS_VERSION:
+	if int(cfg.get_value("general", "version", 1)) >= 3:
 		tail_gain = cfg.get_value("general", "tail_gain", tail_gain)
 		vec_gain = cfg.get_value("general", "vec_gain", vec_gain)
 	pitch_limit_on = cfg.get_value("test", "pitch_limit_on", pitch_limit_on)
