@@ -1,3 +1,4 @@
+# 2026-10-28 07:53 – Regler Leitwerk-Stärke und Motorschwenk-Stärke statt Mischungsauswahl
 # 2026-10-28 00:15 – Mode 4 Luftschiff im Modus-Menü
 # 2026-10-27 15:10 – Wertanzeige über row.get_meta("out") (Regler haben jetzt −/+-Knöpfe)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
@@ -23,6 +24,7 @@ signal closed
 var fc: FlightController
 var _axis := FlightController.Axis.PITCH
 var _gain_box: VBoxContainer
+var _strength_box: VBoxContainer   ## Regler Leitwerk-/Schwenk-Stärke
 var _plot: StepPlot
 var _mode_buttons: Array[Button] = []
 
@@ -89,16 +91,11 @@ func _ready() -> void:
 	_gain_box = UITheme.make_vbox("xs")
 	mcol.add_child(_gain_box)
 
-	mcol.add_child(UITheme.make_label("Mischung", "MutedLabel"))
-	var mix := OptionButton.new()
-	mix.custom_minimum_size.y = UITheme.size("control_height")
-	for t in ["Automatisch (nach Fahrt)", "Nur Ruder", "Nur Schwenkmotoren"]: mix.add_item(t)
-	mix.select(fc.mix_mode)
-	mix.item_selected.connect(func(k): fc.mix_mode = k; fc.save_settings())
-	mcol.add_child(mix)
-	mcol.add_child(UITheme.make_slider_row("Ausschlag max", 0.1, 1.0, 0.05, fc.output_limit,
-		func(v): fc.output_limit = v; fc.save_settings(), "%.2f", 120))
-	_fix_percent(mcol.get_child(mcol.get_child_count() - 1))   # Anzeige als 0–100 %
+	# Stärke von Leitwerk und Schwenkmotoren – getrennt, unabhängig von der Fahrt
+	mcol.add_child(UITheme.make_label("Mischer-Stärke (gilt für alle Achsen)", "MutedLabel"))
+	_strength_box = UITheme.make_vbox("xs")
+	mcol.add_child(_strength_box)
+	_build_strength()
 
 	# ===================== rechts: Sprungantwort ============================
 	var right := UITheme.make_panel(260)
@@ -129,6 +126,7 @@ func _sync() -> void:
 	for i in _mode_buttons.size():
 		_mode_buttons[i].set_pressed_no_signal(int(fc.mode) == i)
 	_build_gains()
+	_build_strength()
 	_plot.clear()
 
 
@@ -143,6 +141,18 @@ func _fix_percent(row: Control) -> void:
 	var upd := func(v: float): out.text = "%d %%" % roundi(v * 100.0)
 	s.value_changed.connect(upd)
 	upd.call(s.value)
+
+
+## Regler für die Stärke von Leitwerk und Schwenkmotoren (0–100 %) neu aufbauen
+## (z. B. nachdem ein Modell eigene Vorgaben mitgebracht hat).
+func _build_strength() -> void:
+	for c in _strength_box.get_children(): c.queue_free()
+	_strength_box.add_child(UITheme.make_slider_row("Leitwerk", 0.0, 1.0, 0.05, fc.tail_gain,
+		func(v): fc.tail_gain = v; fc.save_settings(), "%.2f", 120))
+	_fix_percent(_strength_box.get_child(_strength_box.get_child_count() - 1))
+	_strength_box.add_child(UITheme.make_slider_row("Motorschwenk", 0.0, 1.0, 0.05, fc.vec_gain,
+		func(v): fc.vec_gain = v; fc.save_settings(), "%.2f", 120))
+	_fix_percent(_strength_box.get_child(_strength_box.get_child_count() - 1))
 
 
 # Regler für die gewählte Achse im aktuellen Modus neu aufbauen

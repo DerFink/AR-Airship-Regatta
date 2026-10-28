@@ -1,3 +1,4 @@
+# 2026-10-28 07:53 – nur Schwenkmotoren über tail_gain/vec_gain statt Mischmodus
 extends SceneTree
 # Tests für Version 0.3:
 #   1. Rückwärtsschub: reduzierter Wirkungsgrad, Sperre, Mischer-Vorzeichen
@@ -23,7 +24,7 @@ func _initialize() -> void:
 	AirshipPresets.chewie(ship)
 	var fc := FlightController.new()
 	fc.airship = ship
-	fc.mix_mode = FlightController.MixMode.VECTOR_ONLY
+	fc.tail_gain = 0.0; fc.vec_gain = 1.0   # nur Schwenkmotoren
 	for gas in [0.6, -0.6]:
 		fc.set_sticks(Vector2(0, gas), Vector2(0, -1))   # Knüppel ziehen = Nase hoch
 		fc._mix(Vector3(fc.cmd_pitch, 0, 0))

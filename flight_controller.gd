@@ -1,3 +1,4 @@
+# 2026-10-28 07:53 – Mischer ohne Fahrtabhängigkeit (kein Fahrtmesser am echten Modell): Leitwerk und Schwenkmotoren je eigene Zuordnung, Stärke getrennt (tail_gain, vec_gain); Mischmodi und Ausschlag-max ersetzt; Einstellungen Version 3
 # 2026-10-28 00:15 – Mode 4 „Luftschiff“ (Roll frei/ungedämpft, Nick gegen Horizont, Gier um die Senkrechte, in die Schräglage umgerechnet); MODE_NAMES; apply_model_gains() für PID-Vorgaben je Modell
 # 2026-10-27 23:28 – Ruderausschlag standardmäßig 100 % (vorher 50 %, ältere Einstellungsdateien übernehmen ihn nicht); Differenzschub relativ zum Gas ohne Rückwärtslauf; Mischer blendet nach Vorwärtsfahrt; Gier mit Vorsteuerung; D-Anteil Nick/Roll 1,0 und Reglerbereich bis 3,0
 # 2026-10-27 12:41 – Nick-Knüppel umgedreht wie beim RC-Sender: nach vorn = Nase runter, ziehen = Nase hoch
@@ -25,8 +26,8 @@
 #
 # Der Mischer verteilt die gewünschten Drehmomente automatisch anhand der
 # Bauteil-Geometrie auf alle Stellglieder – egal wo im Baukasten sie sitzen.
-# Bei wenig Fahrt verlagert er die Arbeit auf die Schwenkmotoren, weil die
-# Ruder dann kaum Wirkung haben.
+# Leitwerk und Schwenkmotoren arbeiten immer beide (keine Fahrtmessung nötig);
+# ihre Stärke ist getrennt einstellbar (tail_gain, vec_gain).
 #
 # Achsen-Konvention (Körpersystem): Nick hoch = +X-Moment,
 # Gier rechts = −Y-Moment, Roll rechts = −Z-Moment.
@@ -43,17 +44,15 @@ enum Mode { DIRECT, STABILIZED, STABILIZED_NO_VEC, AIRSHIP }
 ## Namen für Schalter und Menüs
 const MODE_NAMES := ["Direkt", "Geregelt", "Geregelt ohne Vektor", "Luftschiff"]
 enum Axis { ROLL, PITCH, YAW }
-enum MixMode { BLEND, AERO_ONLY, VECTOR_ONLY }
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
 ## Version der gespeicherten Einstellungen. Ab 2 gilt der volle Ruderausschlag
 ## als Standard – ältere Dateien (mit 50 %) übernehmen ihn nicht mehr.
-const SETTINGS_VERSION := 2
+const SETTINGS_VERSION := 3
 
 @export var airship: AirshipPhysics
 @export var mode: Mode = Mode.DIRECT:
 	set(v): mode = v; _reset_integrators(); mode_changed.emit(v)
-@export var mix_mode: MixMode = MixMode.BLEND
 ## Stick-Belegung. Gier liegt IMMER auf dem rechten Knüppel (links/rechts),
 ## weil aktives Rollen beim Luftschiff keine Rolle spielt.
 ##   Mode 2 (Standard): links hoch/runter = Gas,  rechts hoch/runter = Nick
@@ -65,14 +64,11 @@ const SETTINGS_VERSION := 2
 @export var max_angle_deg: float = 30.0        ## Lagemodus: voller Stick = ±30°
 @export var max_yaw_rate_dps: float = 60.0     ## voller Stick = ±60 °/s
 @export_group("Mischer")
-## Fahrt, unter der nur die Motoren steuern / über der nur die Ruder.
-@export var blend_speed_low: float = 1.0
-@export var blend_speed_high: float = 4.0
-## Mindest-Staudruck für die Ruder-Zuordnung, damit Ruder auch im Stand
-## ausschlagen (Bodentest). Entspricht ~3 m/s.
-@export var alloc_q_floor: float = 5.4
-## Ausschlagsbegrenzung aller Ruder (1,0 = voller Ausschlag laut Baukasten).
-@export_range(0.1, 1.0, 0.05) var output_limit: float = 1.0
+## Stärke des Leitwerks (Ruder, Pendel, Canards): 1,0 = voller Ausschlag
+## bei vollem Wunsch. Unabhängig von den Schwenkmotoren einstellbar.
+@export_range(0.0, 1.0, 0.05) var tail_gain: float = 1.0
+## Stärke der Schwenkmotoren: 1,0 = voller Schwenkweg bei vollem Wunsch.
+@export_range(0.0, 1.0, 0.05) var vec_gain: float = 1.0
 ## Differenzschub für Gier als Anteil des aktuellen Gases (0,3 = ±30 %).
 ## Wirkt nur relativ zum Gas: Gas 0 → kein Differenzschub, und ein Motor
 ## wird dadurch nie in den Rückwärtslauf gedrückt (Drehen auf der Stelle).
@@ -143,11 +139,14 @@ func _init() -> void:
 
 ## Modell-Standardwerte übernehmen (z. B. für Chewie erflogene/ermittelte PIDs).
 ## gains: {"pitch": [kp, ki, kd], "roll": [...], "yaw": [...]} – gilt für die
-## geregelten Modi (Geregelt, Luftschiff). Wird gespeichert.
+## geregelten Modi (Geregelt, Luftschiff); optional "mix": [Leitwerk, Schwenk]
+## als Stärken 0…1. Wird gespeichert.
 func apply_model_gains(gains: Dictionary) -> void:
 	if gains.is_empty():
 		return
 	var axes := {"roll": Axis.ROLL, "pitch": Axis.PITCH, "yaw": Axis.YAW}
+	if gains.has("mix"):                                   # [Leitwerk, Schwenk]
+		tail_gain = gains.mix[0]; vec_gain = gains.mix[1]
 	for key in gains:
 		if not axes.has(key):
 			continue
@@ -274,84 +273,76 @@ func _airship_mode(b: Basis, dt: float, pitch: float) -> void:
 
 
 # =============================================================================
-# Geometrischer Mischer (gewichtete Pseudo-Inverse)
+# Mischer – Leitwerk und Schwenkmotoren getrennt, OHNE Fahrtmessung
 # -----------------------------------------------------------------------------
-# Jedes Stellglied i hat einen Wirkvektor B_i = Moment bei Vollausschlag.
-# Gesucht sind Ausschläge u_i, die das Wunschmoment τ erzeugen:
-#     u = W·Bᵀ·(B·W·Bᵀ + λI)⁻¹ · τ
-# W gewichtet Ruder gegen Motoren je nach Fahrt und Mischmodus.
+# Am echten Modell gibt es keinen Fahrtmesser, deshalb hängt hier nichts von
+# der Geschwindigkeit ab. Jede Gruppe (Leitwerk/Canards bzw. Schwenkmotoren)
+# bekommt den kompletten Momentenwunsch und verteilt ihn geometrisch auf ihre
+# Stellglieder (Pseudo-Inverse): 100 % Wunsch = voller Ausschlag der Gruppe.
+# Danach skaliert je Gruppe ein eigener Stärke-Regler:
+#     Ruder  = tail_gain · Anteil Leitwerk
+#     Schwenk = vec_gain · Anteil Schwenkmotoren
 # =============================================================================
 func _mix(tau_cmd: Vector3) -> void:
 	var cg := airship.cg_offset
-	# Für die Ruderwirkung zählt die Fahrt NACH VORN (Längsachse), nicht das
-	# seitliche Abdriften beim Drehen auf der Stelle – sonst würde der Mischer
-	# beim Drehen fälschlich von den Schwenkmotoren auf die Ruder umblenden.
-	var xf := airship.global_transform if airship.is_inside_tree() else airship.transform
-	var bb := xf.basis.orthonormalized()
-	var v_body := bb.transposed() * (airship.linear_velocity - airship.wind)
-	var v := maxf(-v_body.z, 0.0)
-	var q_alloc := maxf(0.5 * airship.air_density * v * v, alloc_q_floor)
 
-	# Gewichte: wenig Fahrt → Motoren, viel Fahrt → Ruder
-	var s := clampf((v - blend_speed_low) / maxf(blend_speed_high - blend_speed_low, 0.01), 0.0, 1.0)
-	var w_aero := s + 0.05
-	var w_vec := (1.0 - s) + 0.05
-	match mix_mode:
-		MixMode.AERO_ONLY: w_vec = 0.0; w_aero = 1.0
-		MixMode.VECTOR_ONLY: w_aero = 0.0; w_vec = 1.0
-	if mode == Mode.STABILIZED_NO_VEC:
-		w_vec = 0.0                     # Mode 3: Schwenker nicht im Regelkreis
-
-	# --- Wirkvektoren sammeln -------------------------------------------
-	var cols: Array[Vector3] = []
-	var weights: Array[float] = []
+	# --- Wirkvektoren je Gruppe (Moment bei Vollausschlag, Betrag egal) -----
+	var fin_cols: Array[Vector3] = []
 	for srf in airship.surfaces:
-		cols.append(srf.moment_per_rad(cg) * q_alloc * deg_to_rad(srf.max_deflection_deg))
-		weights.append(w_aero)
+		fin_cols.append(srf.moment_per_rad(cg) * deg_to_rad(srf.max_deflection_deg))
+	var mot_cols: Array[Vector3] = []
 	for mot in airship.motors:
 		# Schub MIT Vorzeichen: bei Rückwärtsschub kehrt sich die Schwenkwirkung um,
 		# der Mischer schwenkt dann automatisch in die Gegenrichtung.
 		var ref := mot.signed_thrust_estimate(cmd_throttle)
-		cols.append(mot.moment_per_rad_swivel(cg, ref) * deg_to_rad(mot.max_swivel_deg))
-		weights.append(w_vec)
-
-	# Autorität je Achse = Summe der Beträge → Stick 100 % fordert "alles"
-	var authority := Vector3.ZERO
-	for i in cols.size():
-		authority += cols[i].abs() * weights[i]
-	var tau := tau_cmd * authority
-
-	# --- M = B·W·Bᵀ + λI  (3×3, symmetrisch) -----------------------------
-	var m00 := 0.0; var m01 := 0.0; var m02 := 0.0
-	var m11 := 0.0; var m12 := 0.0; var m22 := 0.0
-	for i in cols.size():
-		var c := cols[i]; var w := weights[i]
-		m00 += w * c.x * c.x; m01 += w * c.x * c.y; m02 += w * c.x * c.z
-		m11 += w * c.y * c.y; m12 += w * c.y * c.z; m22 += w * c.z * c.z
-	var lam := 1e-6 + 1e-3 * (m00 + m11 + m22)
-	var M := Basis(Vector3(m00 + lam, m01, m02), Vector3(m01, m11 + lam, m12), Vector3(m02, m12, m22 + lam))
-	var y := M.inverse() * tau
+		mot_cols.append(mot.moment_per_rad_swivel(cg, ref) * deg_to_rad(mot.max_swivel_deg))
+	var u_fin := _allocate(fin_cols, tau_cmd)
+	var u_mot := _allocate(mot_cols, tau_cmd)
 
 	# --- Ausgänge setzen --------------------------------------------------
-	var idx := 0
-	for srf in airship.surfaces:
-		srf.command = clampf(weights[idx] * cols[idx].dot(y), -output_limit, output_limit)
-		idx += 1
-	for mot in airship.motors:
-		var u := weights[idx] * cols[idx].dot(y)
-		mot.swivel_cmd = clampf(u, -1.0, 1.0)
+	for i in airship.surfaces.size():
+		airship.surfaces[i].command = clampf(tail_gain * u_fin[i], -1.0, 1.0)
+	for i in airship.motors.size():
+		var mot: VectorMotor = airship.motors[i]
+		mot.swivel_cmd = clampf(vec_gain * u_mot[i], -1.0, 1.0)
 		# Gas + Differenzschub für Gier: bei Gier rechts schiebt der linke
 		# Motor (side = −1) stärker, der rechte schwächer.
 		var side := signf(mot.position.x - cg.x)
 		# Relativ zum Gas und ohne Vorzeichenwechsel (kein ungewollter Rückwärtslauf)
 		var t_cmd := cmd_throttle * (1.0 + side * yaw_diff_thrust * tau_cmd.y)
 		mot.throttle_cmd = clampf(t_cmd, -1.0, 1.0)     # Faktor 0,7…1,3 → Vorzeichen bleibt
-		idx += 1
 
 	# Mode 3: Schwenker folgen direkt dem Nick-Stick (nicht geregelt)
 	if mode == Mode.STABILIZED_NO_VEC:
 		for mot in airship.motors:
-			mot.swivel_cmd = clampf(cmd_pitch, -1.0, 1.0)
+			mot.swivel_cmd = clampf(cmd_pitch * vec_gain, -1.0, 1.0)
+
+
+## Verteilt einen Momentenwunsch (je Achse −1..+1) auf eine Gruppe von
+## Stellgliedern mit Wirkvektoren cols. Rückgabe: Ausschläge (−1..+1, vor
+## der Begrenzung). Autorität je Achse = Summe der Beträge → 100 % Wunsch
+## fordert die ganze Gruppe; Achsen, auf die die Gruppe nicht wirkt, bleiben 0.
+##     u = Bᵀ·(B·Bᵀ + λI)⁻¹ · τ
+static func _allocate(cols: Array[Vector3], tau_cmd: Vector3) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(cols.size())
+	if cols.is_empty():
+		return out
+	var authority := Vector3.ZERO
+	for c in cols:
+		authority += c.abs()
+	var tau := tau_cmd * authority
+	var m00 := 0.0; var m01 := 0.0; var m02 := 0.0
+	var m11 := 0.0; var m12 := 0.0; var m22 := 0.0
+	for c in cols:
+		m00 += c.x * c.x; m01 += c.x * c.y; m02 += c.x * c.z
+		m11 += c.y * c.y; m12 += c.y * c.z; m22 += c.z * c.z
+	var lam := 1e-9 + 1e-3 * (m00 + m11 + m22)
+	var M := Basis(Vector3(m00 + lam, m01, m02), Vector3(m01, m11 + lam, m12), Vector3(m02, m12, m22 + lam))
+	var y := M.inverse() * tau
+	for i in cols.size():
+		out[i] = cols[i].dot(y)
+	return out
 
 
 func _reset_integrators() -> void:
@@ -390,8 +381,8 @@ func save_settings() -> void:
 			for p in UI_PARAMS:
 				cfg.set_value("mode_%d_axis_%d" % [m, a], p.term, pids[m][a].get(p.term))
 	cfg.set_value("general", "stick_mode", stick_mode)
-	cfg.set_value("general", "mix_mode", mix_mode)
-	cfg.set_value("general", "output_limit", output_limit)
+	cfg.set_value("general", "tail_gain", tail_gain)
+	cfg.set_value("general", "vec_gain", vec_gain)
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -405,7 +396,7 @@ func load_settings() -> void:
 				var key := "mode_%d_axis_%d" % [m, a]
 				pids[m][a].set(p.term, cfg.get_value(key, p.term, pids[m][a].get(p.term)))
 	stick_mode = cfg.get_value("general", "stick_mode", stick_mode)
-	mix_mode = cfg.get_value("general", "mix_mode", mix_mode)
-	# Ruderausschlag erst ab Version 2 übernehmen (vorher Standard 50 % = zu klein)
+	# Stärken erst ab Version 3 (vorher gab es den fahrtabhängigen Mischer)
 	if int(cfg.get_value("general", "version", 1)) >= SETTINGS_VERSION:
-		output_limit = cfg.get_value("general", "output_limit", output_limit)
+		tail_gain = cfg.get_value("general", "tail_gain", tail_gain)
+		vec_gain = cfg.get_value("general", "vec_gain", vec_gain)

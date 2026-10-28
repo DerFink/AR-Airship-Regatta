@@ -1,3 +1,4 @@
+# 2026-10-28 07:53 – Stärken (mix) in den PID-Vorgaben des Modell-Strings
 # 2026-10-28 00:15 – PID-Vorgaben (pid) im Modell-String, geprüft je Achse 3 Werte 0…3
 # 2026-10-27 23:51 – Fix: Leerzeichen im Modellnamen bleiben beim Import erhalten
 # 2026-10-27 23:49 – Turm im Modell-String (sail: an, Lage, Länge, Höhe); alte Strings ohne Turm
@@ -247,6 +248,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 					if not (x is float or x is int): ok = false; break
 					vals.append(clampf(float(x), 0.0, 3.0))
 				if ok: pid_out[ax] = vals
+		var mx = pd.get("mix")                   # Stärken [Leitwerk, Schwenk] 0…1
+		if mx is Array and mx.size() == 2 and (mx[0] is float or mx[0] is int) and (mx[1] is float or mx[1] is int):
+			pid_out["mix"] = [clampf(float(mx[0]), 0.0, 1.0), clampf(float(mx[1]), 0.0, 1.0)]
 		if not pid_out.is_empty():
 			out["pid"] = pid_out
 	var sd: Dictionary = d.get("sail", {}) if d.get("sail") is Dictionary else {}

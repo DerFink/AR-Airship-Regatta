@@ -1,3 +1,4 @@
+# 2026-10-28 07:53 – nur Schwenkmotoren über tail_gain/vec_gain statt Mischmodus
 extends SceneTree
 # Prüft die Chewie-Pigleg-Geometrie:
 #   gleichsinniger Schwenk → Nickmoment, gegensinniger → Giermoment
@@ -34,7 +35,7 @@ func _initialize() -> void:
 	var fc := FlightController.new()
 	fc.airship = ship
 	fc.mode = FlightController.Mode.DIRECT
-	fc.mix_mode = FlightController.MixMode.VECTOR_ONLY
+	fc.tail_gain = 0.0; fc.vec_gain = 1.0   # nur Schwenkmotoren
 	for st in [["Nick hoch", Vector2(0, 0.5), Vector2(0, -1)], ["Gier rechts", Vector2(0, 0.5), Vector2(1, 0)]]:
 		fc.set_sticks(st[1], st[2])
 		fc._mix(Vector3(fc.cmd_pitch, -fc.cmd_yaw, 0.0))
