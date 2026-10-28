@@ -1,3 +1,4 @@
+# 2026-10-28 08:06 – Abschlussmeldung ENDE für die CI
 # 2026-10-28 07:53 – nur Schwenkmotoren über tail_gain/vec_gain statt Mischmodus
 extends SceneTree
 # Prüft die Chewie-Pigleg-Geometrie:
@@ -43,4 +44,5 @@ func _initialize() -> void:
 	print("Stick-Beschriftung: ", fc.stick_labels())
 	fc.free()
 	ship.free()
+	print("ENDE")
 	quit()

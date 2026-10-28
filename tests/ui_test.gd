@@ -1,3 +1,4 @@
+# 2026-10-28 08:04 – Szene vor dem Beenden abbauen (Test hing gelegentlich beim Aufräumen)
 extends SceneTree
 # Headless-Test der kompletten App: Hauptszene laden, fliegen (Knüppel),
 # Baukasten bedienen (Preset, Hülle, Bauteil), PID-Menü, zurück zum Flug.
@@ -68,5 +69,9 @@ func _process(_dt: float) -> bool:
 		430:
 			print("Modellliste im Baukasten: %d Einträge" % main.builder._preset.item_count)
 			print("ENDE ohne Abbruch")
+			# Szene erst abbauen (Klang-Generatoren, Dialoge), dann beenden –
+			# direktes Beenden blieb gelegentlich beim Aufräumen hängen
+			main.queue_free()
+		434:
 			return true
 	return false

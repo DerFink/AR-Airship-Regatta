@@ -1,3 +1,4 @@
+# 2026-10-28 08:06 – Abschlussmeldung ENDE für die CI
 extends SceneTree
 # Headless-Rauchtest: Hülle, Validator, Presets, 6-DOF-Schritt, Flugcontroller
 
@@ -41,4 +42,7 @@ func _physics_process(_dt: float) -> bool:
 	if frames % 60 == 0:
 		var b := ship.global_transform.basis
 		print("t=%2ds v=%.2f m/s alpha=%.1f° pitch=%.1f° pos.y=%.2f munk=%.3f surf=%.3f" % [frames / 60, ship.airspeed, ship.alpha_deg, rad_to_deg(asin(-b.z.y)), ship.global_position.y, ship.munk_moment.x, ship.surface_moment.x])
-	return frames >= 600
+	if frames >= 600:
+		print("ENDE")
+		return true
+	return false

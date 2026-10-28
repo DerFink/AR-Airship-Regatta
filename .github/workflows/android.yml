@@ -1,3 +1,4 @@
+# 2026-10-28 08:06 – Test mit „ENDE“ gilt als bestanden, auch wenn Godot danach beim Beenden hängt (Zeitlimit 120 s)
 # 2026-10-28 00:15 – Test airship_mode_test aufgenommen
 # 2026-10-27 16:19 – Zeitlimit 3 min je Headless-Test (ein hängender Test blockierte den Lauf)
 # 2026-10-27 15:13 – Test tail_test (Leitwerk-Konfiguration, Baukasten-Gesten) in die Testliste aufgenommen
@@ -51,7 +52,10 @@ jobs:
           for t in smoke_test chewie_test v03_test tail_test airship_mode_test ui_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
-            rc=0; timeout 180 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
+            rc=0; timeout 120 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
+            # Godot 4.3 bleibt headless gelegentlich beim Beenden hängen (Thread-Join beim
+            # Aufräumen). Ist der Test bis „ENDE“ durchgelaufen, zählt er als bestanden.
+            if [ "$rc" = "124" ] && grep -q "ENDE" out.txt; then echo "Hinweis: $t vollständig, nur Beenden hing"; rc=0; fi
             grep -vE 'mesh_get_surface_count|Parameter "m" is null|at: mesh' out.txt | tee clean.txt
             { echo "### $t (Rückgabe $rc)"; echo '```'; tail -n 25 clean.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             if [ "$rc" = "124" ]; then echo "Test $t hängt (Zeitlimit)"; exit 1; fi
