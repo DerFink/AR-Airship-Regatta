@@ -1,3 +1,4 @@
+# 2026-10-28 08:51 – Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten
 # 2026-10-28 08:14 – Knopf „Strecke“ und Rundenanzeige (Runde/Zeit) oben links
 # 2026-10-28 00:15 – Modusschalter oben Mitte: Direkt / Geregelt / Luftschiff (ersetzt die Anzeige „FC: Mode n“)
 # 2026-10-27 13:03 – Motor-Schalter heißt jetzt wie bei FPV-Drohnen: „Disarmed“ / „Armed“
@@ -34,6 +35,7 @@ var stick_right: TouchStick
 var _pill_speed: Button
 var _pill_alpha: Button
 var _pill_race: Button                    ## Runde / Zeit
+var _laps: Label                          ## Rundenzeiten unter der Telemetrie
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
@@ -62,6 +64,9 @@ func _ready() -> void:
 	_pill_alpha = UITheme.make_pill("α 0°")
 	_pill_race = UITheme.make_pill("Start: vorderen Pylon passieren")
 	for p in [_pill_speed, _pill_alpha, _pill_race]: tl.add_child(p)
+	_laps = UITheme.make_label("", "MutedLabel")
+	_laps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_laps)
 
 	# --- Modusschalter oben Mitte (3 Stellungen wie Kanal 13) ----------------
 	# „Geregelt ohne Vektor“ bleibt im PID-Menü wählbar; ist er aktiv, ist hier
@@ -124,6 +129,8 @@ func _layout() -> void:
 	_tl.position = Vector2(m, m)
 	_tr.size = _tr.get_combined_minimum_size()
 	_tr.position = Vector2(sz.x - _tr.size.x - m, m)
+	_laps.size = _laps.get_combined_minimum_size()
+	_laps.position = Vector2(m, _tl.position.y + _tl.size.y + m * 0.5)
 	# Schalter mittig zwischen Telemetrie und Menüs
 	_mode_box.size = _mode_box.get_combined_minimum_size()
 	var free0 := _tl.position.x + _tl.size.x + m
@@ -155,10 +162,13 @@ func show_notice(text: String, level := "warning", seconds := 3.0) -> void:
 	_banner_timer = seconds
 
 
-## Rundenanzeige (Runde, Zeit) – kommt jeden Physikschritt von der Strecke.
-func set_race_text(text: String) -> void:
+## Rundenanzeige (Runde, Zeit, nächster Punkt) und Rundenzeiten – kommt
+## jeden Physikschritt von der Strecke.
+func set_race_text(text: String, laps := "") -> void:
 	if _pill_race.text != text:
 		_pill_race.text = text
+	if _laps.text != laps:
+		_laps.text = laps
 
 
 func set_ar_active(active: bool) -> void:

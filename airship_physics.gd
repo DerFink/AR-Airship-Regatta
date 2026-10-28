@@ -1,3 +1,4 @@
+# 2026-10-28 08:51 – Testhilfe Nickanschlag (pitch_limit_*): Nase bleibt innerhalb ±Grenze
 # 2026-10-28 00:15 – Signal model_applied und fc_gains (PID-Vorgaben je Modell)
 # 2026-10-27 23:49 – Turm an der Hüllenunterseite als feste Flosse (sail_*), wird wie das Leitwerk bei jedem Neuaufbau erzeugt
 # 2026-10-27 16:07 – Massenmodell aus Teilmassen: Hülle (verteilt), Motoren am Einbauort, Elektronik + Akku + Ballast als Masse unten an der Hülle (Menge aus Auftrieb, Lage automatisch getrimmt); Schwerpunkt und Trägheit daraus berechnet; Bauteile werden vor der Massenbilanz platziert
@@ -74,6 +75,14 @@ signal model_applied
 ## PID-Standardwerte dieses Modells für die geregelten Modi:
 ## {"pitch": [kp, ki, kd], "roll": [...], "yaw": [...]}; leer = keine Vorgabe.
 @export var fc_gains: Dictionary = {}
+
+@export_group("Test")
+## Testhilfe: Nickwinkel hart begrenzen (wie ein Anschlag). Erreicht die Nase
+## ±pitch_limit_deg gegen den Horizont, wird sie dort festgehalten und die
+## Nickdrehung nach außen gestoppt – zum Ausprobieren, wie sich das Schiff
+## ohne großes Aufbäumen fliegt. Wird vom Flugcontroller gesetzt.
+@export var pitch_limit_enabled: bool = false
+@export_range(1.0, 90.0, 1.0) var pitch_limit_deg: float = 5.0
 
 @export_group("Turm")
 ## Fester Turm an der Hüllenunterseite (wie der U-Boot-Turm, nur kopfüber).
@@ -362,7 +371,31 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	state.linear_velocity += body_basis * a_b * dt
 	state.angular_velocity += body_basis * wdot_b * dt
 
+	# --- 10) Test: Nickanschlag ------------------------------------------
+	if pitch_limit_enabled:
+		_apply_pitch_limit(state)
+
 	_update_telemetry(v_rel)
+
+
+## Nickanschlag: Nase über ±Grenze → Lage auf die Grenze zurückdrehen und
+## die Nickdrehrate nach außen wegnehmen (Rollen und Gieren bleiben frei).
+func _apply_pitch_limit(state: PhysicsDirectBodyState3D) -> void:
+	var b := state.transform.basis.orthonormalized()
+	var nose := -b.z
+	var axis := nose.cross(Vector3.UP)            # Drehung um diese Achse = Nase hoch
+	if axis.length() < 0.05:
+		axis = b.x                                # Nase senkrecht: Querachse nehmen
+	axis = axis.normalized()
+	var pitch := asin(clampf(nose.y, -1.0, 1.0))
+	var lim := deg_to_rad(pitch_limit_deg)
+	var excess := pitch - clampf(pitch, -lim, lim)
+	if excess == 0.0:
+		return
+	state.transform = Transform3D(Basis(axis, -excess) * b, state.transform.origin)
+	var wp := state.angular_velocity.dot(axis)
+	if wp * excess > 0.0:                         # dreht weiter nach außen → stoppen
+		state.angular_velocity -= axis * wp
 
 
 # =============================================================================

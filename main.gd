@@ -1,3 +1,4 @@
+# 2026-10-28 08:51 – Bug-Position x und z an die Strecke (Seite am Pylon)
 # 2026-10-28 08:14 – Strecke als eigener Node (Course): einstellbarer Pylonabstand, weißes Feld, Rundenzählung; Start 1 m hinter dem vorderen Pylon; Ansicht „Strecke“
 # 2026-10-28 00:15 – PID-Vorgaben beim Modellwechsel an den Flugcontroller
 # 2026-10-27 23:28 – Startmodell wieder Albacore
@@ -224,8 +225,8 @@ func _physics_process(dt: float) -> void:
 	if view == View.BUILD or view == View.SHARE:
 		return                                  # Schiff steht im Baukasten fest
 	var nose := ship.global_transform * Vector3(0, 0, -ship.hull.cb_from_nose)
-	course.track(nose.x, dt)
-	hud.set_race_text(course.race_text())
+	course.track(nose.x, nose.z, dt)
+	hud.set_race_text(course.race_text(), course.lap_text())
 
 
 ## Baukasten-Ansicht auf Standard zurück (seitlich, leicht von oben).

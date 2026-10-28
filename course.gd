@@ -1,3 +1,4 @@
+# 2026-10-28 08:51 – Acht um beide Pylone: 4 Kontrollpunkte mit Seite und Richtung, falsche Durchgänge zählen nicht (weiterfliegen bis korrekt), Rundenzeiten; hinterer Pylon grün auf Höhe von Pylon 2 als Kurvensignal
 # 2026-10-28 08:14 – Erstversion: Strecke mit zwei Pylonen (Abstand einstellbar, Vorgabe „FN Hugo Eckener Cup“ = 18 m), weißes Rechteck (Pylonabstand + 2 × 3,5 m lang, 20 m breit), Farbwechsel des hinteren Pylons, Rundenzähler (3 Runden) mit fliegendem Start
 # =============================================================================
 # Course.gd  (Kind-Node der Hauptszene)
@@ -10,13 +11,27 @@
 #     └──────────────────────────────────────────┘
 #     3,5 m vor Pylon 1 bis 3,5 m hinter Pylon 2
 #
-# Rennablauf (fliegender Start):
-#   WARTEN  – Schiff schwebt 1 m hinter dem vorderen Pylon. Überquert der Bug
-#             die Linie des vorderen Pylons, startet die Zeit (Runde 1).
-#   LAUF    – Bug überquert die Linie des hinteren Pylons → hinterer Pylon grün.
-#             Danach Linie des vorderen Pylons → hinterer Pylon wieder rot,
-#             Runde fertig. Nach 3 Runden: Zeit steht (ZIEL).
-# Jedes Überqueren zählt, egal in welcher Höhe und ob innerhalb des Rechtecks.
+# Rennablauf – eine Acht um beide Pylone (fliegender Start, 3 Runden):
+#
+#        4 ←─────────╮            ╭──────── 2 →
+#     ╭─ │ ─╮         ╲          ╱       ╭─ │ ─╮
+#     │  ● P1          ╳ (Mitte)          P2 ●  │      z < 0: dem Piloten abgewandt
+#     ╰─ │ ─╯         ╱          ╲       ╰─ │ ─╯      z > 0: Pilotenseite
+#        1 →─────────╯            ╰──────── ← 3
+#
+#   Kontrollpunkte (Linie quer durch einen Pylon, Seite, Richtung):
+#     1  Pylon 1, Pilotenseite, Richtung Pylon 2   = Start/Ziel
+#     2  Pylon 2, abgewandte Seite, weg von Pylon 1
+#     3  Pylon 2, Pilotenseite, zurück zu Pylon 1
+#     4  Pylon 1, abgewandte Seite, weg von Pylon 2
+#   Sie müssen in dieser Reihenfolge überflogen werden. Ein Durchgang auf der
+#   falschen Seite oder in falscher Richtung zählt nicht – der Pilot muss so
+#   lange fliegen, bis der Pylon korrekt umrundet ist. Erst wenn nach Runde 3
+#   wieder Punkt 1 (Ziellinie) überflogen wird, steht die Zeit.
+#
+# Anzeige für den Piloten: Der hintere Pylon wird grün, sobald der Bug auf
+# seiner Höhe ist (Linie durch Pylon 2, egal welche Seite) – Zeichen zum
+# Einleiten der Kurve. Über die Linie durch Pylon 1 wird er wieder rot.
 # =============================================================================
 class_name Course
 extends Node3D
@@ -49,11 +64,18 @@ var free_distance := 25.0
 
 var race := Race.WAIT
 var lap := 0                     ## laufende Runde (1…LAPS)
-var time_s := 0.0
+var time_s := 0.0                ## Gesamtzeit seit dem Start
 var far_green := false
+var next_gate := 0               ## als Nächstes erwarteter Kontrollpunkt (0…3 = Punkt 1…4)
+var lap_times: PackedFloat32Array = PackedFloat32Array()   ## fertige Runden
+var _lap_start := 0.0
+var _prev_nose := Vector2(NAN, NAN)   ## (x, z) des Bugs im letzten Schritt
+
+## Kontrollpunkte: [Linie bei Pylon (0/1), Seite (+1 Piloten-, −1 abgewandt), Richtung (+1 = +x)]
+const GATES := [[0, 1, 1], [1, -1, 1], [1, 1, -1], [0, -1, -1]]
+const GATE_NAMES := ["Start/Ziel", "Pylon 2 außen", "Pylon 2 zurück", "Pylon 1 außen"]
 
 var _far_mat := StandardMaterial3D.new()
-var _prev_nose_x := NAN
 
 
 func _ready() -> void:
@@ -125,44 +147,64 @@ func reset_race() -> void:
 	race = Race.WAIT
 	lap = 0
 	time_s = 0.0
+	next_gate = 0
+	lap_times = PackedFloat32Array()
+	_lap_start = 0.0
 	_set_far_green(false)
-	_prev_nose_x = NAN
+	_prev_nose = Vector2(NAN, NAN)
 	race_changed.emit()
 
 
-## Jeden Physikschritt mit der Bug-Position (Welt-X) aufrufen.
-func track(nose_x: float, dt: float) -> void:
+## Jeden Physikschritt mit der Bug-Position (Welt-X = Strecke, Welt-Z = quer) aufrufen.
+func track(nose_x: float, nose_z: float, dt: float) -> void:
 	if race == Race.RUN:
 		time_s += dt
-	if is_nan(_prev_nose_x):
-		_prev_nose_x = nose_x
+	var now := Vector2(nose_x, nose_z)
+	if is_nan(_prev_nose.x):
+		_prev_nose = now
 		return
-	var d := distance()
-	var crossed_far := (_prev_nose_x - d) * (nose_x - d) < 0.0
-	var crossed_near := _prev_nose_x * nose_x < 0.0
-	var forward_near := _prev_nose_x < 0.0 and nose_x >= 0.0
-	_prev_nose_x = nose_x
-	# Hinterer Pylon: jedes Überqueren schaltet auf grün
-	if crossed_far and not far_green:
-		_set_far_green(true)
-	if crossed_near:
-		match race:
-			Race.WAIT:
-				if forward_near:                      # fliegender Start
-					race = Race.RUN
-					lap = 1
-					time_s = 0.0
-					race_changed.emit()
-			Race.RUN:
-				if far_green:                         # zurück am vorderen Pylon: Runde fertig
-					_set_far_green(false)
-					if lap >= LAPS:
-						race = Race.DONE
-					else:
-						lap += 1
-					race_changed.emit()
-			Race.DONE:
-				if far_green: _set_far_green(false)
+	var prev := _prev_nose
+	_prev_nose = now
+	var lines := [0.0, distance()]
+	for li in 2:
+		var lx: float = lines[li]
+		if (prev.x - lx < 0.0) == (now.x - lx < 0.0):
+			continue                                   # diese Linie nicht überquert
+		# Querposition genau an der Linie (linear zwischen den beiden Schritten)
+		var t := (lx - prev.x) / (now.x - prev.x) if now.x != prev.x else 0.0
+		var z := lerpf(prev.y, now.y, t)
+		var side := 1 if z > 0.0 else -1
+		var dir := 1 if now.x > prev.x else -1
+		# Anzeige-Pylon: grün auf Höhe von Pylon 2, rot über Pylon 1
+		if li == 1: _set_far_green(true)
+		else: _set_far_green(false)
+		_on_line(li, side, dir)
+
+
+## Ein Linien-Durchgang: passt er zum erwarteten Kontrollpunkt?
+func _on_line(line: int, side: int, dir: int) -> void:
+	var g: Array = GATES[next_gate]
+	if line != g[0] or side != g[1] or dir != g[2]:
+		return                                         # falsch → zählt nicht, weiterfliegen
+	match race:
+		Race.WAIT:                                     # fliegender Start über Punkt 1
+			race = Race.RUN
+			lap = 1
+			time_s = 0.0
+			_lap_start = 0.0
+			next_gate = 1
+		Race.RUN:
+			if next_gate == 0:                         # Ziellinie: Runde fertig
+				lap_times.append(time_s - _lap_start)
+				_lap_start = time_s
+				if lap >= LAPS:
+					race = Race.DONE
+				else:
+					lap += 1
+					next_gate = 1
+			else:
+				next_gate = (next_gate + 1) % GATES.size()
+	race_changed.emit()
 
 
 func _set_far_green(on: bool) -> void:
@@ -173,9 +215,28 @@ func _set_far_green(on: bool) -> void:
 ## Text für die Anzeige im HUD.
 func race_text() -> String:
 	match race:
-		Race.WAIT: return "Start: vorderen Pylon passieren"
+		Race.WAIT: return "Start: Pylon 1 passieren"
 		Race.RUN: return "Runde %d/%d · %s" % [lap, LAPS, format_time(time_s)]
 		_: return "Ziel · %s" % format_time(time_s)
+
+
+## Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten
+## (fertige Runden, am Ende mit bester Runde).
+func lap_text() -> String:
+	var parts: Array[String] = []
+	if race == Race.WAIT:
+		return "Pilotenseite, Richtung Pylon 2"
+	if race == Race.RUN:
+		parts.append("nächster: " + GATE_NAMES[next_gate])
+	var best := 0
+	for i in lap_times.size():
+		parts.append("R%d %s" % [i + 1, format_time(lap_times[i])])
+		if lap_times[i] < lap_times[best]: best = i
+	var txt := "   ".join(parts)
+	if parts.is_empty(): return ""
+	if race == Race.DONE:
+		txt += "   · beste: R%d" % (best + 1)
+	return txt
 
 
 static func format_time(t: float) -> String:

@@ -1,3 +1,4 @@
+# 2026-10-28 08:51 – Schalter „Nick begrenzen“ mit Grenzwert (Test)
 # 2026-10-28 07:53 – Regler Leitwerk-Stärke und Motorschwenk-Stärke statt Mischungsauswahl
 # 2026-10-28 00:15 – Mode 4 Luftschiff im Modus-Menü
 # 2026-10-27 15:10 – Wertanzeige über row.get_meta("out") (Regler haben jetzt −/+-Knöpfe)
@@ -69,6 +70,16 @@ func _ready() -> void:
 	sm.item_selected.connect(func(k): fc.stick_mode = 2 if k == 0 else 1; fc.save_settings())
 	lcol.add_child(sm)
 	lcol.add_child(UITheme.make_label("Gier liegt immer rechts.", "MutedLabel"))
+
+	# Testhilfe: Nickwinkel hart begrenzen (Anschlag)
+	lcol.add_child(UITheme.make_label("Test", "MutedLabel"))
+	var lim := CheckBox.new()
+	lim.text = "Nick begrenzen"
+	lim.button_pressed = fc.pitch_limit_on
+	lim.toggled.connect(func(on): fc.pitch_limit_on = on; fc.save_settings())
+	lcol.add_child(lim)
+	lcol.add_child(UITheme.make_slider_row("Grenze ±", 1.0, 45.0, 1.0, fc.pitch_limit_deg,
+		func(v): fc.pitch_limit_deg = v; fc.save_settings(), "%d°", 80))
 
 	# ===================== Mitte: Achse + Regler ============================
 	var mid := UITheme.make_panel()

@@ -1,3 +1,4 @@
+# 2026-10-28 08:51 – Testhilfe Nick begrenzen (Standard an, ±5°), gespeichert; Weitergabe an die Physik
 # 2026-10-28 07:53 – Mischer ohne Fahrtabhängigkeit (kein Fahrtmesser am echten Modell): Leitwerk und Schwenkmotoren je eigene Zuordnung, Stärke getrennt (tail_gain, vec_gain); Mischmodi und Ausschlag-max ersetzt; Einstellungen Version 3
 # 2026-10-28 00:15 – Mode 4 „Luftschiff“ (Roll frei/ungedämpft, Nick gegen Horizont, Gier um die Senkrechte, in die Schräglage umgerechnet); MODE_NAMES; apply_model_gains() für PID-Vorgaben je Modell
 # 2026-10-27 23:28 – Ruderausschlag standardmäßig 100 % (vorher 50 %, ältere Einstellungsdateien übernehmen ihn nicht); Differenzschub relativ zum Gas ohne Rückwärtslauf; Mischer blendet nach Vorwärtsfahrt; Gier mit Vorsteuerung; D-Anteil Nick/Roll 1,0 und Reglerbereich bis 3,0
@@ -69,6 +70,10 @@ const SETTINGS_VERSION := 3
 @export_range(0.0, 1.0, 0.05) var tail_gain: float = 1.0
 ## Stärke der Schwenkmotoren: 1,0 = voller Schwenkweg bei vollem Wunsch.
 @export_range(0.0, 1.0, 0.05) var vec_gain: float = 1.0
+@export_group("Test")
+## Testhilfe: Nickwinkel des Schiffs hart begrenzen (siehe AirshipPhysics).
+@export var pitch_limit_on: bool = true
+@export_range(1.0, 45.0, 1.0) var pitch_limit_deg: float = 5.0
 ## Differenzschub für Gier als Anteil des aktuellen Gases (0,3 = ±30 %).
 ## Wirkt nur relativ zum Gas: Gas 0 → kein Differenzschub, und ein Motor
 ## wird dadurch nie in den Rückwärtslauf gedrückt (Drehen auf der Stelle).
@@ -202,6 +207,8 @@ func stick_labels() -> Array[String]:
 func _physics_process(dt: float) -> void:
 	if airship == null:
 		return
+	airship.pitch_limit_enabled = pitch_limit_on       # Test-Anschlag an die Physik geben
+	airship.pitch_limit_deg = pitch_limit_deg
 	var b := airship.global_transform.basis.orthonormalized()
 	var w_b := b.transposed() * airship.angular_velocity
 
@@ -383,6 +390,8 @@ func save_settings() -> void:
 	cfg.set_value("general", "stick_mode", stick_mode)
 	cfg.set_value("general", "tail_gain", tail_gain)
 	cfg.set_value("general", "vec_gain", vec_gain)
+	cfg.set_value("test", "pitch_limit_on", pitch_limit_on)
+	cfg.set_value("test", "pitch_limit_deg", pitch_limit_deg)
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -400,3 +409,5 @@ func load_settings() -> void:
 	if int(cfg.get_value("general", "version", 1)) >= SETTINGS_VERSION:
 		tail_gain = cfg.get_value("general", "tail_gain", tail_gain)
 		vec_gain = cfg.get_value("general", "vec_gain", vec_gain)
+	pitch_limit_on = cfg.get_value("test", "pitch_limit_on", pitch_limit_on)
+	pitch_limit_deg = cfg.get_value("test", "pitch_limit_deg", pitch_limit_deg)
