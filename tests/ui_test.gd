@@ -1,3 +1,4 @@
+# 2026-10-28 08:15 – Strecken-Einstellung im Ablauf geprüft
 # 2026-10-28 08:04 – Szene vor dem Beenden abbauen (Test hing gelegentlich beim Aufräumen)
 extends SceneTree
 # Headless-Test der kompletten App: Hauptszene laden, fliegen (Knüppel),
@@ -56,6 +57,11 @@ func _process(_dt: float) -> bool:
 		421:
 			pass
 		423:
+			main._set_view(main.View.COURSE)
+			main.course_panel._on_distance(30.0)
+			print("Strecke frei: %s, Start x=%.1f, Rennanzeige: %s" % [main.course.title(), main.course.start_transform(main.ship).origin.x, main.hud._pill_race.text])
+			main.course.set_course(0, 30.0)
+			main._set_view(main.View.FLY)
 			print("Zurückgesetzt: Position %s, v=%.2f m/s, Kamera-Bildwinkel %.0f°" % [main.ship.global_position.snapped(Vector3.ONE * 0.1), main.ship.linear_velocity.length(), main.camera.fov])
 			main._set_view(main.View.BUILD)
 			main.ship.livery.text = "TEST"

@@ -1,3 +1,4 @@
+# 2026-10-28 08:14 – Knopf „Strecke“ und Rundenanzeige (Runde/Zeit) oben links
 # 2026-10-28 00:15 – Modusschalter oben Mitte: Direkt / Geregelt / Luftschiff (ersetzt die Anzeige „FC: Mode n“)
 # 2026-10-27 13:03 – Motor-Schalter heißt jetzt wie bei FPV-Drohnen: „Disarmed“ / „Armed“
 # 2026-10-27 12:55 – Knopf „Zurücksetzen“ oben rechts (vor „Motoren“)
@@ -23,6 +24,7 @@ signal builder_requested
 signal pid_requested
 signal ar_requested
 signal reset_requested
+signal course_requested
 
 var fc: FlightController
 var ship: AirshipPhysics
@@ -31,6 +33,7 @@ var stick_left: TouchStick
 var stick_right: TouchStick
 var _pill_speed: Button
 var _pill_alpha: Button
+var _pill_race: Button                    ## Runde / Zeit
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
@@ -57,7 +60,8 @@ func _ready() -> void:
 	add_child(tl)
 	_pill_speed = UITheme.make_pill("0,0 km/h")
 	_pill_alpha = UITheme.make_pill("α 0°")
-	for p in [_pill_speed, _pill_alpha]: tl.add_child(p)
+	_pill_race = UITheme.make_pill("Start: vorderen Pylon passieren")
+	for p in [_pill_speed, _pill_alpha, _pill_race]: tl.add_child(p)
 
 	# --- Modusschalter oben Mitte (3 Stellungen wie Kanal 13) ----------------
 	# „Geregelt ohne Vektor“ bleibt im PID-Menü wählbar; ist er aktiv, ist hier
@@ -84,12 +88,14 @@ func _ready() -> void:
 	b_reset.pressed.connect(func(): reset_requested.emit())
 	var b_build := UITheme.make_pill("Bau", true)
 	b_build.pressed.connect(func(): builder_requested.emit())
+	var b_course := UITheme.make_pill("Strecke", true)
+	b_course.pressed.connect(func(): course_requested.emit())
 	var b_pid := UITheme.make_pill("PID", true)
 	b_pid.pressed.connect(func(): pid_requested.emit())
 	_btn_ar = UITheme.make_pill("AR", true)
 	_btn_ar.toggle_mode = true
 	_btn_ar.pressed.connect(func(): ar_requested.emit())
-	for b in [b_reset, _btn_arm, b_build, b_pid, _btn_ar]: tr.add_child(b)
+	for b in [b_reset, _btn_arm, b_course, b_build, b_pid, _btn_ar]: tr.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
@@ -147,6 +153,12 @@ func _refresh_stick_captions() -> void:
 func show_notice(text: String, level := "warning", seconds := 3.0) -> void:
 	UITheme.set_banner(_banner, text, level)
 	_banner_timer = seconds
+
+
+## Rundenanzeige (Runde, Zeit) – kommt jeden Physikschritt von der Strecke.
+func set_race_text(text: String) -> void:
+	if _pill_race.text != text:
+		_pill_race.text = text
 
 
 func set_ar_active(active: bool) -> void:

@@ -1,3 +1,4 @@
+# 2026-10-28 08:14 – Strecke als eigener Node (Course): einstellbarer Pylonabstand, weißes Feld, Rundenzählung; Start 1 m hinter dem vorderen Pylon; Ansicht „Strecke“
 # 2026-10-28 00:15 – PID-Vorgaben beim Modellwechsel an den Flugcontroller
 # 2026-10-27 23:28 – Startmodell wieder Albacore
 # 2026-10-27 16:07 – Startmodell Chewie; Restmasse/Schwerpunkt nur im Baukasten einblenden
@@ -19,18 +20,13 @@
 # =============================================================================
 extends Node3D
 
-enum View { FLY, BUILD, PID, SHARE }
+enum View { FLY, BUILD, PID, SHARE, COURSE }
 
 # --- Strecke und Pilot (Meter) ------------------------------------------------
-# Draufsicht: Pylon 1 bei x = 0, Pylon 2 bei x = 25 m, beide auf der Linie z = 0.
+# Draufsicht: vorderer Pylon bei x = 0, hinterer Pylon bei x = Abstand (Course).
 # Der Pilot steht wie ein RC-Pilot fest am Boden: 1 m Richtung Streckenmitte,
 # 3 m seitlich neben Pylon 1, Augenhöhe 1,7 m – Blick die Strecke entlang.
-const PYLON_1 := Vector3(0.0, 0.0, 0.0)
-const PYLON_2 := Vector3(25.0, 0.0, 0.0)
-const PYLON_HEIGHT := 5.0
 const PILOT_EYE := Vector3(1.0, 1.7, 3.0)
-## Startpunkt des Luftschiffs: 6 m die Strecke hinauf, 4 m hoch, Nase Richtung Pylon 2
-const SHIP_START := Vector3(6.0, 4.0, 0.0)
 ## Fester Bildwinkel wie mit bloßem Auge (kein Zoom – weit weg = klein).
 const FOV := 60.0
 
@@ -44,6 +40,8 @@ var hud: FlightHUD
 var builder: BuilderPanel
 var pid: PIDPanel
 var share: SharePanel
+var course: Course
+var course_panel: CoursePanel
 var ui_sounds: UISounds
 var view := View.FLY
 var _world_env: WorldEnvironment
@@ -103,17 +101,10 @@ func _build_world() -> void:
 	ground.add_child(gm)
 	_scenery.add_child(ground)
 
-	# Regatta-Strecke: zwei Pylone im Abstand von 25 m entlang der X-Achse
-	var pm := StandardMaterial3D.new()
-	pm.albedo_color = Color("e5534b")
-	for x in [PYLON_1.x, PYLON_2.x]:
-		var py := MeshInstance3D.new()
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.12; cyl.bottom_radius = 0.35; cyl.height = PYLON_HEIGHT
-		py.mesh = cyl
-		py.material_override = pm
-		py.position = Vector3(x, PYLON_HEIGHT * 0.5, 0.0)
-		_scenery.add_child(py)
+	# Regatta-Strecke: Pylone, weißes Feld, Rundenzählung (siehe course.gd)
+	course = Course.new()
+	course.name = "Course"
+	_scenery.add_child(course)
 
 
 # =============================================================================
@@ -123,8 +114,8 @@ func _build_ship() -> void:
 	ship = AirshipPhysics.new()
 	ship.name = "Airship"
 	AirshipPresets.albacore_default(ship)    # Startmodell: Albacore
-	ship.position = SHIP_START
-	ship.rotation.y = -PI * 0.5             # Nase (−Z des Schiffs) zeigt nach +X, zu Pylon 2
+	# Start: Bug 1 m hinter dem vorderen Pylon, Nase Richtung hinterer Pylon
+	ship.transform = course.start_transform(ship)
 	visual = AirshipVisual.new()
 	ship.add_child(visual)
 	fc = FlightController.new()
@@ -195,11 +186,17 @@ func _build_ui() -> void:
 	share = SharePanel.new()
 	share.setup(ship)
 	root.add_child(share)
+	course_panel = CoursePanel.new()
+	course_panel.setup(course)
+	root.add_child(course_panel)
 
 	hud.builder_requested.connect(func(): _set_view(View.BUILD))
 	hud.pid_requested.connect(func(): _set_view(View.PID))
 	hud.ar_requested.connect(ar.toggle)
 	hud.reset_requested.connect(reset_ship)
+	hud.course_requested.connect(func(): _set_view(View.COURSE))
+	course_panel.closed.connect(func(): _set_view(View.FLY))
+	course_panel.course_changed.connect(reset_ship)
 	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
 	ship.model_applied.connect(func(): fc.apply_model_gains(ship.fc_gains))
 	builder.closed.connect(func(): _set_view(View.FLY))
@@ -216,10 +213,19 @@ func _build_ui() -> void:
 ## Schiff an den Startpunkt zurück (Nase Richtung Pylon 2), Regler neu starten.
 ## Der Motor-Schalter bleibt, wie er ist – der Gasknüppel steht ja in der Mitte.
 func reset_ship() -> void:
-	var xf := Transform3D(Basis(Vector3.UP, -PI * 0.5), SHIP_START)
-	ship.reset_to(xf)
+	ship.reset_to(course.start_transform(ship))
 	fc._reset_integrators()
+	course.reset_race()
 	hud.show_notice("Zurückgesetzt", "info", 1.5)
+
+
+## Rundenzählung: Bug-Position an die Strecke melden, Anzeige im HUD.
+func _physics_process(dt: float) -> void:
+	if view == View.BUILD or view == View.SHARE:
+		return                                  # Schiff steht im Baukasten fest
+	var nose := ship.global_transform * Vector3(0, 0, -ship.hull.cb_from_nose)
+	course.track(nose.x, dt)
+	hud.set_race_text(course.race_text())
 
 
 ## Baukasten-Ansicht auf Standard zurück (seitlich, leicht von oben).
@@ -273,6 +279,7 @@ func _set_view(v: View) -> void:
 	builder.visible = v == View.BUILD
 	pid.visible = v == View.PID
 	share.visible = v == View.SHARE
+	course_panel.visible = v == View.COURSE
 	# Baukasten/Teilen: Motoren aus, Schiff festhalten, ruhiger Klangteppich.
 	# Flug/PID: kein Klangteppich – zu hören sind nur die Motoren.
 	var workshop := v == View.BUILD or v == View.SHARE
