@@ -1,3 +1,4 @@
+# 2026-10-29 01:44 – Für den Kaskadenregler neu aufgebaut: Modi Direkt/Geregelt/Luftschiff, Werte je Achse aus FlightController.UI_PARAMS (Winkel P, Rate P/I/D, max. Rate, Vorsteuerung, Rolldämpfung), Nick-Sollwert, Mischer (Leitwerk, Motorschwenk, Schwenk fürs Nicken, Gas-Anpassung); Spalten scrollbar
 # 2026-10-29 01:13 – Einstellungen Nick-Schutz (aktiv, Ruhe ±, Max ±, Schutz-Stärke) statt Test-Anschlag
 # 2026-10-28 08:51 – Schalter „Nick begrenzen“ mit Grenzwert (Test)
 # 2026-10-28 07:53 – Regler Leitwerk-Stärke und Motorschwenk-Stärke statt Mischungsauswahl
@@ -9,14 +10,16 @@
 # =============================================================================
 # PIDPanel.gd
 # -----------------------------------------------------------------------------
-#   ┌ Flugcontroller ┐ ┌ [Roll][Nick][Gier]       ┐ ┌ Sprungantwort ┐
-#   │ Mode 1 direkt  │ │ P ───●──── 0,90          │ │  ╱‾‾╲__        │
-#   │ Mode 2 geregelt│ │ I ─●────── 0,10          │ │ ─────────      │
-#   │ Mode 3 o. Vekt.│ │ D ──●───── 0,30          │ │                │
-#   │ Stick-Mode 1/2 │ │ Mischung / Ausschlag     │ │      [Fertig]  │
-#   └────────────────┘ └──────────────────────────┘ └────────────────┘
-# Die Regler werden aus FlightController.UI_PARAMS erzeugt – kommt dort ein
-# Parameter dazu, erscheint er hier automatisch.
+#   ┌ Flugcontroller ┐ ┌ [Nick][Roll][Gier]          ┐ ┌ Sprungantwort ┐
+#   │ Direkt         │ │ Winkel P ──●──────  3,0      │ │  ╱‾‾╲__        │
+#   │ Geregelt       │ │ Rate P   ─●───────  1,5      │ │ ─────────      │
+#   │ Luftschiff     │ │ Rate I / D / max. °/s …      │ │                │
+#   │ Stick-Mode     │ │ Mischer: Leitwerk, Schwenk,  │ │      [Fertig]  │
+#   │ Nick-Sollwert  │ │ Schwenk fürs Nicken, Gas-Anp.│ │                │
+#   └────────────────┘ └──────────────────────────────┘ └────────────────┘
+# Die Regler je Achse kommen aus FlightController.UI_PARAMS – kommt dort ein
+# Parameter dazu, erscheint er hier automatisch. Alle Werte gelten für
+# Geregelt und Luftschiff gemeinsam und werden sofort gespeichert.
 # =============================================================================
 class_name PIDPanel
 extends Control
@@ -25,14 +28,26 @@ signal closed
 
 var fc: FlightController
 var _axis := FlightController.Axis.PITCH
-var _gain_box: VBoxContainer
-var _strength_box: VBoxContainer   ## Regler Leitwerk-/Schwenk-Stärke
+var _gain_box: VBoxContainer       ## Regler der gewählten Achse
+var _left_box: VBoxContainer       ## Modus, Stick-Mode, Nick-Sollwert
+var _mix_box: VBoxContainer        ## Mischer-Einstellungen
 var _plot: StepPlot
 var _mode_buttons: Array[Button] = []
 
 
 func setup(controller: FlightController) -> void:
 	fc = controller
+
+
+## Scrollbare Spalte in einem Panel (am Handy ist die Höhe knapp).
+func _scroll_col(panel: PanelContainer) -> VBoxContainer:
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(sc)
+	var col := UITheme.make_vbox("sm")
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(col)
+	return col
 
 
 func _ready() -> void:
@@ -47,56 +62,22 @@ func _ready() -> void:
 	add_child(row)
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, m)
 
-	# ===================== links: Modus =====================================
-	var left := UITheme.make_panel(220)
+	# ===================== links: Modus, Stick, Nick-Sollwert ================
+	var left := UITheme.make_panel(260)
 	row.add_child(left)
-	var lcol := UITheme.make_vbox("sm")
-	left.add_child(lcol)
-	lcol.add_child(UITheme.make_title("Flugcontroller"))
-	var g := UITheme.make_toggle_group()
-	var names := ["Mode 1 direkt", "Mode 2 geregelt", "Mode 3 ohne Vektor", "Mode 4 Luftschiff"]
-	for i in names.size():
-		var b := UITheme.make_button(names[i], true)
-		b.button_group = g
-		b.button_pressed = int(fc.mode) == i
-		b.pressed.connect(func(): fc.mode = i)        # Regler baut _on_mode_changed neu
-		lcol.add_child(b)
-		_mode_buttons.append(b)
-	lcol.add_child(UITheme.make_label("Stick-Belegung", "MutedLabel"))
-	var sm := OptionButton.new()
-	sm.custom_minimum_size.y = UITheme.size("control_height")
-	sm.add_item("Mode 2: links Gas")
-	sm.add_item("Mode 1: links Nick")
-	sm.select(0 if fc.stick_mode == 2 else 1)
-	sm.item_selected.connect(func(k): fc.stick_mode = 2 if k == 0 else 1; fc.save_settings())
-	lcol.add_child(sm)
-	lcol.add_child(UITheme.make_label("Gier liegt immer rechts.", "MutedLabel"))
+	_left_box = _scroll_col(left)
+	_fill_left()
 
-	# Nick-Schutz (nur Geregelt/Luftschiff, nie Direkt)
-	lcol.add_child(UITheme.make_label("Nick-Schutz", "MutedLabel"))
-	var prot := CheckBox.new()
-	prot.text = "aktiv"
-	prot.button_pressed = fc.pitch_protect_on
-	prot.toggled.connect(func(on): fc.pitch_protect_on = on; fc.save_settings())
-	lcol.add_child(prot)
-	lcol.add_child(UITheme.make_slider_row("Ruhe ±", 1.0, 20.0, 1.0, fc.pitch_rest_deg,
-		func(v): fc.pitch_rest_deg = v; fc.save_settings(), "%d°", 80))
-	lcol.add_child(UITheme.make_slider_row("Max ±", 10.0, 60.0, 1.0, fc.pitch_max_deg,
-		func(v): fc.pitch_max_deg = v; fc.save_settings(), "%d°", 80))
-	lcol.add_child(UITheme.make_slider_row("Schutz", 0.0, 30.0, 0.5, fc.protect_gain,
-		func(v): fc.protect_gain = v; fc.save_settings(), "%.1f", 80))
-
-	# ===================== Mitte: Achse + Regler ============================
+	# ===================== Mitte: Achse + Regler + Mischer ===================
 	var mid := UITheme.make_panel()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.size_flags_stretch_ratio = 2.0
 	row.add_child(mid)
-	var mcol := UITheme.make_vbox("sm")
-	mid.add_child(mcol)
+	var mcol := _scroll_col(mid)
 	var axes := UITheme.make_hbox("xs")
 	mcol.add_child(axes)
 	var ag := UITheme.make_toggle_group()
-	var axis_defs := [["Roll", FlightController.Axis.ROLL], ["Nick", FlightController.Axis.PITCH],
+	var axis_defs := [["Nick", FlightController.Axis.PITCH], ["Roll", FlightController.Axis.ROLL],
 		["Gier", FlightController.Axis.YAW]]
 	for a in axis_defs:
 		var b := UITheme.make_button(a[0], true)
@@ -106,12 +87,9 @@ func _ready() -> void:
 		axes.add_child(b)
 	_gain_box = UITheme.make_vbox("xs")
 	mcol.add_child(_gain_box)
-
-	# Stärke von Leitwerk und Schwenkmotoren – getrennt, unabhängig von der Fahrt
-	mcol.add_child(UITheme.make_label("Mischer-Stärke (gilt für alle Achsen)", "MutedLabel"))
-	_strength_box = UITheme.make_vbox("xs")
-	mcol.add_child(_strength_box)
-	_build_strength()
+	mcol.add_child(UITheme.make_title("Mischer"))
+	_mix_box = UITheme.make_vbox("xs")
+	mcol.add_child(_mix_box)
 
 	# ===================== rechts: Sprungantwort ============================
 	var right := UITheme.make_panel(260)
@@ -129,28 +107,58 @@ func _ready() -> void:
 	rcol.add_child(done)
 
 	fc.loop_sample.connect(_on_sample)
-	fc.mode_changed.connect(_on_mode_changed)
+	fc.mode_changed.connect(func(_m): _sync())
 	visibility_changed.connect(_sync)
 	_build_gains()
+	_build_mix()
 
 
-## Beim Öffnen und bei Moduswechsel von außen (z. B. später ein Schalter
-## in der Flugansicht) Anzeige mit dem Flugcontroller abgleichen.
+## Beim Öffnen und bei Moduswechsel/Modellwechsel: alles neu anzeigen.
 func _sync() -> void:
 	if not visible:
 		return
 	for i in _mode_buttons.size():
 		_mode_buttons[i].set_pressed_no_signal(int(fc.mode) == i)
 	_build_gains()
-	_build_strength()
+	_build_mix()
 	_plot.clear()
 
 
-func _on_mode_changed(_m: int) -> void:
-	_sync()
+## Linke Spalte: Modus, Stick-Belegung, Nick-Sollwert.
+func _fill_left() -> void:
+	_left_box.add_child(UITheme.make_title("Flugcontroller"))
+	var g := UITheme.make_toggle_group()
+	for i in FlightController.MODE_NAMES.size():
+		var b := UITheme.make_button(FlightController.MODE_NAMES[i], true)
+		b.button_group = g
+		b.button_pressed = int(fc.mode) == i
+		b.pressed.connect(func(): fc.mode = i)
+		_left_box.add_child(b)
+		_mode_buttons.append(b)
+	_left_box.add_child(UITheme.make_label("Luftschiff = Roll frei (nur gedämpft)", "MutedLabel"))
+	_left_box.add_child(UITheme.make_label("Stick-Belegung", "MutedLabel"))
+	var sm := OptionButton.new()
+	sm.custom_minimum_size.y = UITheme.size("control_height")
+	sm.add_item("Mode 2: links Gas")
+	sm.add_item("Mode 1: links Nick")
+	sm.select(0 if fc.stick_mode == 2 else 1)
+	sm.item_selected.connect(func(k): fc.stick_mode = 2 if k == 0 else 1; fc.save_settings())
+	_left_box.add_child(sm)
+	_left_box.add_child(UITheme.make_title("Nick-Sollwert"))
+	var prot := CheckBox.new()
+	prot.text = "Ruheband aktiv"
+	prot.button_pressed = fc.pitch_protect_on
+	prot.toggled.connect(func(on): fc.pitch_protect_on = on; fc.save_settings())
+	_left_box.add_child(prot)
+	_left_box.add_child(UITheme.make_slider_row("Ruhe ±", 1.0, 20.0, 1.0, fc.pitch_rest_deg,
+		func(v): fc.pitch_rest_deg = v; fc.save_settings(), "%d°", 80))
+	_left_box.add_child(UITheme.make_slider_row("Max ±", 10.0, 60.0, 1.0, fc.pitch_max_deg,
+		func(v): fc.pitch_max_deg = v; fc.save_settings(), "%d°", 80))
+	_left_box.add_child(UITheme.make_slider_row("Rückzug außerhalb", 0.0, 20.0, 0.5, fc.protect_gain,
+		func(v): fc.protect_gain = v; fc.save_settings(), "%.1f", 80))
 
 
-## Prozentanzeige für den Ausschlag-Regler (Wert 0..1 → 0..100 %).
+## Prozentanzeige für einen Regler (Wert 0..1 → 0..100 %).
 func _fix_percent(row: Control) -> void:
 	var s: HSlider = row.get_meta("slider")
 	var out: Label = row.get_meta("out")
@@ -159,31 +167,36 @@ func _fix_percent(row: Control) -> void:
 	upd.call(s.value)
 
 
-## Regler für die Stärke von Leitwerk und Schwenkmotoren (0–100 %) neu aufbauen
-## (z. B. nachdem ein Modell eigene Vorgaben mitgebracht hat).
-func _build_strength() -> void:
-	for c in _strength_box.get_children(): c.queue_free()
-	_strength_box.add_child(UITheme.make_slider_row("Leitwerk", 0.0, 1.0, 0.05, fc.tail_gain,
+## Mischer-Einstellungen (gelten für alle Achsen).
+func _build_mix() -> void:
+	for c in _mix_box.get_children(): c.queue_free()
+	_mix_box.add_child(UITheme.make_slider_row("Leitwerk", 0.0, 1.0, 0.05, fc.tail_gain,
 		func(v): fc.tail_gain = v; fc.save_settings(), "%.2f", 120))
-	_fix_percent(_strength_box.get_child(_strength_box.get_child_count() - 1))
-	_strength_box.add_child(UITheme.make_slider_row("Motorschwenk", 0.0, 1.0, 0.05, fc.vec_gain,
+	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
+	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk", 0.0, 1.0, 0.05, fc.vec_gain,
 		func(v): fc.vec_gain = v; fc.save_settings(), "%.2f", 120))
-	_fix_percent(_strength_box.get_child(_strength_box.get_child_count() - 1))
+	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
+	_mix_box.add_child(UITheme.make_slider_row("Schwenk fürs Nicken max", 0.0, 120.0, 1.0, fc.swivel_pitch_max_deg,
+		func(v): fc.swivel_pitch_max_deg = v; fc.save_settings(), "%d°", 120))
+	var ts := CheckBox.new()
+	ts.text = "Gas-Anpassung (mehr Gas → kleinere Ausschläge)"
+	ts.button_pressed = fc.throttle_scaling
+	ts.toggled.connect(func(on): fc.throttle_scaling = on; fc.save_settings())
+	_mix_box.add_child(ts)
 
 
-# Regler für die gewählte Achse im aktuellen Modus neu aufbauen
+# Regler für die gewählte Achse neu aufbauen
 func _build_gains() -> void:
 	for c in _gain_box.get_children(): c.queue_free()
 	if fc.mode == FlightController.Mode.DIRECT:
-		_gain_box.add_child(UITheme.make_label("Mode 1: Knüppel wirken direkt, kein Regler aktiv.", "MutedLabel"))
-		return
-	var mode := fc.mode
+		_gain_box.add_child(UITheme.make_label("Direkt: Knüppel wirken ungeregelt (Werte gelten für Geregelt/Luftschiff).", "MutedLabel"))
 	var axis := _axis
-	for p in FlightController.UI_PARAMS:
+	for p in FlightController.UI_PARAMS[axis]:
 		var term: String = p.term
+		var fmt := "%d" if p.step >= 1.0 else "%.2f"
 		_gain_box.add_child(UITheme.make_slider_row(p.label, p.min, p.max, p.step,
-			fc.get_param(mode, axis, term),
-			func(v): fc.set_param(mode, axis, term, v), "%.2f", 90))
+			fc.get_param(axis, term),
+			func(v): fc.set_param(axis, term, v), fmt, 120))
 
 
 func _on_sample(axis: int, setpoint: float, measurement: float) -> void:
@@ -191,7 +204,6 @@ func _on_sample(axis: int, setpoint: float, measurement: float) -> void:
 		_plot.push(setpoint, measurement)
 
 
-# =============================================================================
 # Kleiner Live-Plot (Soll/Ist der letzten ~4 s)
 # =============================================================================
 class StepPlot:

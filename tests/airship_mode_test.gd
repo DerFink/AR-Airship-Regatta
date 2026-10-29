@@ -1,3 +1,4 @@
+# 2026-10-29 01:53 – läuft im Physiktakt
 # 2026-10-29 01:14 – Sollwert-Angabe an Nick-Schutz angepasst (halber Knüppel ≈ 19°)
 extends SceneTree
 # Test Mode 4 „Luftschiff“: Roll frei, Nick gegen Horizont, Gier um die Senkrechte.
@@ -22,7 +23,7 @@ func _initialize() -> void:
 func _pitch_roll(s: AirshipPhysics) -> Vector2:
 	var b := s.global_transform.basis
 	return Vector2(rad_to_deg(asin(clampf(-b.z.y, -1, 1))), rad_to_deg(atan2(-b.x.y, b.y.y)))
-func _process(_dt: float) -> bool:
+func _physics_process(_dt: float) -> bool:   # im Physiktakt
 	f += 1
 	if f == 2:
 		for c in cases:

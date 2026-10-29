@@ -1,3 +1,4 @@
+# 2026-10-29 01:53 – Reglerwerte für den Kaskadenregler (Chewie, Albacore) aus automatischer Suche
 # 2026-10-28 07:53 – PID-Vorgaben neu ermittelt für den fahrtunabhängigen Mischer: Chewie P3 I0,1 D2, Leitwerk 100 %, Schwenk 25 %; Albacore P3 I0,1 D3
 # 2026-10-28 00:15 – Albacore nach Bauplan: L/D 7,5, X-Flossen ca. 2,4 % von L·D je Flosse, Streckung 1,2, Pfeilung 0,8, Turm bei 36 % / 13,5 % L / 0,59 D; PID-Vorgaben Albacore (P3 I0,1 D3) und Chewie (P2 I0 D2)
 # 2026-10-27 23:49 – Albacore mit Turm an der Unterseite (30 % Länge, 12 % L lang, 1/3 D hoch); Chewie ohne Turm
@@ -102,9 +103,13 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	t.aspect_ratio = 1.2
 	t.taper = 0.8
 	t.hull_x = 0.95
-	# PID-Standard aus der automatischen Suche (fahrtunabhängiger Mischer,
-	# 50/75/100 % Schub + Nickböe): Nick und Roll P 3,0 · I 0,1 · D 3,0
-	ship.fc_gains = {"pitch": [3.0, 0.1, 3.0], "roll": [3.0, 0.1, 3.0], "mix": [1.0, 1.0]}
+	# Reglerwerte (Kaskadenregler) aus automatischer Suche im Simulator
+	# (Testprogramm, 100 % mit Nickböe, Steigen)
+	ship.fc_gains = {
+		"pitch": {"ang_p": 3.0, "rate_p": 3.0, "rate_i": 0.3, "rate_d": 0.0, "max_rate": 30.0},
+		"roll": {"ang_p": 2.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.2},
+		"yaw": {"rate_p": 0.5, "rate_i": 0.2, "rate_d": 0.0, "max_rate": 40.0, "ff": 0.0},
+		"mix": [1.0, 1.0], "swv_pitch": 30.0}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	# Winkel 180° = Hüllenunterseite: wird der Motor im Baukasten nach vorn
@@ -137,10 +142,15 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
 	ship.livery.text = "aerarium e.V."       # fester Schriftzug
-	# PID-Standard aus der automatischen Suche im Simulator mit dem
-	# fahrtunabhängigen Mischer (324 Kombinationen, 50/75/100 % Schub + Nickböe):
-	# Nick und Roll P 3,0 · I 0,1 · D 2,0; Leitwerk 100 %, Motorschwenk 25 %
-	ship.fc_gains = {"pitch": [3.0, 0.1, 2.0], "roll": [3.0, 0.1, 2.0], "mix": [1.0, 0.25]}
+	# Reglerwerte (Kaskadenregler) aus automatischer Suche im Simulator:
+	# Testprogramm (50 % Schub, je 0,5 s links/rechts), 100 % mit Nickböe,
+	# Steigen; geprüft auch an „falsch gebauten“ Varianten (Schub ±30 %,
+	# Schwenkachse 40/50°, verdrehte Flosse, größere Flossen).
+	ship.fc_gains = {
+		"pitch": {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
+		"roll": {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3},
+		"yaw": {"rate_p": 0.7, "rate_i": 0.1, "rate_d": 0.0, "max_rate": 40.0, "ff": 0.0},
+		"mix": [1.0, 0.4], "swv_pitch": 80.0}
 	ship.sail_enabled = false                # Chewie hat keinen Turm
 	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
 	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.

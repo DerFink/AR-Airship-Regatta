@@ -1,3 +1,4 @@
+# 2026-10-29 01:53 – an den Kaskadenregler angepasst (Parameter je Achse)
 # 2026-10-29 00:21 – Bestenliste im Ablauf geprüft
 # 2026-10-28 08:15 – Strecken-Einstellung im Ablauf geprüft
 # 2026-10-28 08:04 – Szene vor dem Beenden abbauen (Test hing gelegentlich beim Aufräumen)
@@ -40,8 +41,8 @@ func _process(_dt: float) -> bool:
 			main._set_view(main.View.PID)
 		260:
 			print("PID-Regler-Zeilen: ", main.pid._gain_box.get_child_count())
-			main.fc.set_param(FlightController.Mode.STABILIZED, FlightController.Axis.PITCH, "kp", 1.2)
-			print("kp Nick Mode 2 = ", main.fc.get_param(FlightController.Mode.STABILIZED, FlightController.Axis.PITCH, "kp"))
+			main.fc.set_param(FlightController.Axis.PITCH, "rate_p", 1.2)
+			print("Rate P Nick = ", main.fc.get_param(FlightController.Axis.PITCH, "rate_p"))
 			main._set_view(main.View.FLY)
 		300:
 			print("Watchdog vereinfachen-Test")

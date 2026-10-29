@@ -1,3 +1,4 @@
+# 2026-10-29 01:53 – Mischer-Aufruf mit getrennten Achsen
 # 2026-10-28 08:06 – Abschlussmeldung ENDE für die CI
 # 2026-10-28 07:53 – nur Schwenkmotoren über tail_gain/vec_gain statt Mischmodus
 extends SceneTree
@@ -39,7 +40,7 @@ func _initialize() -> void:
 	fc.tail_gain = 0.0; fc.vec_gain = 1.0   # nur Schwenkmotoren
 	for st in [["Nick hoch", Vector2(0, 0.5), Vector2(0, -1)], ["Gier rechts", Vector2(0, 0.5), Vector2(1, 0)]]:
 		fc.set_sticks(st[1], st[2])
-		fc._mix(Vector3(fc.cmd_pitch, -fc.cmd_yaw, 0.0))
+		fc._mix(Vector3(fc.cmd_pitch, 0, 0), Vector3(0, -fc.cmd_yaw, 0), Vector3.ZERO)
 		print("%s → Schwenk rechts=%.2f links=%.2f | Gas rechts=%.2f links=%.2f" % [st[0], ship.motors[0].swivel_cmd, ship.motors[1].swivel_cmd, ship.motors[0].throttle_cmd, ship.motors[1].throttle_cmd])
 	print("Stick-Beschriftung: ", fc.stick_labels())
 	fc.free()

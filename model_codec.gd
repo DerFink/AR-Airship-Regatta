@@ -1,3 +1,4 @@
+# 2026-10-29 01:53 – Regler-Vorgaben als „fc“ (Werte je Achse, Bereiche aus UI_PARAMS); alte „pid“-Listen werden ignoriert
 # 2026-10-28 07:53 – Stärken (mix) in den PID-Vorgaben des Modell-Strings
 # 2026-10-28 00:15 – PID-Vorgaben (pid) im Modell-String, geprüft je Achse 3 Werte 0…3
 # 2026-10-27 23:51 – Fix: Leerzeichen im Modellnamen bleiben beim Import erhalten
@@ -83,7 +84,7 @@ static func encode(ship: AirshipPhysics) -> String:
 			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir,
 			"mk": m.mass_kg})
 	if not ship.fc_gains.is_empty():
-		data["pid"] = ship.fc_gains                  # PID-Vorgaben des Modells
+		data["fc"] = ship.fc_gains                   # Regler-Vorgaben des Modells
 	var l := ship.livery
 	data["look"] = {"col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
@@ -140,7 +141,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.electronics_mass_kg = d.mass.el
 	ship.ballast_x = d.mass.bx
 	ship.ballast_auto_x = d.mass.bauto
-	ship.fc_gains = d.get("pid", {})
+	ship.fc_gains = d.get("fc", {})
 	ship.sail_enabled = d.sail.on
 	ship.sail_x = d.sail.sx
 	ship.sail_length_frac = d.sail.sl
@@ -235,24 +236,29 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true)},
 		"fins": [], "motors": [],
 	}
-	# PID-Vorgaben: je Achse genau 3 Zahlen, je 0…3
-	var pd = d.get("pid")
-	if pd is Dictionary:
-		var pid_out := {}
-		for ax in ["roll", "pitch", "yaw"]:
-			var g = pd.get(ax)
-			if g is Array and g.size() == 3:
-				var ok := true
-				var vals := []
-				for x in g:
-					if not (x is float or x is int): ok = false; break
-					vals.append(clampf(float(x), 0.0, 3.0))
-				if ok: pid_out[ax] = vals
-		var mx = pd.get("mix")                   # Stärken [Leitwerk, Schwenk] 0…1
+	# Regler-Vorgaben (Kaskadenregler): je Achse bekannte Werte, begrenzt auf
+	# die Bereiche aus FlightController.UI_PARAMS. Ältere Strings ("pid" mit
+	# 3-Zahlen-Listen) passen nicht zum neuen Regler und werden ignoriert.
+	var fd = d.get("fc")
+	if fd is Dictionary:
+		var fc_out := {}
+		for ax in FlightController.AXIS_KEYS:
+			var g = fd.get(FlightController.AXIS_KEYS[ax])
+			if not g is Dictionary: continue
+			var vals := {}
+			for spec in FlightController.UI_PARAMS[ax]:
+				var v = g.get(spec.term)
+				if v is float or v is int:
+					vals[spec.term] = clampf(float(v), spec.min, spec.max)
+			if not vals.is_empty(): fc_out[FlightController.AXIS_KEYS[ax]] = vals
+		var mx = fd.get("mix")                   # Stärken [Leitwerk, Schwenk] 0…1
 		if mx is Array and mx.size() == 2 and (mx[0] is float or mx[0] is int) and (mx[1] is float or mx[1] is int):
-			pid_out["mix"] = [clampf(float(mx[0]), 0.0, 1.0), clampf(float(mx[1]), 0.0, 1.0)]
-		if not pid_out.is_empty():
-			out["pid"] = pid_out
+			fc_out["mix"] = [clampf(float(mx[0]), 0.0, 1.0), clampf(float(mx[1]), 0.0, 1.0)]
+		var sp = fd.get("swv_pitch")
+		if sp is float or sp is int:
+			fc_out["swv_pitch"] = clampf(float(sp), 0.0, 120.0)
+		if not fc_out.is_empty():
+			out["fc"] = fc_out
 	var sd: Dictionary = d.get("sail", {}) if d.get("sail") is Dictionary else {}
 	out["sail"] = {"on": _flag(sd, "on", false), "sx": _num(sd, "sx", 0.30),
 		"sl": _num(sd, "sl", 0.12), "sh": _num(sd, "sh", 0.33)}
