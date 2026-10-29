@@ -1,3 +1,4 @@
+# 2026-10-29 02:25 – Regler „Motorschwenk Gier“ getrennt von Nick/Roll
 # 2026-10-29 01:44 – Für den Kaskadenregler neu aufgebaut: Modi Direkt/Geregelt/Luftschiff, Werte je Achse aus FlightController.UI_PARAMS (Winkel P, Rate P/I/D, max. Rate, Vorsteuerung, Rolldämpfung), Nick-Sollwert, Mischer (Leitwerk, Motorschwenk, Schwenk fürs Nicken, Gas-Anpassung); Spalten scrollbar
 # 2026-10-29 01:13 – Einstellungen Nick-Schutz (aktiv, Ruhe ±, Max ±, Schutz-Stärke) statt Test-Anschlag
 # 2026-10-28 08:51 – Schalter „Nick begrenzen“ mit Grenzwert (Test)
@@ -173,8 +174,11 @@ func _build_mix() -> void:
 	_mix_box.add_child(UITheme.make_slider_row("Leitwerk", 0.0, 1.0, 0.05, fc.tail_gain,
 		func(v): fc.tail_gain = v; fc.save_settings(), "%.2f", 120))
 	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
-	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk", 0.0, 1.0, 0.05, fc.vec_gain,
+	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Nick/Roll", 0.0, 1.0, 0.05, fc.vec_gain,
 		func(v): fc.vec_gain = v; fc.save_settings(), "%.2f", 120))
+	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
+	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Gier", 0.0, 1.0, 0.05, fc.vec_yaw_gain,
+		func(v): fc.vec_yaw_gain = v; fc.save_settings(), "%.2f", 120))
 	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
 	_mix_box.add_child(UITheme.make_slider_row("Schwenk fürs Nicken max", 0.0, 120.0, 1.0, fc.swivel_pitch_max_deg,
 		func(v): fc.swivel_pitch_max_deg = v; fc.save_settings(), "%d°", 120))

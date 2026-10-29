@@ -1,3 +1,4 @@
+# 2026-10-29 02:25 – eigene Schwenkstärke fürs Gieren (vec_yaw_gain, Modell-Vorgabe mix_yaw)
 # 2026-10-29 01:53 – Mischer mit Priorität Nick > Gier > Roll; Standardwerte = Chewie-Abstimmung
 # 2026-10-29 01:44 – Neu als Kaskadenregler in Erdachsen (Variante 3): Winkel-P → Drehraten-PID mit Anti-Windup und gefiltertem D, Begrenzungen als Sollwertgrenzen (Nickband ±5°/±40°, max. Drehraten), Roll geregelt (Geregelt) oder frei mit einstellbarer Dämpfung (Luftschiff), Schwenker fürs Nicken begrenzt, Gas-Anpassung; Modus „Geregelt ohne Vektor“ entfällt; Einstellungen Version 5
 # 2026-10-29 01:13 – Nick-Schutz statt Test-Anschlag (Ruhe ±5°, mit Höhensteuerung bis ±40°, Schutzanteil mit Vorrang und voller Stellstärke; nicht in Direkt); kein Differenzschub mehr
@@ -82,6 +83,8 @@ var settings_outdated := true
 @export_range(0.0, 1.0, 0.05) var tail_gain: float = 1.0
 ## Stärke der Schwenkmotoren: 1,0 = voller Schwenkweg.
 @export_range(0.0, 1.0, 0.05) var vec_gain: float = 0.4
+## Eigene Stärke der Schwenkmotoren fürs GIEREN (enge Kurven brauchen mehr)
+@export_range(0.0, 1.0, 0.05) var vec_yaw_gain: float = 0.4
 ## Höchster Schwenkwinkel, den die Motoren fürs NICKEN verwenden dürfen (°).
 ## Gieren darf den vollen Schwenkweg nutzen.
 @export_range(0.0, 120.0, 1.0) var swivel_pitch_max_deg: float = 80.0
@@ -335,7 +338,7 @@ func _pitch_setpoint(dt: float) -> float:
 # Momentenwunsch und verteilt ihn geometrisch auf ihre Stellglieder
 # (Pseudo-Inverse): 100 % Wunsch = voller Ausschlag der Gruppe.
 #   Ruder   = tail_gain · Anteil Leitwerk
-#   Schwenk = vec_gain · (Gieranteil + Nickanteil, dieser begrenzt auf
+#   Schwenk = vec_yaw_gain · Gieranteil + vec_gain · (Roll + Nick, dieser begrenzt auf
 #             ±swivel_pitch_max_deg)
 # t_p, t_y, t_r = Nick-, Gier- und Rollwunsch, schon ins Körpersystem gedreht
 # (bei Schräglage hat z. B. der Nickwunsch auch Gier-Anteile im Schiff).
@@ -364,7 +367,7 @@ func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false)
 		for i in m_p.size():
 			var lim := clampf(swivel_pitch_max_deg / maxf(airship.motors[i].max_swivel_deg, 1.0), 0.0, 1.0)
 			m_p[i] = clampf(m_p[i], -lim, lim)
-	var u_mot := _prio_combine([_scaled(m_p, vec_gain), _scaled(_allocate(mot_cols, t_y), vec_gain),
+	var u_mot := _prio_combine([_scaled(m_p, vec_gain), _scaled(_allocate(mot_cols, t_y), vec_yaw_gain),
 		_scaled(_allocate(mot_cols, t_r), vec_gain)])
 
 	for i in airship.surfaces.size():
@@ -456,6 +459,9 @@ func apply_model_gains(gains: Dictionary) -> void:
 					params[a][term] = float(g[term])
 	if gains.get("mix") is Array and gains.mix.size() == 2:
 		tail_gain = gains.mix[0]; vec_gain = gains.mix[1]
+		vec_yaw_gain = vec_gain
+	if gains.has("mix_yaw"):
+		vec_yaw_gain = float(gains.mix_yaw)
 	if gains.has("swv_pitch"):
 		swivel_pitch_max_deg = float(gains.swv_pitch)
 	_reset_integrators()
@@ -465,7 +471,7 @@ func apply_model_gains(gains: Dictionary) -> void:
 # =============================================================================
 # Dauerhaft speichern / laden (überlebt App-Neustart)
 # =============================================================================
-const GENERAL_KEYS := ["stick_mode", "tail_gain", "vec_gain", "swivel_pitch_max_deg", "throttle_scaling",
+const GENERAL_KEYS := ["stick_mode", "tail_gain", "vec_gain", "vec_yaw_gain", "swivel_pitch_max_deg", "throttle_scaling",
 	"pitch_rest_deg", "pitch_max_deg", "protect_gain", "pitch_protect_on"]
 
 func save_settings() -> void:

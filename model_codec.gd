@@ -1,3 +1,4 @@
+# 2026-10-29 02:25 – mix_yaw in den Regler-Vorgaben
 # 2026-10-29 01:53 – Regler-Vorgaben als „fc“ (Werte je Achse, Bereiche aus UI_PARAMS); alte „pid“-Listen werden ignoriert
 # 2026-10-28 07:53 – Stärken (mix) in den PID-Vorgaben des Modell-Strings
 # 2026-10-28 00:15 – PID-Vorgaben (pid) im Modell-String, geprüft je Achse 3 Werte 0…3
@@ -254,6 +255,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		var mx = fd.get("mix")                   # Stärken [Leitwerk, Schwenk] 0…1
 		if mx is Array and mx.size() == 2 and (mx[0] is float or mx[0] is int) and (mx[1] is float or mx[1] is int):
 			fc_out["mix"] = [clampf(float(mx[0]), 0.0, 1.0), clampf(float(mx[1]), 0.0, 1.0)]
+		var my = fd.get("mix_yaw")               # Schwenkstärke fürs Gieren 0…1
+		if my is float or my is int:
+			fc_out["mix_yaw"] = clampf(float(my), 0.0, 1.0)
 		var sp = fd.get("swv_pitch")
 		if sp is float or sp is int:
 			fc_out["swv_pitch"] = clampf(float(sp), 0.0, 120.0)
