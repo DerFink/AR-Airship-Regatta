@@ -1,3 +1,4 @@
+# 2026-10-29 03:23 – Gier: Knüppel direkt + Dämpfung statt Gierraten-Regelung (Knüppelstärke, Dämpfung); Einstellungen Version 7
 # 2026-10-29 02:43 – Standard Gier = Renn-Abstimmung; Einstellungen Version 6 (Vorgaben werden einmalig neu geladen)
 # 2026-10-29 02:25 – eigene Schwenkstärke fürs Gieren (vec_yaw_gain, Modell-Vorgabe mix_yaw)
 # 2026-10-29 01:53 – Mischer mit Priorität Nick > Gier > Roll; Standardwerte = Chewie-Abstimmung
@@ -26,7 +27,7 @@
 #
 # Modi (3-Stufen-Schalter):
 #   DIRECT      Knüppel gehen ungeregelt an den Mischer
-#   STABILIZED  „Geregelt“:   Nicklage und Rolllage (auf 0°) geregelt, Gierrate geregelt
+#   STABILIZED  „Geregelt“:   Nicklage und Rolllage (auf 0°) geregelt, Gier direkt + Dämpfung
 #   AIRSHIP     „Luftschiff“: wie Geregelt, aber Roll FREI – nur leicht gedämpft
 #               (Rolldämpfung einstellbar, 0 = ganz frei)
 #
@@ -67,7 +68,7 @@ const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
 ## Version 5 = Kaskadenregler (ältere Dateien: Reglerwerte werden ersetzt)
-const SETTINGS_VERSION := 6     ## 6 = Renn-Abstimmung Gier
+const SETTINGS_VERSION := 7     ## 7 = Gier direkt + Dämpfung
 ## true = keine oder ältere Einstellungsdatei → Modell-Vorgaben übernehmen
 var settings_outdated := true
 
@@ -128,13 +129,14 @@ var _sp_pitch := 0.0     ## geglätteter Nick-Sollwert (rad)
 #   ang_p     äußerer Kreis: Winkelfehler (rad) → Soll-Drehrate (rad/s)
 #   rate_p/i/d innerer Kreis: Drehratenfehler (rad/s) → Stellwert (−1…1)
 #   max_rate  höchste Soll-Drehrate (°/s)
-#   ff        Gier: Vorsteuerung (Knüppel direkt auf den Stellwert)
+#   stick     Gier: Knüppelstärke (Knüppel direkt auf den Stellwert)
+#   damp      Gier: Dämpfung (Stellwert gegen die gemessene Gierrate)
 #   damp_free Roll: Anteil des Raten-P im Modus Luftschiff (Rolldämpfung)
 # =============================================================================
 var params := {        # Standard = für Chewie ermittelte Werte
 	Axis.PITCH: {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
 	Axis.ROLL:  {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3},
-	Axis.YAW:   {"rate_p": 2.5, "rate_i": 0.1, "rate_d": 0.0, "max_rate": 120.0, "ff": 0.0},
+	Axis.YAW:   {"stick": 1.3, "damp": 1.3},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
@@ -155,11 +157,8 @@ const UI_PARAMS := {
 		{"term": "damp_free", "label": "Dämpfung Luftschiff", "min": 0.0, "max": 1.0, "step": 0.05},
 	],
 	Axis.YAW: [
-		{"term": "rate_p", "label": "Rate P", "min": 0.0, "max": 5.0, "step": 0.05},
-		{"term": "rate_i", "label": "Rate I", "min": 0.0, "max": 3.0, "step": 0.05},
-		{"term": "rate_d", "label": "Rate D", "min": 0.0, "max": 1.0, "step": 0.01},
-		{"term": "max_rate", "label": "max. °/s", "min": 10.0, "max": 180.0, "step": 1.0},
-		{"term": "ff", "label": "Vorsteuerung", "min": 0.0, "max": 1.5, "step": 0.05},
+		{"term": "stick", "label": "Knüppelstärke", "min": 0.0, "max": 2.0, "step": 0.05},
+		{"term": "damp", "label": "Dämpfung", "min": 0.0, "max": 5.0, "step": 0.05},
 	],
 }
 
@@ -284,8 +283,12 @@ func _physics_process(dt: float) -> void:
 		roll_p_scale = R.damp_free
 
 	# --- Gier: Knüppel = Soll-Gierrate ---------------------------------------
+	# --- Gier: Knüppel direkt + Dämpfung (kein Drehraten-Sollwert) ---------
+	#   u = Knüppelstärke · Knüppel − Dämpfung · Gierrate
+	# Der Knüppel wirkt wie beim einfachen Regler direkt auf Ruder/Schwenker;
+	# die Dämpfung bremst das Weiterdrehen nach dem Loslassen (ein Luftschiff
+	# hat um die Hochachse kaum eigene Dämpfung).
 	var Y: Dictionary = params[Axis.YAW]
-	var rs_y := cmd_yaw * deg_to_rad(Y.max_rate)
 
 	# --- Innerer Kreis: Drehraten-PID -----------------------------------------
 	var u_p: float = _rpid[Axis.PITCH].update(rs_p, rate_p, P.rate_p, P.rate_i, P.rate_d, dt)
@@ -294,8 +297,7 @@ func _physics_process(dt: float) -> void:
 		u_r = _rpid[Axis.ROLL].update(rs_r, rate_r, R.rate_p, R.rate_i, R.rate_d, dt)
 	else:
 		u_r = _rpid[Axis.ROLL].update(0.0, rate_r, R.rate_p * roll_p_scale, 0.0, 0.0, dt)
-	var u_y: float = _rpid[Axis.YAW].update(rs_y, rate_y, Y.rate_p, Y.rate_i, Y.rate_d, dt)
-	u_y = clampf(u_y + Y.ff * cmd_yaw, -1.0, 1.0)
+	var u_y := clampf(Y.stick * cmd_yaw - Y.damp * rate_y, -1.0, 1.0)
 
 	# Gas-Anpassung (ohne Fahrtmesser): mehr Gas → stärkere Wirkung → weniger Ausschlag
 	if throttle_scaling:
@@ -306,7 +308,7 @@ func _physics_process(dt: float) -> void:
 
 	loop_sample.emit(Axis.PITCH, sp_pitch, pitch)
 	loop_sample.emit(Axis.ROLL, 0.0, roll)
-	loop_sample.emit(Axis.YAW, rs_y, rate_y)
+	loop_sample.emit(Axis.YAW, 0.0, rate_y)           # Gier: Ist-Drehrate
 
 	# --- Erdachsen → Körpersystem, dann Mischer -----------------------------
 	# Nick um die waagrechte Querachse, Gier um die Senkrechte (rechts = −Y),

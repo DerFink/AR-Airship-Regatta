@@ -1,3 +1,4 @@
+# 2026-10-29 03:23 – Gier-Parameter Knüppelstärke/Dämpfung (ys, yd)
 # 2026-10-29 02:37 – optionale Feldgrenze (Rechteck + Rand) als Bedingung, langsamere Gasstufen in der Suche
 # 2026-10-29 02:25 – Werkzeug (nicht in der CI): Rennlinien-Autopilot fliegt die Acht über die Knüppel, Zufallssuche über Linie, Gasstufen und Gier-Reglerwerte; Aufruf: godot --headless --fixed-fps 60 -s tests/race_search.gd -- chewie <Anzahl> <Seed> [Start-JSON] [local]
 extends SceneTree
@@ -33,13 +34,13 @@ func _initialize() -> void:
 	for k in int(args[1]):
 		var p := {"R": pick.call([2.0, 3.0, 4.0, 5.0]), "L": pick.call([2.0, 3.0, 4.5]), "thr_hi": pick.call([0.3, 0.4, 0.55, 0.7]),
 			"thr_lo": pick.call([0.1, 0.2, 0.3, 0.45]), "sw": pick.call([15.0, 30.0, 50.0]), "ky": pick.call([1.0, 2.0, 4.0]),
-			"mode": pick.call([1, 2]), "ymax": pick.call([60.0, 100.0, 150.0]), "yp": pick.call([0.7, 1.5, 2.5]),
-			"vy": pick.call([0.4, 0.7, 1.0]), "yff": pick.call([0.0, 0.5])}
+			"mode": pick.call([1, 2]), "ys": pick.call([0.7, 1.0, 1.5]), "yd": pick.call([0.7, 1.0, 1.5]),
+			"vy": pick.call([0.4, 0.7, 1.0])}
 		if args.size() > 4 and args[4] == "local":
 			p = {"R": pick.call([3.0, 3.5, 4.0]), "L": pick.call([2.0, 2.5, 3.0]), "thr_hi": pick.call([0.6, 0.7, 0.85]),
 				"thr_lo": pick.call([0.3, 0.45, 0.6]), "sw": pick.call([20.0, 30.0, 40.0]), "ky": pick.call([1.0, 1.5, 2.0]),
-				"mode": pick.call([1, 2]), "ymax": pick.call([60.0, 80.0, 100.0]), "yp": pick.call([1.5, 2.5, 3.5]),
-				"vy": pick.call([0.4, 0.7, 1.0]), "yff": pick.call([0.0, 0.3])}
+				"mode": pick.call([1, 2]), "ys": pick.call([0.8, 1.0, 1.2]), "yd": pick.call([0.8, 1.0, 1.3]),
+				"vy": pick.call([0.4, 0.55, 0.7])}
 		if k == 0 and args.size() > 3 and args[3] != "": p = JSON.parse_string(args[3])
 		var s := AirshipPhysics.new()
 		if preset == "chewie": AirshipPresets.chewie(s)
@@ -65,9 +66,8 @@ func _physics_process(dt: float) -> bool:
 		if f == 2:
 			fc.apply_model_gains(s.fc_gains)
 			fc.mode = p.mode
-			fc.params[FlightController.Axis.YAW].max_rate = p.ymax
-			fc.params[FlightController.Axis.YAW].rate_p = p.yp
-			fc.params[FlightController.Axis.YAW].ff = p.yff
+			fc.params[FlightController.Axis.YAW].stick = p.get("ys", 1.0)
+			fc.params[FlightController.Axis.YAW].damp = p.get("yd", 1.0)
 			fc.vec_yaw_gain = p.vy
 			fc.armed = true
 			e.c.reset_race()

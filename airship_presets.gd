@@ -1,3 +1,4 @@
+# 2026-10-29 03:23 – Gier-Vorgaben: Chewie Knüppelstärke 1,3 / Dämpfung 1,3, Albacore 1,0 / 1,0
 # 2026-10-29 02:43 – Chewie: Renn-Abstimmung Gier (Rate P 2,5, max. 120 °/s, Motorschwenk Gier 40 %)
 # 2026-10-29 01:53 – Reglerwerte für den Kaskadenregler (Chewie, Albacore) aus automatischer Suche
 # 2026-10-28 07:53 – PID-Vorgaben neu ermittelt für den fahrtunabhängigen Mischer: Chewie P3 I0,1 D2, Leitwerk 100 %, Schwenk 25 %; Albacore P3 I0,1 D3
@@ -109,7 +110,7 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.fc_gains = {
 		"pitch": {"ang_p": 3.0, "rate_p": 3.0, "rate_i": 0.3, "rate_d": 0.0, "max_rate": 30.0},
 		"roll": {"ang_p": 2.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.2},
-		"yaw": {"rate_p": 0.5, "rate_i": 0.2, "rate_d": 0.0, "max_rate": 40.0, "ff": 0.0},
+		"yaw": {"stick": 1.0, "damp": 1.0},     # Gier: Knüppel direkt + Dämpfung
 		"mix": [1.0, 1.0], "swv_pitch": 30.0}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
@@ -150,10 +151,13 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.fc_gains = {
 		"pitch": {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
 		"roll": {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3},
-		# Gier: Renn-Abstimmung (Rennlinien-Suche im Feld: Einzelrunden 11–15 s).
-		# max. 120 °/s und Motorschwenk Gier 40 %: mit 70 % rollte Chewie im
-		# Testprogramm (voller Gier-Knüppel) über 60° und berührte den Boden.
-		"yaw": {"rate_p": 2.5, "rate_i": 0.1, "rate_d": 0.0, "max_rate": 120.0, "ff": 0.0},
+		# Gier: Knüppel direkt + Dämpfung (Nutzerwunsch, wie beim einfachen Regler).
+		# Knüppelstärke 1,3 / Dämpfung 1,3: im Testprogramm stoppt die Drehung
+		# nach dem Loslassen in beiden Modi; mit Dämpfung 0,5 drehte Chewie in
+		# „Geregelt“ weiter im Kreis, mit 2,0 wurden die Kurven zu flach.
+		# Motorschwenk Gier 40 %: mit 70 % rollte Chewie im Testprogramm über
+		# 60° und berührte den Boden.
+		"yaw": {"stick": 1.3, "damp": 1.3},
 		"mix": [1.0, 0.4], "mix_yaw": 0.4, "swv_pitch": 80.0}
 	ship.sail_enabled = false                # Chewie hat keinen Turm
 	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
