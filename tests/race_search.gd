@@ -1,3 +1,4 @@
+# 2026-10-29 02:37 – optionale Feldgrenze (Rechteck + Rand) als Bedingung, langsamere Gasstufen in der Suche
 # 2026-10-29 02:25 – Werkzeug (nicht in der CI): Rennlinien-Autopilot fliegt die Acht über die Knüppel, Zufallssuche über Linie, Gasstufen und Gier-Reglerwerte; Aufruf: godot --headless --fixed-fps 60 -s tests/race_search.gd -- chewie <Anzahl> <Seed> [Start-JSON] [local]
 extends SceneTree
 # Rennlinien-Autopilot (NUR Test/Messlatte, nicht in der App, nicht für den Teensy):
@@ -7,6 +8,8 @@ var runs: Array = []
 var f := 0
 const SPACING := 150.0
 const T_MAX := 90.0
+## Feldgrenze: Rand über das weiße Rechteck hinaus (m); < 0 = keine Grenze
+var FIELD_MARGIN_EXTRA := -1.0
 var preset := "chewie"
 
 func _path(d: float, R: float) -> PackedVector2Array:
@@ -24,11 +27,12 @@ func _path(d: float, R: float) -> PackedVector2Array:
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	preset = args[0]
+	if args.size() > 5: FIELD_MARGIN_EXTRA = float(args[5])
 	var rng := RandomNumberGenerator.new(); rng.seed = int(args[2])
 	var pick := func(a: Array): return a[rng.randi_range(0, a.size() - 1)]
 	for k in int(args[1]):
-		var p := {"R": pick.call([2.0, 3.0, 4.0, 5.0]), "L": pick.call([2.0, 3.0, 4.5]), "thr_hi": pick.call([0.4, 0.55, 0.7, 1.0]),
-			"thr_lo": pick.call([0.15, 0.3, 0.45]), "sw": pick.call([15.0, 30.0, 50.0]), "ky": pick.call([1.0, 2.0, 4.0]),
+		var p := {"R": pick.call([2.0, 3.0, 4.0, 5.0]), "L": pick.call([2.0, 3.0, 4.5]), "thr_hi": pick.call([0.3, 0.4, 0.55, 0.7]),
+			"thr_lo": pick.call([0.1, 0.2, 0.3, 0.45]), "sw": pick.call([15.0, 30.0, 50.0]), "ky": pick.call([1.0, 2.0, 4.0]),
 			"mode": pick.call([1, 2]), "ymax": pick.call([60.0, 100.0, 150.0]), "yp": pick.call([0.7, 1.5, 2.5]),
 			"vy": pick.call([0.4, 0.7, 1.0]), "yff": pick.call([0.0, 0.5])}
 		if args.size() > 4 and args[4] == "local":
@@ -36,7 +40,7 @@ func _initialize() -> void:
 				"thr_lo": pick.call([0.3, 0.45, 0.6]), "sw": pick.call([20.0, 30.0, 40.0]), "ky": pick.call([1.0, 1.5, 2.0]),
 				"mode": pick.call([1, 2]), "ymax": pick.call([60.0, 80.0, 100.0]), "yp": pick.call([1.5, 2.5, 3.5]),
 				"vy": pick.call([0.4, 0.7, 1.0]), "yff": pick.call([0.0, 0.3])}
-		if k == 0 and args.size() > 3: p = JSON.parse_string(args[3])
+		if k == 0 and args.size() > 3 and args[3] != "": p = JSON.parse_string(args[3])
 		var s := AirshipPhysics.new()
 		if preset == "chewie": AirshipPresets.chewie(s)
 		else: AirshipPresets.albacore_default(s)
@@ -107,6 +111,13 @@ func _physics_process(dt: float) -> bool:
 		for e in runs:
 			var c: Course = e.c
 			var score: float = c.time_s if c.race == Course.Race.DONE else 1000.0 - c.lap * 100.0 - c.next_gate * 10.0
+			# Optional: Feldgrenze (Rechteck ± Rand) einhalten, sonst ungültig
+			if FIELD_MARGIN_EXTRA >= 0.0:
+				var bx: Rect2 = e.box
+				var m := FIELD_MARGIN_EXTRA
+				if bx.position.x < -Course.FIELD_MARGIN - m or bx.end.x > c.distance() + Course.FIELD_MARGIN + m \
+						or bx.position.y < -Course.FIELD_WIDTH * 0.5 - m or bx.end.y > Course.FIELD_WIDTH * 0.5 + m:
+					score += 2000.0
 			res.append([score, e])
 		res.sort_custom(func(a, b): return a[0] < b[0])
 		for i in mini(10, res.size()):
