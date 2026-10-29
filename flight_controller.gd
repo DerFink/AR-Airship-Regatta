@@ -1,3 +1,4 @@
+# 2026-10-29 07:45 – Modus 4 „Gedämpft“: Nicklage wie Geregelt, Roll über einfachen Feder-Dämpfer, Gier-Knüppel voll ohne Gas-Anpassung und ohne Drehratengrenze (Dämpfung nur beim Loslassen), eigene Schwenkstärke Gier (swivel_damped)
 # 2026-10-29 03:38 – reset_to_defaults(): Werkseinstellung + Modell-Vorgaben
 # 2026-10-29 03:23 – Gier: Knüppel direkt + Dämpfung statt Gierraten-Regelung (Knüppelstärke, Dämpfung); Einstellungen Version 7
 # 2026-10-29 02:43 – Standard Gier = Renn-Abstimmung; Einstellungen Version 6 (Vorgaben werden einmalig neu geladen)
@@ -31,6 +32,10 @@
 #   STABILIZED  „Geregelt“:   Nicklage und Rolllage (auf 0°) geregelt, Gier direkt + Dämpfung
 #   AIRSHIP     „Luftschiff“: wie Geregelt, aber Roll FREI – nur leicht gedämpft
 #               (Rolldämpfung einstellbar, 0 = ganz frei)
+#   DAMPED      „Gedämpft“ (Rennen): Nicklage wie Geregelt (±5° / ±40°), Roll über
+#               einen einfachen Feder-Dämpfer (Winkel + Rate), Gier-Knüppel geht
+#               VOLL auf Ruder und Schwenker (keine Gas-Anpassung, keine Dreh-
+#               ratengrenze); Gierdämpfung nur bei losgelassenem Knüppel
 #
 # Warum Erdachsen? Ist das Schiff gerollt, wirkt ein Seitenleitwerk nicht mehr
 # als Seitenleitwerk und ein Schwenkmotor nicht mehr in Gierrichtung. Der
@@ -61,9 +66,9 @@ signal mode_changed(mode: int)
 ## Für die Live-Sprungantwort im PID-Menü (Nick/Roll: Winkel, Gier: Rate).
 signal loop_sample(axis: int, setpoint: float, measurement: float)
 
-enum Mode { DIRECT, STABILIZED, AIRSHIP }
+enum Mode { DIRECT, STABILIZED, AIRSHIP, DAMPED }
 ## Namen für Schalter und Menüs
-const MODE_NAMES := ["Direkt", "Geregelt", "Luftschiff"]
+const MODE_NAMES := ["Direkt", "Geregelt", "Luftschiff", "Gedämpft"]
 enum Axis { ROLL, PITCH, YAW }
 const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
@@ -136,8 +141,10 @@ var _sp_pitch := 0.0     ## geglätteter Nick-Sollwert (rad)
 # =============================================================================
 var params := {        # Standard = für Chewie ermittelte Werte
 	Axis.PITCH: {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
-	Axis.ROLL:  {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3},
-	Axis.YAW:   {"stick": 1.3, "damp": 1.3},
+	Axis.ROLL:  {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3, "damper": 1.5, "damper_angle": 2.0},
+	# swivel_damped 0,8: Schwenk bis ≈ 88° – darüber zeigt der Schub nach hinten
+	# und die Gierwirkung nimmt wieder ab
+	Axis.YAW:   {"stick": 1.3, "damp": 1.3, "swivel_damped": 0.8},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
@@ -156,10 +163,13 @@ const UI_PARAMS := {
 		{"term": "rate_d", "label": "Rate D", "min": 0.0, "max": 1.0, "step": 0.01},
 		{"term": "max_rate", "label": "max. °/s", "min": 5.0, "max": 120.0, "step": 1.0},
 		{"term": "damp_free", "label": "Dämpfung Luftschiff", "min": 0.0, "max": 1.0, "step": 0.05},
+		{"term": "damper_angle", "label": "Roll-Rückstellung (Gedämpft)", "min": 0.0, "max": 10.0, "step": 0.1},
+		{"term": "damper", "label": "Roll-Dämpfer (Gedämpft)", "min": 0.0, "max": 5.0, "step": 0.05},
 	],
 	Axis.YAW: [
 		{"term": "stick", "label": "Knüppelstärke", "min": 0.0, "max": 2.0, "step": 0.05},
 		{"term": "damp", "label": "Dämpfung", "min": 0.0, "max": 5.0, "step": 0.05},
+		{"term": "swivel_damped", "label": "Schwenk Gier (Gedämpft)", "min": 0.0, "max": 1.0, "step": 0.05},
 	],
 }
 
@@ -318,12 +328,23 @@ func _physics_process(dt: float) -> void:
 	var u_r := 0.0
 	if mode == Mode.STABILIZED:
 		u_r = _rpid[Axis.ROLL].update(rs_r, rate_r, R.rate_p, R.rate_i, R.rate_d, dt)
+	elif mode == Mode.DAMPED:
+		# einfacher Roll-Dämpfer (Feder + Dämpfer): zieht den Rollwinkel zurück
+		# und bremst die Rollbewegung – ohne I-Anteil, ohne Kaskade
+		u_r = clampf(-R.damper_angle * roll - R.damper * rate_r, -1.0, 1.0)
 	else:
 		u_r = _rpid[Axis.ROLL].update(0.0, rate_r, R.rate_p * roll_p_scale, 0.0, 0.0, dt)
 	var u_y := clampf(Y.stick * cmd_yaw - Y.damp * rate_y, -1.0, 1.0)
+	if mode == Mode.DAMPED:
+		# Gier voll: Knüppel direkt, ohne Bremse während gesteuert wird; erst
+		# beim Loslassen dämpft der Regler die Drehung weg.
+		if absf(cmd_yaw) > 0.05:
+			u_y = clampf(Y.stick * cmd_yaw, -1.0, 1.0)
+		else:
+			u_y = clampf(-Y.damp * rate_y, -1.0, 1.0)
 
 	# Gas-Anpassung (ohne Fahrtmesser): mehr Gas → stärkere Wirkung → weniger Ausschlag
-	if throttle_scaling:
+	if throttle_scaling and mode != Mode.DAMPED:
 		var k := 1.0 / clampf(absf(cmd_throttle) / 0.5, 0.5, 2.0)
 		u_p = clampf(u_p * k, -1.0, 1.0)
 		u_r = clampf(u_r * k, -1.0, 1.0)
@@ -339,7 +360,10 @@ func _physics_process(dt: float) -> void:
 	# Jede Achse einzeln ins Körpersystem drehen – der Mischer verteilt sie mit
 	# Priorität (Nick vor Gier vor Roll).
 	var bt := b.transposed()
-	_mix(bt * (axis_p * u_p), bt * (Vector3.DOWN * u_y), bt * (nose * u_r), true)
+	# Nick behält auch in „Gedämpft“ Vorrang (Höhe); im Test mit Gier-Vorrang
+	# stieg die Nase bis 45–89° und Chewie verlor bis 9 m Höhe.
+	_mix(bt * (axis_p * u_p), bt * (Vector3.DOWN * u_y), bt * (nose * u_r), true, false,
+		params[Axis.YAW].swivel_damped if mode == Mode.DAMPED else vec_yaw_gain)
 
 
 # =============================================================================
@@ -370,7 +394,9 @@ func _pitch_setpoint(dt: float) -> float:
 # (bei Schräglage hat z. B. der Nickwunsch auch Gier-Anteile im Schiff).
 # limit_swivel_pitch = Schwenkweg fürs Nicken begrenzen (nicht im Direkt-Modus).
 # =============================================================================
-func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false) -> void:
+func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false, yaw_first := false, yaw_swivel_gain := -1.0) -> void:
+	if yaw_swivel_gain < 0.0:
+		yaw_swivel_gain = vec_yaw_gain
 	var cg := airship.cg_offset
 	var fin_cols: Array[Vector3] = []
 	for srf in airship.surfaces:
@@ -386,15 +412,22 @@ func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false)
 	var f_p := _scaled(_allocate(fin_cols, t_p), tail_gain)
 	var f_y := _scaled(_allocate(fin_cols, t_y), tail_gain)
 	var f_r := _scaled(_allocate(fin_cols, t_r), tail_gain)
-	var u_fin := _prio_combine([f_p, f_y, f_r])
+	# Modus Gedämpft: Gier vor Nick vor Roll (volle Gier-Ausschläge)
+	var u_fin := _prio_combine([f_y, f_p, f_r] if yaw_first else [f_p, f_y, f_r])
 
 	var m_p := _allocate(mot_cols, t_p)
 	if limit_swivel_pitch:                              # Schwenk fürs Nicken begrenzen
 		for i in m_p.size():
 			var lim := clampf(swivel_pitch_max_deg / maxf(airship.motors[i].max_swivel_deg, 1.0), 0.0, 1.0)
 			m_p[i] = clampf(m_p[i], -lim, lim)
-	var u_mot := _prio_combine([_scaled(m_p, vec_gain), _scaled(_allocate(mot_cols, t_y), vec_yaw_gain),
-		_scaled(_allocate(mot_cols, t_r), vec_gain)])
+	var s_p := _scaled(m_p, vec_gain)
+	var s_r := _scaled(_allocate(mot_cols, t_r), vec_gain)
+	var u_mot: PackedFloat32Array
+	if yaw_first:                                       # Gedämpft: Gier voll und zuerst
+		var s_y := _scaled(_allocate(mot_cols, t_y), params[Axis.YAW].swivel_damped)
+		u_mot = _prio_combine([s_y, s_p, s_r])
+	else:
+		u_mot = _prio_combine([s_p, _scaled(_allocate(mot_cols, t_y), yaw_swivel_gain), s_r])
 
 	for i in airship.surfaces.size():
 		airship.surfaces[i].command = clampf(u_fin[i], -1.0, 1.0)

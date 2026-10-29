@@ -1,3 +1,4 @@
+# 2026-10-29 07:45 – Modusschalter mit 4 Stellungen (Gedämpft)
 # 2026-10-29 00:19 – Modusschalter rückt in die zweite Reihe, wenn oben kein Platz ist
 # 2026-10-28 08:51 – Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten
 # 2026-10-28 08:14 – Knopf „Strecke“ und Rundenanzeige (Runde/Zeit) oben links
@@ -75,7 +76,7 @@ func _ready() -> void:
 	_mode_box = UITheme.make_hbox("xs")
 	add_child(_mode_box)
 	var grp := UITheme.make_toggle_group()
-	for md in [FlightController.Mode.DIRECT, FlightController.Mode.STABILIZED, FlightController.Mode.AIRSHIP]:
+	for md in [FlightController.Mode.DIRECT, FlightController.Mode.STABILIZED, FlightController.Mode.AIRSHIP, FlightController.Mode.DAMPED]:
 		var b := UITheme.make_pill(FlightController.MODE_NAMES[md], true)
 		b.toggle_mode = true
 		b.button_group = grp
