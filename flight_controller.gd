@@ -1,3 +1,4 @@
+# 2026-10-29 02:43 – Standard Gier = Renn-Abstimmung; Einstellungen Version 6 (Vorgaben werden einmalig neu geladen)
 # 2026-10-29 02:25 – eigene Schwenkstärke fürs Gieren (vec_yaw_gain, Modell-Vorgabe mix_yaw)
 # 2026-10-29 01:53 – Mischer mit Priorität Nick > Gier > Roll; Standardwerte = Chewie-Abstimmung
 # 2026-10-29 01:44 – Neu als Kaskadenregler in Erdachsen (Variante 3): Winkel-P → Drehraten-PID mit Anti-Windup und gefiltertem D, Begrenzungen als Sollwertgrenzen (Nickband ±5°/±40°, max. Drehraten), Roll geregelt (Geregelt) oder frei mit einstellbarer Dämpfung (Luftschiff), Schwenker fürs Nicken begrenzt, Gas-Anpassung; Modus „Geregelt ohne Vektor“ entfällt; Einstellungen Version 5
@@ -66,7 +67,7 @@ const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
 ## Version 5 = Kaskadenregler (ältere Dateien: Reglerwerte werden ersetzt)
-const SETTINGS_VERSION := 5
+const SETTINGS_VERSION := 6     ## 6 = Renn-Abstimmung Gier
 ## true = keine oder ältere Einstellungsdatei → Modell-Vorgaben übernehmen
 var settings_outdated := true
 
@@ -133,7 +134,7 @@ var _sp_pitch := 0.0     ## geglätteter Nick-Sollwert (rad)
 var params := {        # Standard = für Chewie ermittelte Werte
 	Axis.PITCH: {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
 	Axis.ROLL:  {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3},
-	Axis.YAW:   {"rate_p": 0.7, "rate_i": 0.1, "rate_d": 0.0, "max_rate": 40.0, "ff": 0.0},
+	Axis.YAW:   {"rate_p": 2.5, "rate_i": 0.1, "rate_d": 0.0, "max_rate": 120.0, "ff": 0.0},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
