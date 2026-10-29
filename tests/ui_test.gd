@@ -1,3 +1,4 @@
+# 2026-10-29 03:38 – Zurücksetzen aller Einstellungen geprüft
 # 2026-10-29 01:53 – an den Kaskadenregler angepasst (Parameter je Achse)
 # 2026-10-29 00:21 – Bestenliste im Ablauf geprüft
 # 2026-10-28 08:15 – Strecken-Einstellung im Ablauf geprüft
@@ -43,6 +44,8 @@ func _process(_dt: float) -> bool:
 			print("PID-Regler-Zeilen: ", main.pid._gain_box.get_child_count())
 			main.fc.set_param(FlightController.Axis.PITCH, "rate_p", 1.2)
 			print("Rate P Nick = ", main.fc.get_param(FlightController.Axis.PITCH, "rate_p"))
+			main.pid.emit_signal("reset_all_requested")
+			print("Nach Zurücksetzen: Rate P Nick = %.2f, Strecke %s, Modus %s" % [main.fc.get_param(FlightController.Axis.PITCH, "rate_p"), main.course.title(), FlightController.MODE_NAMES[main.fc.mode]])
 			main._set_view(main.View.FLY)
 		300:
 			print("Watchdog vereinfachen-Test")

@@ -1,3 +1,4 @@
+# 2026-10-29 03:38 – reset_all_settings(): Flugcontroller, Strecke, Startposition
 # 2026-10-29 00:19 – Bestenliste: nach dem Ziel Namen eintragen (Top 10), Ansicht LEADER
 # 2026-10-28 15:12 – Pilot 6 m neben Pylon 1; Startmodell Chewie; PID-Vorgaben beim ersten Start bzw. nach Update übernehmen
 # 2026-10-28 08:51 – Bug-Position x und z an die Strecke (Seite am Pylon)
@@ -220,6 +221,7 @@ func _build_ui() -> void:
 	share.ui_action.connect(ui_sounds.chime)
 	share.closed.connect(func(): _set_view(View.BUILD))
 	pid.closed.connect(func(): _set_view(View.FLY))
+	pid.reset_all_requested.connect(reset_all_settings)
 	watchdog.notice.connect(func(t): hud.show_notice(t, "warning"))
 	ar.ar_state_changed.connect(func(on, msg): hud.set_ar_active(on); hud.show_notice(msg, "info", 2.0))
 
@@ -253,6 +255,19 @@ func _physics_process(dt: float) -> void:
 	var nose := ship.global_transform * Vector3(0, 0, -ship.hull.cb_from_nose)
 	course.track(nose.x, nose.z, dt)
 	hud.set_race_text(course.race_text(), course.lap_text())
+
+
+## Knopf „Alle Einstellungen zurücksetzen“ (PID-Menü): Flugcontroller auf
+## Werkseinstellung + Vorgaben des aktuellen Modells, Strecke auf den
+## FN Hugo Eckener Cup, Schiff an den Start. Bestenliste und eigene Modelle
+## bleiben erhalten.
+func reset_all_settings() -> void:
+	fc.armed = false
+	fc.reset_to_defaults(ship.fc_gains)
+	course.set_course(0, 25.0)
+	reset_ship()
+	pid._sync()
+	hud.show_notice("Alle Einstellungen zurückgesetzt", "info", 2.0)
 
 
 ## Baukasten-Ansicht auf Standard zurück (seitlich, leicht von oben).

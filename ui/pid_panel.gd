@@ -1,3 +1,4 @@
+# 2026-10-29 03:38 – Knopf „Alle Einstellungen zurücksetzen“ mit Rückfrage; linke Spalte wird beim Öffnen neu aufgebaut
 # 2026-10-29 02:25 – Regler „Motorschwenk Gier“ getrennt von Nick/Roll
 # 2026-10-29 01:44 – Für den Kaskadenregler neu aufgebaut: Modi Direkt/Geregelt/Luftschiff, Werte je Achse aus FlightController.UI_PARAMS (Winkel P, Rate P/I/D, max. Rate, Vorsteuerung, Rolldämpfung), Nick-Sollwert, Mischer (Leitwerk, Motorschwenk, Schwenk fürs Nicken, Gas-Anpassung); Spalten scrollbar
 # 2026-10-29 01:13 – Einstellungen Nick-Schutz (aktiv, Ruhe ±, Max ±, Schutz-Stärke) statt Test-Anschlag
@@ -26,6 +27,8 @@ class_name PIDPanel
 extends Control
 
 signal closed
+## „Alles zurücksetzen“ bestätigt → main.gd setzt Flugcontroller, Strecke und Schiff zurück
+signal reset_all_requested
 
 var fc: FlightController
 var _axis := FlightController.Axis.PITCH
@@ -118,6 +121,9 @@ func _ready() -> void:
 func _sync() -> void:
 	if not visible:
 		return
+	for c in _left_box.get_children(): c.queue_free()
+	_mode_buttons.clear()
+	_fill_left()
 	for i in _mode_buttons.size():
 		_mode_buttons[i].set_pressed_no_signal(int(fc.mode) == i)
 	_build_gains()
@@ -157,6 +163,22 @@ func _fill_left() -> void:
 		func(v): fc.pitch_max_deg = v; fc.save_settings(), "%d°", 80))
 	_left_box.add_child(UITheme.make_slider_row("Rückzug außerhalb", 0.0, 20.0, 0.5, fc.protect_gain,
 		func(v): fc.protect_gain = v; fc.save_settings(), "%.1f", 80))
+
+	# Alles auf Werkseinstellung – mit Rückfrage (zweites Tippen bestätigt)
+	_left_box.add_child(UITheme.make_title("Zurücksetzen"))
+	var rst := UITheme.make_button("Alle Einstellungen zurücksetzen")
+	rst.pressed.connect(func():
+		if rst.has_meta("armed"):
+			rst.remove_meta("armed")
+			rst.text = "Alle Einstellungen zurücksetzen"
+			reset_all_requested.emit()
+		else:
+			rst.set_meta("armed", true)
+			rst.text = "Wirklich? Nochmal tippen")
+	_left_box.add_child(rst)
+	var rinfo := UITheme.make_label("Regler, Mischer, Nick-Sollwert, Stick-Mode und Strecke. Bestenliste und eigene Modelle bleiben.", "MutedLabel")
+	rinfo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_left_box.add_child(rinfo)
 
 
 ## Prozentanzeige für einen Regler (Wert 0..1 → 0..100 %).

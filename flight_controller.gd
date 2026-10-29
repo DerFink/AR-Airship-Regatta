@@ -1,3 +1,4 @@
+# 2026-10-29 03:38 – reset_to_defaults(): Werkseinstellung + Modell-Vorgaben
 # 2026-10-29 03:23 – Gier: Knüppel direkt + Dämpfung statt Gierraten-Regelung (Knüppelstärke, Dämpfung); Einstellungen Version 7
 # 2026-10-29 02:43 – Standard Gier = Renn-Abstimmung; Einstellungen Version 6 (Vorgaben werden einmalig neu geladen)
 # 2026-10-29 02:25 – eigene Schwenkstärke fürs Gieren (vec_yaw_gain, Modell-Vorgabe mix_yaw)
@@ -198,8 +199,30 @@ class RatePID:
 var _rpid := {Axis.ROLL: RatePID.new(), Axis.PITCH: RatePID.new(), Axis.YAW: RatePID.new()}
 
 
+## Werkseinstellungen (beim Erzeugen gemerkt, vor dem Laden gespeicherter Werte)
+var _factory := {}
+
+
 func _ready() -> void:
+	_factory = {"params": params.duplicate(true), "general": {}}
+	for k in GENERAL_KEYS:
+		_factory.general[k] = get(k)
 	load_settings()
+
+
+## Alle Flugcontroller-Einstellungen auf Werkseinstellung zurück, danach die
+## Vorgaben des aktuellen Modells (model_gains) – und speichern.
+func reset_to_defaults(model_gains: Dictionary) -> void:
+	if _factory.is_empty():
+		return
+	params = _factory.params.duplicate(true)
+	for k in _factory.general:
+		set(k, _factory.general[k])
+	mode = Mode.STABILIZED
+	_sp_pitch = 0.0
+	_reset_integrators()
+	apply_model_gains(model_gains)     # speichert auch
+	save_settings()
 
 
 # =============================================================================
