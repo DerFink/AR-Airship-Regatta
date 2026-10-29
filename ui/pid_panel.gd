@@ -1,3 +1,4 @@
+# 2026-10-29 01:13 – Einstellungen Nick-Schutz (aktiv, Ruhe ±, Max ±, Schutz-Stärke) statt Test-Anschlag
 # 2026-10-28 08:51 – Schalter „Nick begrenzen“ mit Grenzwert (Test)
 # 2026-10-28 07:53 – Regler Leitwerk-Stärke und Motorschwenk-Stärke statt Mischungsauswahl
 # 2026-10-28 00:15 – Mode 4 Luftschiff im Modus-Menü
@@ -71,15 +72,19 @@ func _ready() -> void:
 	lcol.add_child(sm)
 	lcol.add_child(UITheme.make_label("Gier liegt immer rechts.", "MutedLabel"))
 
-	# Testhilfe: Nickwinkel hart begrenzen (Anschlag)
-	lcol.add_child(UITheme.make_label("Test", "MutedLabel"))
-	var lim := CheckBox.new()
-	lim.text = "Nick begrenzen"
-	lim.button_pressed = fc.pitch_limit_on
-	lim.toggled.connect(func(on): fc.pitch_limit_on = on; fc.save_settings())
-	lcol.add_child(lim)
-	lcol.add_child(UITheme.make_slider_row("Grenze ±", 1.0, 45.0, 1.0, fc.pitch_limit_deg,
-		func(v): fc.pitch_limit_deg = v; fc.save_settings(), "%d°", 80))
+	# Nick-Schutz (nur Geregelt/Luftschiff, nie Direkt)
+	lcol.add_child(UITheme.make_label("Nick-Schutz", "MutedLabel"))
+	var prot := CheckBox.new()
+	prot.text = "aktiv"
+	prot.button_pressed = fc.pitch_protect_on
+	prot.toggled.connect(func(on): fc.pitch_protect_on = on; fc.save_settings())
+	lcol.add_child(prot)
+	lcol.add_child(UITheme.make_slider_row("Ruhe ±", 1.0, 20.0, 1.0, fc.pitch_rest_deg,
+		func(v): fc.pitch_rest_deg = v; fc.save_settings(), "%d°", 80))
+	lcol.add_child(UITheme.make_slider_row("Max ±", 10.0, 60.0, 1.0, fc.pitch_max_deg,
+		func(v): fc.pitch_max_deg = v; fc.save_settings(), "%d°", 80))
+	lcol.add_child(UITheme.make_slider_row("Schutz", 0.0, 30.0, 0.5, fc.protect_gain,
+		func(v): fc.protect_gain = v; fc.save_settings(), "%.1f", 80))
 
 	# ===================== Mitte: Achse + Regler ============================
 	var mid := UITheme.make_panel()

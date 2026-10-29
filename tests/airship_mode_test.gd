@@ -1,3 +1,4 @@
+# 2026-10-29 01:14 – Sollwert-Angabe an Nick-Schutz angepasst (halber Knüppel ≈ 19°)
 extends SceneTree
 # Test Mode 4 „Luftschiff“: Roll frei, Nick gegen Horizont, Gier um die Senkrechte.
 # Chewie und Albacore je mit ihren PID-Vorgaben bei 50 % und 100 % Schub,
@@ -42,7 +43,7 @@ func _process(_dt: float) -> bool:
 	if f >= 1200:
 		for c in cases:
 			var pr := _pitch_roll(c.s)
-			print("%-8s Schub %.1f: Nick vor Befehl %5.1f°, Nick nach Befehl (Soll 15°) %5.1f°, max. Krängung %5.1f°, Krängung am Ende %5.1f°" % [c.name, c.th, c.p_mid, c.p_end, c.rmax, pr.y])
+			print("%-8s Schub %.1f: Nick vor Befehl %5.1f°, Nick nach Befehl (Soll ≈19°, halber Knüppel von ±40°) %5.1f°, max. Krängung %5.1f°, Krängung am Ende %5.1f°" % [c.name, c.th, c.p_mid, c.p_end, c.rmax, pr.y])
 		print("ENDE")
 		return true
 	return false

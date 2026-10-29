@@ -1,3 +1,4 @@
+# 2026-10-29 01:13 – Nick-Schutz statt Test-Anschlag (Ruhe ±5°, mit Höhensteuerung bis ±40°, Schutzanteil mit Vorrang und voller Stellstärke; nicht in Direkt); kein Differenzschub mehr
 # 2026-10-28 15:12 – Startmodus „Geregelt“; settings_outdated (Einstellungen Version 4)
 # 2026-10-28 08:51 – Testhilfe Nick begrenzen (Standard an, ±5°), gespeichert; Weitergabe an die Physik
 # 2026-10-28 07:53 – Mischer ohne Fahrtabhängigkeit (kein Fahrtmesser am echten Modell): Leitwerk und Schwenkmotoren je eigene Zuordnung, Stärke getrennt (tail_gain, vec_gain); Mischmodi und Ausschlag-max ersetzt; Einstellungen Version 3
@@ -65,7 +66,7 @@ var settings_outdated := true
 @export_range(1, 2, 1) var stick_mode: int = 2
 
 @export_group("Sollwert-Grenzen")
-@export var max_angle_deg: float = 30.0        ## Lagemodus: voller Stick = ±30°
+@export var max_angle_deg: float = 30.0        ## Roll-Lagemodus: voller Stick = ±30° (Nick: pitch_max_deg)
 @export var max_yaw_rate_dps: float = 60.0     ## voller Stick = ±60 °/s
 @export_group("Mischer")
 ## Stärke des Leitwerks (Ruder, Pendel, Canards): 1,0 = voller Ausschlag
@@ -73,14 +74,22 @@ var settings_outdated := true
 @export_range(0.0, 1.0, 0.05) var tail_gain: float = 1.0
 ## Stärke der Schwenkmotoren: 1,0 = voller Schwenkweg bei vollem Wunsch.
 @export_range(0.0, 1.0, 0.05) var vec_gain: float = 1.0
-@export_group("Test")
-## Testhilfe: Nickwinkel des Schiffs hart begrenzen (siehe AirshipPhysics).
-@export var pitch_limit_on: bool = true
-@export_range(1.0, 45.0, 1.0) var pitch_limit_deg: float = 5.0
-## Differenzschub für Gier als Anteil des aktuellen Gases (0,3 = ±30 %).
-## Wirkt nur relativ zum Gas: Gas 0 → kein Differenzschub, und ein Motor
-## wird dadurch nie in den Rückwärtslauf gedrückt (Drehen auf der Stelle).
-@export_range(0.0, 1.0, 0.05) var yaw_diff_thrust: float = 0.3
+@export_group("Nick-Schutz")
+## Nick-Regler für das reale Schiff (in Geregelt/Luftschiff, nie in Direkt):
+##  – ohne Höhensteuerung hält er die Nase auf 0°, über ±pitch_rest_deg greift
+##    ein starker Schutzanteil mit Vorrang
+##  – mit Höhensteuerung gibt der Knüppel bis ±pitch_max_deg vor, der erlaubte
+##    Bereich wandert mit (Sollwert ± pitch_rest_deg)
+@export var pitch_protect_on: bool = true
+@export_range(1.0, 20.0, 1.0) var pitch_rest_deg: float = 5.0
+@export_range(10.0, 60.0, 1.0) var pitch_max_deg: float = 40.0
+## Stärke des Schutzanteils (pro rad Überschreitung) und seine Dämpfung (pro rad/s)
+@export_range(0.0, 30.0, 0.5) var protect_gain: float = 15.0
+@export_range(0.0, 5.0, 0.1) var protect_damp: float = 1.5
+## Totzone des Nick-Knüppels: darunter gilt „keine Höhensteuerung“
+@export_range(0.0, 0.3, 0.01) var pitch_deadband: float = 0.05
+## So lange braucht der Sollwert von 0 bis zum Maximalwinkel (und zurück), s
+@export_range(0.1, 5.0, 0.1) var pitch_return_s: float = 1.0
 
 # --- Eingänge -----------------------------------------------------------------
 var stick_left := Vector2.ZERO     ## −1..+1, Y nach oben positiv
@@ -97,6 +106,8 @@ var cmd_roll := 0.0      ## bleibt 0: Roll wird nur auf waagrecht stabilisiert
 var cmd_pitch := 0.0
 var cmd_yaw := 0.0
 var cmd_aux := 0.0       ## linker Knüppel links/rechts – derzeit unbelegt
+var _sp_pitch := 0.0     ## geglätteter Nick-Sollwert (rad)
+var _protect := 0.0      ## 0…1: wie stark der Nick-Schutz gerade eingreift
 
 
 # =============================================================================
@@ -210,8 +221,6 @@ func stick_labels() -> Array[String]:
 func _physics_process(dt: float) -> void:
 	if airship == null:
 		return
-	airship.pitch_limit_enabled = pitch_limit_on       # Test-Anschlag an die Physik geben
-	airship.pitch_limit_deg = pitch_limit_deg
 	var b := airship.global_transform.basis.orthonormalized()
 	var w_b := b.transposed() * airship.angular_velocity
 
@@ -233,10 +242,11 @@ func _physics_process(dt: float) -> void:
 		return
 	else:
 		var pid_set: Dictionary = pids[mode]
-		var sp_pitch := cmd_pitch * deg_to_rad(max_angle_deg)
+		var sp_pitch := _pitch_setpoint(dt)
 		var sp_roll := cmd_roll * deg_to_rad(max_angle_deg)
 		var sp_yaw := cmd_yaw * deg_to_rad(max_yaw_rate_dps)
 		u_pitch = pid_set[Axis.PITCH].update(sp_pitch - pitch, rate_pitch, dt)
+		u_pitch = _pitch_protect(u_pitch, pitch, rate_pitch, sp_pitch)
 		u_roll = pid_set[Axis.ROLL].update(sp_roll - roll, rate_roll, dt)
 		# Gier: Vorsteuerung (Stick direkt) + Ratenregler für die Korrektur –
 		# so bekommt man auch bei kleinem P sofort die volle Drehwirkung
@@ -248,6 +258,45 @@ func _physics_process(dt: float) -> void:
 	# Wunsch-Drehmoment im Körpersystem (Vorzeichen siehe Kopfkommentar)
 	var tau_cmd := Vector3(u_pitch, -u_yaw, -u_roll)
 	_mix(tau_cmd)
+
+
+# =============================================================================
+# Nick-Regler mit Schutz (für Teensy und App gleich aufgebaut)
+# -----------------------------------------------------------------------------
+#   Knüppel in der Totzone   → Sollwert 0°,  erlaubter Bereich ±5°
+#   Knüppel ausgelenkt       → Sollwert bis ±40°, Bereich Sollwert ±5°
+#   Sollwert ändert sich weich (0 → 40° in pitch_return_s)
+#   Nase außerhalb des Bereichs → Schutzanteil
+#       u_schutz = −protect_gain · Überschreitung − protect_damp · Nickrate (nach außen)
+#   hat Vorrang (wird addiert, danach begrenzt) und schaltet im Mischer die
+#   volle Stärke von Leitwerk und Schwenkern frei.
+# =============================================================================
+func _pitch_setpoint(dt: float) -> float:
+	var target := 0.0
+	var mag := absf(cmd_pitch)
+	if mag > pitch_deadband:
+		target = signf(cmd_pitch) * (mag - pitch_deadband) / (1.0 - pitch_deadband) * deg_to_rad(pitch_max_deg)
+	var rate := deg_to_rad(pitch_max_deg) / maxf(pitch_return_s, 0.05)
+	_sp_pitch = move_toward(_sp_pitch, target, rate * dt)
+	return _sp_pitch
+
+
+func _pitch_protect(u_pid: float, pitch: float, rate_pitch: float, sp: float) -> float:
+	_protect = 0.0
+	if not pitch_protect_on:
+		return u_pid
+	var rest := deg_to_rad(pitch_rest_deg)
+	var lim := deg_to_rad(pitch_max_deg)
+	var hi := minf(sp + rest, lim)
+	var lo := maxf(sp - rest, -lim)
+	var excess := pitch - clampf(pitch, lo, hi)
+	if excess == 0.0:
+		return u_pid
+	var u := -protect_gain * excess
+	if rate_pitch * excess > 0.0:                    # dreht weiter nach außen → bremsen
+		u -= protect_damp * rate_pitch
+	_protect = clampf(absf(excess) / rest, 0.0, 1.0)
+	return clampf(u_pid + u, -1.0, 1.0)
 
 
 # =============================================================================
@@ -271,9 +320,10 @@ func _airship_mode(b: Basis, dt: float, pitch: float) -> void:
 	var w := airship.angular_velocity                 # Welt
 	var rate_pitch := w.dot(axis_pitch)
 	var rate_yaw := -w.y                              # Gier rechts = +
-	var sp_pitch := cmd_pitch * deg_to_rad(max_angle_deg)
+	var sp_pitch := _pitch_setpoint(dt)
 	var sp_yaw := cmd_yaw * deg_to_rad(max_yaw_rate_dps)
 	var u_pitch: float = pid_set[Axis.PITCH].update(sp_pitch - pitch, rate_pitch, dt)
+	u_pitch = _pitch_protect(u_pitch, pitch, rate_pitch, sp_pitch)
 	var u_yaw := clampf(cmd_yaw + pid_set[Axis.YAW].update(sp_yaw - rate_yaw, 0.0, dt), -1.0, 1.0)
 	loop_sample.emit(Axis.PITCH, sp_pitch, pitch)
 	loop_sample.emit(Axis.YAW, sp_yaw, rate_yaw)
@@ -311,16 +361,14 @@ func _mix(tau_cmd: Vector3) -> void:
 
 	# --- Ausgänge setzen --------------------------------------------------
 	for i in airship.surfaces.size():
-		airship.surfaces[i].command = clampf(tail_gain * u_fin[i], -1.0, 1.0)
+		# Greift der Nick-Schutz ein, gilt (anteilig) die volle Stärke
+		airship.surfaces[i].command = clampf(lerpf(tail_gain, 1.0, _protect) * u_fin[i], -1.0, 1.0)
 	for i in airship.motors.size():
 		var mot: VectorMotor = airship.motors[i]
-		mot.swivel_cmd = clampf(vec_gain * u_mot[i], -1.0, 1.0)
-		# Gas + Differenzschub für Gier: bei Gier rechts schiebt der linke
-		# Motor (side = −1) stärker, der rechte schwächer.
-		var side := signf(mot.position.x - cg.x)
-		# Relativ zum Gas und ohne Vorzeichenwechsel (kein ungewollter Rückwärtslauf)
-		var t_cmd := cmd_throttle * (1.0 + side * yaw_diff_thrust * tau_cmd.y)
-		mot.throttle_cmd = clampf(t_cmd, -1.0, 1.0)     # Faktor 0,7…1,3 → Vorzeichen bleibt
+		mot.swivel_cmd = clampf(lerpf(vec_gain, 1.0, _protect) * u_mot[i], -1.0, 1.0)
+		# Gas: alle Motoren gleich (kein Differenzschub – Gieren nur über
+		# Leitwerk und Schwenker)
+		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)
 
 	# Mode 3: Schwenker folgen direkt dem Nick-Stick (nicht geregelt)
 	if mode == Mode.STABILIZED_NO_VEC:
@@ -393,8 +441,8 @@ func save_settings() -> void:
 	cfg.set_value("general", "stick_mode", stick_mode)
 	cfg.set_value("general", "tail_gain", tail_gain)
 	cfg.set_value("general", "vec_gain", vec_gain)
-	cfg.set_value("test", "pitch_limit_on", pitch_limit_on)
-	cfg.set_value("test", "pitch_limit_deg", pitch_limit_deg)
+	for k in ["pitch_protect_on", "pitch_rest_deg", "pitch_max_deg", "protect_gain"]:
+		cfg.set_value("nick_schutz", k, get(k))
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -413,5 +461,5 @@ func load_settings() -> void:
 	if int(cfg.get_value("general", "version", 1)) >= 3:
 		tail_gain = cfg.get_value("general", "tail_gain", tail_gain)
 		vec_gain = cfg.get_value("general", "vec_gain", vec_gain)
-	pitch_limit_on = cfg.get_value("test", "pitch_limit_on", pitch_limit_on)
-	pitch_limit_deg = cfg.get_value("test", "pitch_limit_deg", pitch_limit_deg)
+	for k in ["pitch_protect_on", "pitch_rest_deg", "pitch_max_deg", "protect_gain"]:
+		set(k, cfg.get_value("nick_schutz", k, get(k)))
