@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Regler-Vorgaben für Direkt/Mode 2/Mode 3 (Gier-Anteile aus Chewies Teensy-Code, Roll-Feder-Dämpfer)
 # 2026-10-29 03:23 – Gier-Vorgaben: Chewie Knüppelstärke 1,3 / Dämpfung 1,3, Albacore 1,0 / 1,0
 # 2026-10-29 02:43 – Chewie: Renn-Abstimmung Gier (Rate P 2,5, max. 120 °/s, Motorschwenk Gier 40 %)
 # 2026-10-29 01:53 – Reglerwerte für den Kaskadenregler (Chewie, Albacore) aus automatischer Suche
@@ -109,8 +110,9 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	# (Testprogramm, 100 % mit Nickböe, Steigen)
 	ship.fc_gains = {
 		"pitch": {"ang_p": 3.0, "rate_p": 3.0, "rate_i": 0.3, "rate_d": 0.0, "max_rate": 30.0},
-		"roll": {"ang_p": 2.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.2},
-		"yaw": {"stick": 1.0, "damp": 1.0},     # Gier: Knüppel direkt + Dämpfung
+		"roll": {"damper_angle": 2.0, "damper": 1.5},   # Roll: Feder-Dämpfer (Mode 2/3)
+		# Gier: Mode-2/3-Anteile wie im Teensy-Code von Chewie (noch nicht auf die Albacore abgestimmt)
+		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011},
 		"mix": [1.0, 1.0], "swv_pitch": 30.0}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
@@ -150,14 +152,12 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# Schwenkachse 40/50°, verdrehte Flosse, größere Flossen).
 	ship.fc_gains = {
 		"pitch": {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
-		"roll": {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3},
-		# Gier: Knüppel direkt + Dämpfung (Nutzerwunsch, wie beim einfachen Regler).
-		# Knüppelstärke 1,3 / Dämpfung 1,3: im Testprogramm stoppt die Drehung
-		# nach dem Loslassen in beiden Modi; mit Dämpfung 0,5 drehte Chewie in
-		# „Geregelt“ weiter im Kreis, mit 2,0 wurden die Kurven zu flach.
-		# Motorschwenk Gier 40 %: mit 70 % rollte Chewie im Testprogramm über
-		# 60° und berührte den Boden.
-		"yaw": {"stick": 1.3, "damp": 1.3},
+		"roll": {"damper_angle": 2.0, "damper": 1.5},   # Roll: Feder-Dämpfer (Mode 2/3)
+		# Gier Mode 2/3: Werte aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3):
+		# Mode 2 Leitwerk 0,6 / Motorschwenk 1,28 × Knüppel; Mode 3 Vorsteuerung 0,85 / 1,125,
+		# Gierrate voll 180 °/s, Drehratenregler 0,0014 / 0,0011 je °/s.
+		# Motorschwenk Gier 0,4 gilt nur noch im Modus Direkt.
+		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011},
 		"mix": [1.0, 0.4], "mix_yaw": 0.4, "swv_pitch": 80.0}
 	ship.sail_enabled = false                # Chewie hat keinen Turm
 	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.

@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 extends SceneTree
 # Beschleunigung und Endgeschwindigkeit von Chewie bei Vollgas (Mode 2),
 # dazu die Lage von HUD-Elementen (müssen im Bild liegen).
@@ -13,7 +14,7 @@ func _physics_process(_dt: float) -> bool:
 	f += 1
 	if f == 3:
 		AirshipPresets.chewie(main.ship)
-		main.fc.mode = FlightController.Mode.STABILIZED
+		main.fc.mode = FlightController.Mode.MODE2
 		main.hud._btn_arm.button_pressed = true
 		main.hud.stick_left.value = Vector2(0, 1.0)          # Vollgas
 	if f % 15 == 0 and f <= 240:

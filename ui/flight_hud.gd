@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Modusschalter mit 3 Stellungen Direkt / Mode 2 / Mode 3 (wie Kanal 13); Banner mit Kurzbeschreibung beim Umschalten
 # 2026-10-29 07:45 – Modusschalter mit 4 Stellungen (Gedämpft)
 # 2026-10-29 00:19 – Modusschalter rückt in die zweite Reihe, wenn oben kein Platz ist
 # 2026-10-28 08:51 – Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten
@@ -70,17 +71,19 @@ func _ready() -> void:
 	_laps.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_laps)
 
-	# --- Modusschalter oben Mitte (3 Stellungen wie Kanal 13) ----------------
-	# „Geregelt ohne Vektor“ bleibt im PID-Menü wählbar; ist er aktiv, ist hier
-	# keine Stellung markiert.
+	# --- Modusschalter oben Mitte (3 Stellungen wie Kanal 13 am Teensy) -----
+	# Beim Umschalten erklärt ein kurzes Banner, was die Knüppel jetzt tun.
 	_mode_box = UITheme.make_hbox("xs")
 	add_child(_mode_box)
 	var grp := UITheme.make_toggle_group()
-	for md in [FlightController.Mode.DIRECT, FlightController.Mode.STABILIZED, FlightController.Mode.AIRSHIP, FlightController.Mode.DAMPED]:
+	for md in [FlightController.Mode.DIRECT, FlightController.Mode.MODE2, FlightController.Mode.MODE3]:
 		var b := UITheme.make_pill(FlightController.MODE_NAMES[md], true)
 		b.toggle_mode = true
 		b.button_group = grp
-		b.pressed.connect(func(): if fc: fc.mode = md)
+		b.pressed.connect(func():
+			if fc:
+				fc.mode = md
+				show_notice(FlightController.MODE_HINTS[md], "info", 3.0))
 		_mode_box.add_child(b)
 		_mode_btns[md] = b
 

@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 # 2026-10-29 07:45 – Modus Gedämpft im Testprogramm
 # 2026-10-29 01:53 – Erstversion: Testprogramm des Nutzers (50 % Schub, je 0,5 s gerade/links/gerade/rechts) für Chewie und Albacore in Geregelt und Luftschiff, Start 1,5 m über dem Boden
 extends SceneTree
@@ -9,7 +10,7 @@ var f := 0
 func _initialize() -> void:
 	var i := 0
 	for preset in ["chewie", "albacore"]:
-		for md in [FlightController.Mode.STABILIZED, FlightController.Mode.AIRSHIP, FlightController.Mode.DAMPED]:
+		for md in [FlightController.Mode.MODE2, FlightController.Mode.MODE3]:
 			var s := AirshipPhysics.new()
 			if preset == "chewie": AirshipPresets.chewie(s)
 			else: AirshipPresets.albacore_default(s)

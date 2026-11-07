@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 # 2026-10-28 08:06 – Abschlussmeldung ENDE für die CI
 extends SceneTree
 # Headless-Rauchtest: Hülle, Validator, Presets, 6-DOF-Schritt, Flugcontroller
@@ -32,7 +33,7 @@ func _initialize() -> void:
 	ship.add_child(fc)
 	root.add_child(ship)
 	ship.angular_velocity = Vector3.ZERO
-	fc.mode = FlightController.Mode.STABILIZED
+	fc.mode = FlightController.Mode.MODE2
 	fc.armed = true
 	fc.set_sticks(Vector2(0, 0.6), Vector2(0, 0))   # 60 % Gas vorwärts
 

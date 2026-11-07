@@ -1,7 +1,8 @@
+# 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 # 2026-10-29 01:53 – läuft im Physiktakt
 # 2026-10-29 01:14 – Sollwert-Angabe an Nick-Schutz angepasst (halber Knüppel ≈ 19°)
 extends SceneTree
-# Test Mode 4 „Luftschiff“: Roll frei, Nick gegen Horizont, Gier um die Senkrechte.
+# Test Mode 2: Roll-Feder-Dämpfer, Nick-Sollwinkel gegen den Horizont.
 # Chewie und Albacore je mit ihren PID-Vorgaben bei 50 % und 100 % Schub,
 # nach 8 s Rollstoß (Krängung), ab 12 s Nick-Befehl „hoch“.
 var cases: Array = []
@@ -28,7 +29,7 @@ func _physics_process(_dt: float) -> bool:   # im Physiktakt
 	if f == 2:
 		for c in cases:
 			c.fc.apply_model_gains(c.s.fc_gains)
-			c.fc.mode = FlightController.Mode.AIRSHIP
+			c.fc.mode = FlightController.Mode.MODE2
 			c.fc.armed = true
 			c.fc.set_sticks(Vector2(0, c.th), Vector2.ZERO)
 	if f == 480:   # Rollstoß
@@ -44,7 +45,7 @@ func _physics_process(_dt: float) -> bool:   # im Physiktakt
 	if f >= 1200:
 		for c in cases:
 			var pr := _pitch_roll(c.s)
-			print("%-8s Schub %.1f: Nick vor Befehl %5.1f°, Nick nach Befehl (Soll ≈19°, halber Knüppel von ±40°) %5.1f°, max. Krängung %5.1f°, Krängung am Ende %5.1f°" % [c.name, c.th, c.p_mid, c.p_end, c.rmax, pr.y])
+			print("%-8s Schub %.1f: Nick vor Befehl %5.1f°, Nick nach Befehl (Soll ≈14°, halber Knüppel von ±30°) %5.1f°, max. Krängung %5.1f°, Krängung am Ende %5.1f°" % [c.name, c.th, c.p_mid, c.p_end, c.rmax, pr.y])
 		print("ENDE")
 		return true
 	return false

@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 mit Kurzbeschreibung; Nick-Sollwert: Max-Winkel, Mode-3-Nickrate, Rückkehr, Vorlauf (Ruheband und Gas-Anpassung entfallen); Anzeigeformat je Regler (z. B. 0,0014)
 # 2026-10-29 03:38 – Knopf „Alle Einstellungen zurücksetzen“ mit Rückfrage; linke Spalte wird beim Öffnen neu aufgebaut
 # 2026-10-29 02:25 – Regler „Motorschwenk Gier“ getrennt von Nick/Roll
 # 2026-10-29 01:44 – Für den Kaskadenregler neu aufgebaut: Modi Direkt/Geregelt/Luftschiff, Werte je Achse aus FlightController.UI_PARAMS (Winkel P, Rate P/I/D, max. Rate, Vorsteuerung, Rolldämpfung), Nick-Sollwert, Mischer (Leitwerk, Motorschwenk, Schwenk fürs Nicken, Gas-Anpassung); Spalten scrollbar
@@ -142,7 +143,9 @@ func _fill_left() -> void:
 		b.pressed.connect(func(): fc.mode = i)
 		_left_box.add_child(b)
 		_mode_buttons.append(b)
-	_left_box.add_child(UITheme.make_label("Luftschiff = Roll frei (nur gedämpft)", "MutedLabel"))
+	var mh := UITheme.make_label(FlightController.MODE_HINTS[int(fc.mode)], "MutedLabel")   # was der Modus tut
+	mh.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_left_box.add_child(mh)
 	_left_box.add_child(UITheme.make_label("Stick-Belegung", "MutedLabel"))
 	var sm := OptionButton.new()
 	sm.custom_minimum_size.y = UITheme.size("control_height")
@@ -151,18 +154,16 @@ func _fill_left() -> void:
 	sm.select(0 if fc.stick_mode == 2 else 1)
 	sm.item_selected.connect(func(k): fc.stick_mode = 2 if k == 0 else 1; fc.save_settings())
 	_left_box.add_child(sm)
+	# Nick-Sollwert (Mode 2: Winkel, Mode 3: Rate mit Grenzen)
 	_left_box.add_child(UITheme.make_title("Nick-Sollwert"))
-	var prot := CheckBox.new()
-	prot.text = "Ruheband aktiv"
-	prot.button_pressed = fc.pitch_protect_on
-	prot.toggled.connect(func(on): fc.pitch_protect_on = on; fc.save_settings())
-	_left_box.add_child(prot)
-	_left_box.add_child(UITheme.make_slider_row("Ruhe ±", 1.0, 20.0, 1.0, fc.pitch_rest_deg,
-		func(v): fc.pitch_rest_deg = v; fc.save_settings(), "%d°", 80))
 	_left_box.add_child(UITheme.make_slider_row("Max ±", 10.0, 60.0, 1.0, fc.pitch_max_deg,
 		func(v): fc.pitch_max_deg = v; fc.save_settings(), "%d°", 80))
-	_left_box.add_child(UITheme.make_slider_row("Rückzug außerhalb", 0.0, 20.0, 0.5, fc.protect_gain,
-		func(v): fc.protect_gain = v; fc.save_settings(), "%.1f", 80))
+	_left_box.add_child(UITheme.make_slider_row("Mode 3 Nickrate", 5.0, 120.0, 1.0, fc.pitch_rate_dps,
+		func(v): fc.pitch_rate_dps = v; fc.save_settings(), "%d °/s", 80))
+	_left_box.add_child(UITheme.make_slider_row("Mode 3 Rückkehr", 1.0, 90.0, 1.0, fc.pitch_return_dps,
+		func(v): fc.pitch_return_dps = v; fc.save_settings(), "%d °/s", 80))
+	_left_box.add_child(UITheme.make_slider_row("Mode 3 Vorlauf max", 1.0, 45.0, 1.0, fc.pitch_lead_deg,
+		func(v): fc.pitch_lead_deg = v; fc.save_settings(), "%d°", 80))
 
 	# Alles auf Werkseinstellung – mit Rückfrage (zweites Tippen bestätigt)
 	_left_box.add_child(UITheme.make_title("Zurücksetzen"))
@@ -199,27 +200,22 @@ func _build_mix() -> void:
 	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Nick/Roll", 0.0, 1.0, 0.05, fc.vec_gain,
 		func(v): fc.vec_gain = v; fc.save_settings(), "%.2f", 120))
 	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
-	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Gier", 0.0, 1.0, 0.05, fc.vec_yaw_gain,
+	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Gier (Direkt)", 0.0, 1.0, 0.05, fc.vec_yaw_gain,
 		func(v): fc.vec_yaw_gain = v; fc.save_settings(), "%.2f", 120))
 	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
 	_mix_box.add_child(UITheme.make_slider_row("Schwenk fürs Nicken max", 0.0, 120.0, 1.0, fc.swivel_pitch_max_deg,
 		func(v): fc.swivel_pitch_max_deg = v; fc.save_settings(), "%d°", 120))
-	var ts := CheckBox.new()
-	ts.text = "Gas-Anpassung (mehr Gas → kleinere Ausschläge)"
-	ts.button_pressed = fc.throttle_scaling
-	ts.toggled.connect(func(on): fc.throttle_scaling = on; fc.save_settings())
-	_mix_box.add_child(ts)
 
 
 # Regler für die gewählte Achse neu aufbauen
 func _build_gains() -> void:
 	for c in _gain_box.get_children(): c.queue_free()
 	if fc.mode == FlightController.Mode.DIRECT:
-		_gain_box.add_child(UITheme.make_label("Direkt: Knüppel wirken ungeregelt (Werte gelten für Geregelt/Luftschiff).", "MutedLabel"))
+		_gain_box.add_child(UITheme.make_label("Direkt: Knüppel wirken ungeregelt (Werte gelten für Mode 2/3).", "MutedLabel"))
 	var axis := _axis
 	for p in FlightController.UI_PARAMS[axis]:
 		var term: String = p.term
-		var fmt := "%d" if p.step >= 1.0 else "%.2f"
+		var fmt: String = p.get("fmt", "%d" if p.step >= 1.0 else "%.2f")   # eigenes Format (z. B. 0,0014)
 		_gain_box.add_child(UITheme.make_slider_row(p.label, p.min, p.max, p.step,
 			fc.get_param(axis, term),
 			func(v): fc.set_param(axis, term, v), fmt, 120))

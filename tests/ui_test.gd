@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 # 2026-10-29 03:38 – Zurücksetzen aller Einstellungen geprüft
 # 2026-10-29 01:53 – an den Kaskadenregler angepasst (Parameter je Achse)
 # 2026-10-29 00:21 – Bestenliste im Ablauf geprüft
@@ -18,9 +19,9 @@ func _process(_dt: float) -> bool:
 	f += 1
 	match f:
 		5:
-			main.hud._mode_btns[FlightController.Mode.AIRSHIP].emit_signal("pressed")   # Schalter testen
+			main.hud._mode_btns[FlightController.Mode.MODE3].emit_signal("pressed")   # Schalter testen
 			print("Modus nach Schalter: ", FlightController.MODE_NAMES[main.fc.mode])
-			main.fc.mode = FlightController.Mode.STABILIZED
+			main.fc.mode = FlightController.Mode.MODE2
 			main.hud._btn_arm.button_pressed = true          # Motoren an über den Schalter
 			main.hud.stick_left.value = Vector2(0, 0.7)       # Gas
 			main.hud.stick_right.value = Vector2(0.5, 0.2)    # Gier rechts + Nick

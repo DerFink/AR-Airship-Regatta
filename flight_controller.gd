@@ -1,3 +1,4 @@
+# 2026-11-07 20:45 – Nur noch drei Modi wie am echten Chewie (Kanal 13): Direkt, Mode 2, Mode 3 nach dRehmFlight-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3); Geregelt, Luftschiff und Gedämpft entfallen; Gier mit getrennten Anteilen Leitwerk/Motorschwenk (Mode 2: 0,6/1,28; Mode 3: Vorsteuerung 0,85/1,125 + Drehratenregler 0,0014/0,0011 je °/s); Nick Mode 2 = Sollwinkel ±30°, Mode 3 = Nickrate 45 °/s; Roll über einfachen Feder-Dämpfer; Gas-Anpassung und Nick-Ruheband entfallen; Einstellungen Version 8
 # 2026-10-29 07:45 – Modus 4 „Gedämpft“: Nicklage wie Geregelt, Roll über einfachen Feder-Dämpfer, Gier-Knüppel voll ohne Gas-Anpassung und ohne Drehratengrenze (Dämpfung nur beim Loslassen), eigene Schwenkstärke Gier (swivel_damped)
 # 2026-10-29 03:38 – reset_to_defaults(): Werkseinstellung + Modell-Vorgaben
 # 2026-10-29 03:23 – Gier: Knüppel direkt + Dämpfung statt Gierraten-Regelung (Knüppelstärke, Dämpfung); Einstellungen Version 7
@@ -18,43 +19,36 @@
 # =============================================================================
 # FlightController.gd  (als Kind-Node des Luftschiffs)
 # -----------------------------------------------------------------------------
-# Virtueller Flugcontroller im Stil eines Teensy-FC (dRehmFlight-Prinzip),
-# aufgebaut als KASKADENREGLER IN ERDACHSEN – so, dass er 1:1 auf den Teensy
-# übertragen werden kann:
+# Virtueller Flugcontroller im Stil des Teensy-FC von Chewie (dRehmFlight).
+# Drei Modi wie der 3-Stufen-Schalter auf Kanal 13:
 #
-#   Knüppel ─► Sollwerte ─► äußerer Kreis ─► innerer Kreis ─► Erdachsen→Körper ─► Mischer
-#              (Nicklage,    Winkelfehler ×     Drehraten-PID       (Lage aus IMU)     Leitwerk +
-#               Gierrate)    Winkel-P = Soll-    (P, I, D, Anti-                        Schwenkmotoren
-#                            Drehrate (begrenzt) Windup, Gas-Anpassung)
+#   DIRECT  „Direkt“: Knüppel gehen ungeregelt an Leitwerk und Motorschwenk.
 #
-# Modi (3-Stufen-Schalter):
-#   DIRECT      Knüppel gehen ungeregelt an den Mischer
-#   STABILIZED  „Geregelt“:   Nicklage und Rolllage (auf 0°) geregelt, Gier direkt + Dämpfung
-#   AIRSHIP     „Luftschiff“: wie Geregelt, aber Roll FREI – nur leicht gedämpft
-#               (Rolldämpfung einstellbar, 0 = ganz frei)
-#   DAMPED      „Gedämpft“ (Rennen): Nicklage wie Geregelt (±5° / ±40°), Roll über
-#               einen einfachen Feder-Dämpfer (Winkel + Rate), Gier-Knüppel geht
-#               VOLL auf Ruder und Schwenker (keine Gas-Anpassung, keine Dreh-
-#               ratengrenze); Gierdämpfung nur bei losgelassenem Knüppel
+#   MODE2   „Mode 2“:
+#           Seite: Knüppel stellt Leitwerk (Anteil kT2 = 0,6) und Motorschwenk
+#                  (kM2 = 1,28 × Knüppel, also ab ≈ 78 % Knüppel am Anschlag)
+#                  gemeinsam – ohne Gierregler.
+#           Höhe:  Knüppel = Nick-Sollwinkel bis ±pitch_max_deg (30°). Höhen-
+#                  ruder und Motorschwenk (gleichsinnig) halten ihn.
 #
-# Warum Erdachsen? Ist das Schiff gerollt, wirkt ein Seitenleitwerk nicht mehr
-# als Seitenleitwerk und ein Schwenkmotor nicht mehr in Gierrichtung. Der
-# Regler rechnet deshalb „Nase hoch gegen den Horizont“ und „drehen um die
-# Senkrechte“ und dreht diese Wünsche mit der aktuellen Lage ins Schiff. Der
-# Mischer gibt jedem Stellglied genau den Anteil, den es in dieser Lage
-# beitragen kann – auch bei 45° oder 90° Rollen.
+#   MODE3   „Mode 3“:
+#           Seite: Knüppel = Soll-Gierrate (voll = rmax, 180 °/s).
+#                  Stellwert = Vorsteuerung (kT3 0,85 / kM3 1,125 × Knüppel)
+#                            + Drehratenregler (gT 0,0014 / gM 0,0011 je °/s
+#                              Abweichung). Der Regler blendet hinter dem
+#                              Totband 0,05 über 0,15 Knüppelweg ein (Knüppel
+#                              in der Mitte = kein Gierregler, wie am Teensy).
+#           Höhe:  Knüppel = Nickrate (45 °/s). Sollwinkel höchstens ±30° und
+#                  höchstens 15° vor dem echten Nickwinkel; beim Loslassen
+#                  kehrt er mit 20 °/s auf 0° zurück.
 #
-# Begrenzungen sind SOLLWERT-Grenzen (kein zweiter Regelkreis, der gegen den
-# PID arbeitet):
-#   – Nicklage: ohne Höhensteuerung 0° mit Ruheband ±5°; mit Höhensteuerung
-#     bis ±40°. Außerhalb des Bandes zieht ein stärkerer Winkel-P zurück.
-#   – Nick- und Rollrate: begrenzt (max_rate_dps je Achse)
-#   – Schwenkmotoren: fürs Nicken nur bis swivel_pitch_max_deg (sonst drückt
-#     der nach unten zeigende Schub das Schiff zu Boden)
+#   Roll (Mode 2 und 3): einfacher Feder-Dämpfer (Rollwinkel + Rollrate)
+#   über Leitwerk und Motorschwenk. 0/0 im PID-Menü = Roll ganz frei.
+#   Gas: wird NIE geregelt – der Pilot schaltet bei Gefahr sofort ab.
 #
-# Robustheit gegen Bauabweichungen: I-Anteil mit Anti-Windup (friert ein,
-# wenn der Ausgang am Anschlag steht), gefiltertes D auf die gemessene Rate,
-# Gas-Anpassung (ohne Fahrtmesser ist das Gas das Maß für die Ruderwirkung).
+# Erdachsen: Nick- und Gierwünsche werden „gegen den Horizont“ bzw. „um die
+# Senkrechte“ gerechnet und mit der aktuellen Lage ins Schiff gedreht. So
+# steuern Höhe und Seite auch in Schräglage die richtigen Ruder anteilig.
 #
 # Achsen-Konvention (Körpersystem): Nick hoch = +X-Moment,
 # Gier rechts = −Y-Moment, Roll rechts = −Z-Moment.
@@ -66,21 +60,27 @@ signal mode_changed(mode: int)
 ## Für die Live-Sprungantwort im PID-Menü (Nick/Roll: Winkel, Gier: Rate).
 signal loop_sample(axis: int, setpoint: float, measurement: float)
 
-enum Mode { DIRECT, STABILIZED, AIRSHIP, DAMPED }
+enum Mode { DIRECT, MODE2, MODE3 }
 ## Namen für Schalter und Menüs
-const MODE_NAMES := ["Direkt", "Geregelt", "Luftschiff", "Gedämpft"]
+const MODE_NAMES := ["Direkt", "Mode 2", "Mode 3"]
+## Kurzbeschreibung je Modus (Banner beim Umschalten)
+const MODE_HINTS := [
+	"Direkt: Knüppel wirken ungeregelt auf Ruder und Motorschwenk",
+	"Mode 2: Seite = Leitwerk + Motorschwenk · Höhe = Nickwinkel bis ±30°",
+	"Mode 3: Seite = Gierrate bis 180 °/s · Höhe = Nickrate 45 °/s, max ±30°",
+]
 enum Axis { ROLL, PITCH, YAW }
 const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
-## Version 5 = Kaskadenregler (ältere Dateien: Reglerwerte werden ersetzt)
-const SETTINGS_VERSION := 7     ## 7 = Gier direkt + Dämpfung
+## Version 8 = Direkt/Mode 2/Mode 3 (ältere Dateien: Reglerwerte werden ersetzt)
+const SETTINGS_VERSION := 8
 ## true = keine oder ältere Einstellungsdatei → Modell-Vorgaben übernehmen
 var settings_outdated := true
 
 @export var airship: AirshipPhysics
-@export var mode: Mode = Mode.STABILIZED:     ## Start in „Geregelt“
-	set(v): mode = v; _reset_integrators(); mode_changed.emit(v)
+@export var mode: Mode = Mode.MODE2:     ## Start in „Mode 2“
+	set(v): mode = v; _reset_integrators(); _sp_pitch = 0.0; mode_changed.emit(v)
 ## Stick-Belegung. Gier liegt IMMER auf dem rechten Knüppel (links/rechts).
 ##   Mode 2 (Standard): links hoch/runter = Gas,  rechts hoch/runter = Nick
 ##   Mode 1:            links hoch/runter = Nick, rechts hoch/runter = Gas
@@ -89,29 +89,28 @@ var settings_outdated := true
 @export_group("Mischer")
 ## Stärke des Leitwerks (Ruder, Pendel, Canards): 1,0 = voller Ausschlag.
 @export_range(0.0, 1.0, 0.05) var tail_gain: float = 1.0
-## Stärke der Schwenkmotoren: 1,0 = voller Schwenkweg.
+## Stärke der Schwenkmotoren für Nick und Roll: 1,0 = voller Schwenkweg.
 @export_range(0.0, 1.0, 0.05) var vec_gain: float = 0.4
-## Eigene Stärke der Schwenkmotoren fürs GIEREN (enge Kurven brauchen mehr)
+## Schwenkmotoren fürs Gieren im Modus Direkt (Mode 2/3: Anteile kM2/kM3)
 @export_range(0.0, 1.0, 0.05) var vec_yaw_gain: float = 0.4
 ## Höchster Schwenkwinkel, den die Motoren fürs NICKEN verwenden dürfen (°).
 ## Gieren darf den vollen Schwenkweg nutzen.
 @export_range(0.0, 120.0, 1.0) var swivel_pitch_max_deg: float = 80.0
-## Gas-Anpassung: Reglerausgang ∝ 1 / Gas (bezogen auf 50 %), begrenzt auf
-## 0,5…2. Mehr Gas = mehr Fahrt und Schub = stärkere Wirkung → weniger Ausschlag.
-@export var throttle_scaling: bool = false    ## im Simulator ohne besser
 
 @export_group("Nick-Sollwert")
-## Ruheband: ohne Höhensteuerung darf die Nase ±pitch_rest_deg pendeln
-@export_range(1.0, 20.0, 1.0) var pitch_rest_deg: float = 5.0
-## Maximale Nicklage bei vollem Knüppel
-@export_range(10.0, 60.0, 1.0) var pitch_max_deg: float = 40.0
-## Winkel-P außerhalb des Bandes (zieht kräftiger zurück)
-@export_range(0.0, 20.0, 0.5) var protect_gain: float = 6.0
-@export var pitch_protect_on: bool = true
-## Totzone des Nick-Knüppels: darunter gilt „keine Höhensteuerung“
+## Größter Nick-Sollwinkel (Mode 2 und 3)
+@export_range(10.0, 60.0, 1.0) var pitch_max_deg: float = 30.0
+## Mode 3: Nickrate bei vollem Knüppel (°/s)
+@export_range(5.0, 120.0, 1.0) var pitch_rate_dps: float = 45.0
+## Mode 3: Rückkehr des Sollwinkels auf 0° beim Loslassen (°/s)
+@export_range(1.0, 90.0, 1.0) var pitch_return_dps: float = 20.0
+## Mode 3: Sollwinkel höchstens so weit vor dem echten Nickwinkel (°)
+@export_range(1.0, 45.0, 1.0) var pitch_lead_deg: float = 15.0
+## Totzone des Nick-Knüppels
 @export_range(0.0, 0.3, 0.01) var pitch_deadband: float = 0.05
-## So lange braucht der Sollwert von 0 bis zum Maximalwinkel (und zurück), s
-@export_range(0.1, 5.0, 0.1) var pitch_return_s: float = 1.0
+## Mode 3: Totband und Einblendweg des Gierreglers (Knüppelweg)
+const YAW_DEADBAND := 0.05
+const YAW_FADE := 0.15
 
 # --- Eingänge -----------------------------------------------------------------
 var stick_left := Vector2.ZERO     ## −1..+1, Y nach oben positiv
@@ -127,27 +126,28 @@ var cmd_throttle := 0.0
 var cmd_pitch := 0.0
 var cmd_yaw := 0.0
 var cmd_aux := 0.0       ## linker Knüppel links/rechts – derzeit unbelegt
-var _sp_pitch := 0.0     ## geglätteter Nick-Sollwert (rad)
+var _sp_pitch := 0.0     ## Nick-Sollwinkel (rad)
 
 
 # =============================================================================
-# Reglerwerte je Achse (für Geregelt und Luftschiff gemeinsam)
-#   ang_p     äußerer Kreis: Winkelfehler (rad) → Soll-Drehrate (rad/s)
-#   rate_p/i/d innerer Kreis: Drehratenfehler (rad/s) → Stellwert (−1…1)
-#   max_rate  höchste Soll-Drehrate (°/s)
-#   stick     Gier: Knüppelstärke (Knüppel direkt auf den Stellwert)
-#   damp      Gier: Dämpfung (Stellwert gegen die gemessene Gierrate)
-#   damp_free Roll: Anteil des Raten-P im Modus Luftschiff (Rolldämpfung)
+# Reglerwerte je Achse
+#   Nick  ang_p     äußerer Kreis: Winkelfehler (rad) → Soll-Nickrate (rad/s)
+#         rate_p/i/d innerer Kreis: Nickratenfehler (rad/s) → Stellwert (−1…1)
+#         max_rate  höchste Soll-Nickrate (°/s)
+#   Roll  damper_angle / damper  Feder-Dämpfer: Stellwert = −k_w·Winkel − k_d·Rate
+#   Gier  kT2/kM2   Mode 2: Anteil Leitwerk / Motorschwenk am Seitenknüppel
+#         kT3/kM3   Mode 3: Vorsteuerung Leitwerk / Motorschwenk
+#         rmax      Mode 3: Soll-Gierrate bei vollem Knüppel (°/s)
+#         gT/gM     Mode 3: Drehratenregler Leitwerk / Motor je °/s Abweichung
 # =============================================================================
-var params := {        # Standard = für Chewie ermittelte Werte
+var params := {        # Standard = Werte aus Chewies Teensy-Code
 	Axis.PITCH: {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
-	Axis.ROLL:  {"ang_p": 4.0, "rate_p": 1.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 30.0, "damp_free": 0.3, "damper": 1.5, "damper_angle": 2.0},
-	# swivel_damped 0,8: Schwenk bis ≈ 88° – darüber zeigt der Schub nach hinten
-	# und die Gierwirkung nimmt wieder ab
-	Axis.YAW:   {"stick": 1.3, "damp": 1.3, "swivel_damped": 0.8},
+	Axis.ROLL:  {"damper_angle": 2.0, "damper": 1.5},
+	Axis.YAW:   {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
+## "fmt" (optional) = Anzeigeformat des Werts.
 const UI_PARAMS := {
 	Axis.PITCH: [
 		{"term": "ang_p", "label": "Winkel P", "min": 0.0, "max": 10.0, "step": 0.1},
@@ -157,25 +157,23 @@ const UI_PARAMS := {
 		{"term": "max_rate", "label": "max. °/s", "min": 5.0, "max": 120.0, "step": 1.0},
 	],
 	Axis.ROLL: [
-		{"term": "ang_p", "label": "Winkel P", "min": 0.0, "max": 10.0, "step": 0.1},
-		{"term": "rate_p", "label": "Rate P", "min": 0.0, "max": 5.0, "step": 0.05},
-		{"term": "rate_i", "label": "Rate I", "min": 0.0, "max": 3.0, "step": 0.05},
-		{"term": "rate_d", "label": "Rate D", "min": 0.0, "max": 1.0, "step": 0.01},
-		{"term": "max_rate", "label": "max. °/s", "min": 5.0, "max": 120.0, "step": 1.0},
-		{"term": "damp_free", "label": "Dämpfung Luftschiff", "min": 0.0, "max": 1.0, "step": 0.05},
-		{"term": "damper_angle", "label": "Roll-Rückstellung (Gedämpft)", "min": 0.0, "max": 10.0, "step": 0.1},
-		{"term": "damper", "label": "Roll-Dämpfer (Gedämpft)", "min": 0.0, "max": 5.0, "step": 0.05},
+		{"term": "damper_angle", "label": "Roll-Rückstellung", "min": 0.0, "max": 10.0, "step": 0.1},
+		{"term": "damper", "label": "Roll-Dämpfer", "min": 0.0, "max": 5.0, "step": 0.05},
 	],
 	Axis.YAW: [
-		{"term": "stick", "label": "Knüppelstärke", "min": 0.0, "max": 2.0, "step": 0.05},
-		{"term": "damp", "label": "Dämpfung", "min": 0.0, "max": 5.0, "step": 0.05},
-		{"term": "swivel_damped", "label": "Schwenk Gier (Gedämpft)", "min": 0.0, "max": 1.0, "step": 0.05},
+		{"term": "kT2", "label": "Mode 2 Leitwerk", "min": 0.0, "max": 1.5, "step": 0.01},
+		{"term": "kM2", "label": "Mode 2 Motorschwenk", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "kT3", "label": "Mode 3 Vorsteuerung Leitwerk", "min": 0.0, "max": 1.5, "step": 0.01},
+		{"term": "kM3", "label": "Mode 3 Vorsteuerung Motor", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "rmax", "label": "Mode 3 Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
+		{"term": "gT", "label": "Mode 3 Regler Leitwerk je °/s", "min": 0.0, "max": 0.01, "step": 0.0001, "fmt": "%.4f"},
+		{"term": "gM", "label": "Mode 3 Regler Motor je °/s", "min": 0.0, "max": 0.01, "step": 0.0001, "fmt": "%.4f"},
 	],
 }
 
 
 # =============================================================================
-# Drehraten-PID (innerer Kreis)
+# Drehraten-PID (innerer Kreis der Nicklage)
 #   P und I auf den Ratenfehler, D auf die ÄNDERUNG der gemessenen Rate
 #   (gefiltert – kein Sprung bei Sollwertänderungen).
 #   Anti-Windup: Stand der Ausgang beim letzten Schritt am Anschlag und würde
@@ -206,7 +204,7 @@ class RatePID:
 		_saturated = signf(u) if absf(u) >= 1.0 else 0.0
 		return clampf(u, -1.0, 1.0)
 
-var _rpid := {Axis.ROLL: RatePID.new(), Axis.PITCH: RatePID.new(), Axis.YAW: RatePID.new()}
+var _rpid := {Axis.PITCH: RatePID.new()}
 
 
 ## Werkseinstellungen (beim Erzeugen gemerkt, vor dem Laden gespeicherter Werte)
@@ -228,7 +226,7 @@ func reset_to_defaults(model_gains: Dictionary) -> void:
 	params = _factory.params.duplicate(true)
 	for k in _factory.general:
 		set(k, _factory.general[k])
-	mode = Mode.STABILIZED
+	mode = Mode.MODE2
 	_sp_pitch = 0.0
 	_reset_integrators()
 	apply_model_gains(model_gains)     # speichert auch
@@ -277,7 +275,8 @@ func _physics_process(dt: float) -> void:
 	var xf := airship.global_transform if airship.is_inside_tree() else airship.transform
 	var b := xf.basis.orthonormalized()
 	if mode == Mode.DIRECT:
-		_mix(Vector3(cmd_pitch, 0, 0), Vector3(0, -cmd_yaw, 0), Vector3.ZERO, false)   # ungeregelt, Körperachsen
+		# ungeregelt, Körperachsen: Gier aufs Leitwerk voll, auf die Schwenker mit vec_yaw_gain
+		_mix(Vector3(cmd_pitch, 0, 0), Vector3(0, -cmd_yaw, 0), Vector3(0, -cmd_yaw * vec_yaw_gain, 0), Vector3.ZERO, false)
 		return
 
 	# --- Lage und Drehraten in Erdachsen ------------------------------------
@@ -293,91 +292,68 @@ func _physics_process(dt: float) -> void:
 	var rate_r := w.dot(nose)                         # Roll rechts = +
 	var rate_y := -w.y                                # Gier rechts = +
 
-	# --- Nick: Sollwert → Soll-Nickrate (äußerer Kreis) --------------------
+	# --- Nick: Sollwinkel (Mode 2: Knüppel = Winkel, Mode 3: Knüppel = Rate) ---
 	var P: Dictionary = params[Axis.PITCH]
-	var sp_pitch := _pitch_setpoint(dt)
-	var err_p := sp_pitch - pitch
-	var rs_p: float = P.ang_p * err_p
-	if pitch_protect_on:                              # außerhalb des Bandes: kräftiger zurück
-		var rest := deg_to_rad(pitch_rest_deg)
-		var excess := pitch - clampf(pitch, sp_pitch - rest, sp_pitch + rest)
-		rs_p -= protect_gain * excess
+	var sp_pitch := _pitch_setpoint(dt, pitch)
 	var mr_p := deg_to_rad(P.max_rate)
-	rs_p = clampf(rs_p, -mr_p, mr_p)
-
-	# --- Roll: Geregelt → auf 0°, Luftschiff → nur Dämpfung -----------------
-	var R: Dictionary = params[Axis.ROLL]
-	var rs_r := 0.0
-	var roll_p_scale := 1.0
-	if mode == Mode.STABILIZED:
-		var mr_r := deg_to_rad(R.max_rate)
-		rs_r = clampf(R.ang_p * (0.0 - roll), -mr_r, mr_r)
-	else:
-		roll_p_scale = R.damp_free
-
-	# --- Gier: Knüppel = Soll-Gierrate ---------------------------------------
-	# --- Gier: Knüppel direkt + Dämpfung (kein Drehraten-Sollwert) ---------
-	#   u = Knüppelstärke · Knüppel − Dämpfung · Gierrate
-	# Der Knüppel wirkt wie beim einfachen Regler direkt auf Ruder/Schwenker;
-	# die Dämpfung bremst das Weiterdrehen nach dem Loslassen (ein Luftschiff
-	# hat um die Hochachse kaum eigene Dämpfung).
-	var Y: Dictionary = params[Axis.YAW]
-
-	# --- Innerer Kreis: Drehraten-PID -----------------------------------------
+	var rs_p := clampf(P.ang_p * (sp_pitch - pitch), -mr_p, mr_p)      # äußerer Kreis
 	var u_p: float = _rpid[Axis.PITCH].update(rs_p, rate_p, P.rate_p, P.rate_i, P.rate_d, dt)
-	var u_r := 0.0
-	if mode == Mode.STABILIZED:
-		u_r = _rpid[Axis.ROLL].update(rs_r, rate_r, R.rate_p, R.rate_i, R.rate_d, dt)
-	elif mode == Mode.DAMPED:
-		# einfacher Roll-Dämpfer (Feder + Dämpfer): zieht den Rollwinkel zurück
-		# und bremst die Rollbewegung – ohne I-Anteil, ohne Kaskade
-		u_r = clampf(-R.damper_angle * roll - R.damper * rate_r, -1.0, 1.0)
-	else:
-		u_r = _rpid[Axis.ROLL].update(0.0, rate_r, R.rate_p * roll_p_scale, 0.0, 0.0, dt)
-	var u_y := clampf(Y.stick * cmd_yaw - Y.damp * rate_y, -1.0, 1.0)
-	if mode == Mode.DAMPED:
-		# Gier voll: Knüppel direkt, ohne Bremse während gesteuert wird; erst
-		# beim Loslassen dämpft der Regler die Drehung weg.
-		if absf(cmd_yaw) > 0.05:
-			u_y = clampf(Y.stick * cmd_yaw, -1.0, 1.0)
-		else:
-			u_y = clampf(-Y.damp * rate_y, -1.0, 1.0)
 
-	# Gas-Anpassung (ohne Fahrtmesser): mehr Gas → stärkere Wirkung → weniger Ausschlag
-	if throttle_scaling and mode != Mode.DAMPED:
-		var k := 1.0 / clampf(absf(cmd_throttle) / 0.5, 0.5, 2.0)
-		u_p = clampf(u_p * k, -1.0, 1.0)
-		u_r = clampf(u_r * k, -1.0, 1.0)
-		u_y = clampf(u_y * k, -1.0, 1.0)
+	# --- Roll: einfacher Feder-Dämpfer ----------------------------------------
+	var R: Dictionary = params[Axis.ROLL]
+	var u_r := clampf(-R.damper_angle * roll - R.damper * rate_r, -1.0, 1.0)
+
+	# --- Gier: getrennte Stellwerte für Leitwerk (u_yt) und Motorschwenk (u_ym) ---
+	var Y: Dictionary = params[Axis.YAW]
+	var u_yt := 0.0
+	var u_ym := 0.0
+	var sp_yaw := 0.0                                  # Soll-Gierrate (rad/s, nur Mode 3)
+	if mode == Mode.MODE2:
+		u_yt = clampf(Y.kT2 * cmd_yaw, -1.0, 1.0)
+		u_ym = clampf(Y.kM2 * cmd_yaw, -1.0, 1.0)
+	else:
+		var a := absf(cmd_yaw)
+		var fade := clampf((a - YAW_DEADBAND) / YAW_FADE, 0.0, 1.0)   # Regler blendet hinter dem Totband ein
+		var err_dps: float = cmd_yaw * Y.rmax - rad_to_deg(rate_y)     # Abweichung in °/s
+		sp_yaw = deg_to_rad(cmd_yaw * Y.rmax)
+		u_yt = clampf(Y.kT3 * cmd_yaw + fade * Y.gT * err_dps, -1.0, 1.0)
+		u_ym = clampf(Y.kM3 * cmd_yaw + fade * Y.gM * err_dps, -1.0, 1.0)
 
 	loop_sample.emit(Axis.PITCH, sp_pitch, pitch)
 	loop_sample.emit(Axis.ROLL, 0.0, roll)
-	loop_sample.emit(Axis.YAW, 0.0, rate_y)           # Gier: Ist-Drehrate
+	loop_sample.emit(Axis.YAW, sp_yaw, rate_y)
 
 	# --- Erdachsen → Körpersystem, dann Mischer -----------------------------
 	# Nick um die waagrechte Querachse, Gier um die Senkrechte (rechts = −Y),
-	# Roll um die Längsachse (rechts = Drehung um die Nase).
-	# Jede Achse einzeln ins Körpersystem drehen – der Mischer verteilt sie mit
-	# Priorität (Nick vor Gier vor Roll).
+	# Roll um die Längsachse. Jede Achse einzeln ins Körpersystem drehen – der
+	# Mischer verteilt sie mit Priorität (Nick vor Gier vor Roll).
 	var bt := b.transposed()
-	# Nick behält auch in „Gedämpft“ Vorrang (Höhe); im Test mit Gier-Vorrang
-	# stieg die Nase bis 45–89° und Chewie verlor bis 9 m Höhe.
-	_mix(bt * (axis_p * u_p), bt * (Vector3.DOWN * u_y), bt * (nose * u_r), true, false,
-		params[Axis.YAW].swivel_damped if mode == Mode.DAMPED else vec_yaw_gain)
+	_mix(bt * (axis_p * u_p), bt * (Vector3.DOWN * u_yt), bt * (Vector3.DOWN * u_ym), bt * (nose * u_r), true)
 
 
 # =============================================================================
-# Nick-Sollwert: Totzone, Maximalwinkel, weicher Verlauf
-#   Knüppel in der Totzone → 0°; sonst linear bis ±pitch_max_deg.
-#   Der Sollwert ändert sich höchstens mit pitch_max_deg / pitch_return_s.
+# Nick-Sollwinkel
+#   Mode 2: Knüppel (hinter der Totzone) linear bis ±pitch_max_deg.
+#   Mode 3: Knüppel = Nickrate (pitch_rate_dps bei vollem Knüppel); Sollwinkel
+#           höchstens ±pitch_max_deg und höchstens pitch_lead_deg vor dem echten
+#           Nickwinkel; Knüppel los → Rückkehr auf 0° mit pitch_return_dps.
 # =============================================================================
-func _pitch_setpoint(dt: float) -> float:
-	var target := 0.0
+func _pitch_setpoint(dt: float, pitch: float) -> float:
 	var mag := absf(cmd_pitch)
+	var s := 0.0                                      # Knüppel ohne Totzone, −1…1
 	if mag > pitch_deadband:
-		target = signf(cmd_pitch) * (mag - pitch_deadband) / (1.0 - pitch_deadband) * deg_to_rad(pitch_max_deg)
-	var rate := deg_to_rad(pitch_max_deg) / maxf(pitch_return_s, 0.05)
-	_sp_pitch = move_toward(_sp_pitch, target, rate * dt)
+		s = signf(cmd_pitch) * (mag - pitch_deadband) / (1.0 - pitch_deadband)
+	var pmax := deg_to_rad(pitch_max_deg)
+	if mode == Mode.MODE2:
+		_sp_pitch = s * pmax
+	else:
+		if s != 0.0:
+			_sp_pitch += s * deg_to_rad(pitch_rate_dps) * dt
+			var lead := deg_to_rad(pitch_lead_deg)
+			_sp_pitch = clampf(_sp_pitch, pitch - lead, pitch + lead)
+		else:
+			_sp_pitch = move_toward(_sp_pitch, 0.0, deg_to_rad(pitch_return_dps) * dt)
+		_sp_pitch = clampf(_sp_pitch, -pmax, pmax)
 	return _sp_pitch
 
 
@@ -388,15 +364,14 @@ func _pitch_setpoint(dt: float) -> float:
 # Momentenwunsch und verteilt ihn geometrisch auf ihre Stellglieder
 # (Pseudo-Inverse): 100 % Wunsch = voller Ausschlag der Gruppe.
 #   Ruder   = tail_gain · Anteil Leitwerk
-#   Schwenk = vec_yaw_gain · Gieranteil + vec_gain · (Roll + Nick, dieser begrenzt auf
-#             ±swivel_pitch_max_deg)
-# t_p, t_y, t_r = Nick-, Gier- und Rollwunsch, schon ins Körpersystem gedreht
+#   Schwenk = Gieranteil (kM2/kM3, im Direkt-Modus vec_yaw_gain) + vec_gain ·
+#             (Roll + Nick, dieser begrenzt auf ±swivel_pitch_max_deg)
+# t_p, t_r = Nick- und Rollwunsch, t_yt / t_ym = Gierwunsch fürs Leitwerk bzw.
+# für die Schwenkmotoren, alle schon ins Körpersystem gedreht
 # (bei Schräglage hat z. B. der Nickwunsch auch Gier-Anteile im Schiff).
 # limit_swivel_pitch = Schwenkweg fürs Nicken begrenzen (nicht im Direkt-Modus).
 # =============================================================================
-func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false, yaw_first := false, yaw_swivel_gain := -1.0) -> void:
-	if yaw_swivel_gain < 0.0:
-		yaw_swivel_gain = vec_yaw_gain
+func _mix(t_p: Vector3, t_yt: Vector3, t_ym: Vector3, t_r: Vector3, limit_swivel_pitch := false) -> void:
 	var cg := airship.cg_offset
 	var fin_cols: Array[Vector3] = []
 	for srf in airship.surfaces:
@@ -410,10 +385,9 @@ func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false,
 	# reicht der Ausschlag nicht für alle, wird zuerst Roll, dann Gier
 	# zurückgenommen – die Nicklage (= Höhe) hat immer Vorrang.
 	var f_p := _scaled(_allocate(fin_cols, t_p), tail_gain)
-	var f_y := _scaled(_allocate(fin_cols, t_y), tail_gain)
+	var f_y := _scaled(_allocate(fin_cols, t_yt), tail_gain)
 	var f_r := _scaled(_allocate(fin_cols, t_r), tail_gain)
-	# Modus Gedämpft: Gier vor Nick vor Roll (volle Gier-Ausschläge)
-	var u_fin := _prio_combine([f_y, f_p, f_r] if yaw_first else [f_p, f_y, f_r])
+	var u_fin := _prio_combine([f_p, f_y, f_r])
 
 	var m_p := _allocate(mot_cols, t_p)
 	if limit_swivel_pitch:                              # Schwenk fürs Nicken begrenzen
@@ -421,20 +395,16 @@ func _mix(t_p: Vector3, t_y: Vector3, t_r: Vector3, limit_swivel_pitch := false,
 			var lim := clampf(swivel_pitch_max_deg / maxf(airship.motors[i].max_swivel_deg, 1.0), 0.0, 1.0)
 			m_p[i] = clampf(m_p[i], -lim, lim)
 	var s_p := _scaled(m_p, vec_gain)
+	var s_y := _allocate(mot_cols, t_ym)                # Gieranteil ist schon im Stellwert (kM2/kM3)
 	var s_r := _scaled(_allocate(mot_cols, t_r), vec_gain)
-	var u_mot: PackedFloat32Array
-	if yaw_first:                                       # Gedämpft: Gier voll und zuerst
-		var s_y := _scaled(_allocate(mot_cols, t_y), params[Axis.YAW].swivel_damped)
-		u_mot = _prio_combine([s_y, s_p, s_r])
-	else:
-		u_mot = _prio_combine([s_p, _scaled(_allocate(mot_cols, t_y), yaw_swivel_gain), s_r])
+	var u_mot := _prio_combine([s_p, s_y, s_r])
 
 	for i in airship.surfaces.size():
 		airship.surfaces[i].command = clampf(u_fin[i], -1.0, 1.0)
 	for i in airship.motors.size():
 		var mot: VectorMotor = airship.motors[i]
 		mot.swivel_cmd = clampf(u_mot[i], -1.0, 1.0)
-		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)   # alle Motoren gleich
+		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)   # Gas nur vom Piloten, alle Motoren gleich
 
 
 static func _scaled(u: PackedFloat32Array, k: float) -> PackedFloat32Array:
@@ -530,8 +500,8 @@ func apply_model_gains(gains: Dictionary) -> void:
 # =============================================================================
 # Dauerhaft speichern / laden (überlebt App-Neustart)
 # =============================================================================
-const GENERAL_KEYS := ["stick_mode", "tail_gain", "vec_gain", "vec_yaw_gain", "swivel_pitch_max_deg", "throttle_scaling",
-	"pitch_rest_deg", "pitch_max_deg", "protect_gain", "pitch_protect_on"]
+const GENERAL_KEYS := ["stick_mode", "tail_gain", "vec_gain", "vec_yaw_gain", "swivel_pitch_max_deg",
+	"pitch_max_deg", "pitch_rate_dps", "pitch_return_dps", "pitch_lead_deg"]
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
