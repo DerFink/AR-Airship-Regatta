@@ -1,3 +1,4 @@
+# 2026-11-07 21:40 – Erklärung der Achsneigung: +45° = Schub schwenkt tangential (rollt stark), −45° = Schub schwenkt radial (Chewie)
 # 2026-10-27 23:28 – Mischer-Wirkvektor des Schwenks in Neutralstellung (beide Gondeln schwenken symmetrisch, Drehen auf der Stelle)
 # 2026-10-27 16:07 – Gondelmasse mass_kg (mit Schwenkservo); Pigleg-Neigung der Schwenkachse gilt jetzt gegen die Waagrechte (unabhängig vom Einbauwinkel)
 # 2026-10-27 12:23 – Schubabfall mit der Fahrt über die Propellersteigung (prop_pitch_in); compute_force bekommt die Anströmung des Motors
@@ -34,8 +35,14 @@ extends Resource
 ## Abstand der Gondel-Mitte von der Hüllenoberfläche (m).
 @export_range(0.0, 2.0, 0.01, "or_greater") var standoff_m: float = 0.08
 ## Pigleg-Neigung der Schwenkachse: Die waagrechte Querachse wird um die
-## Längsachse nach unten gedreht. 0° = reine Nickschwenkung,
-## 45° = Chewie (gemeinsam schwenken → Nick, gegensinnig → Gier).
+## Längsachse gedreht. 0° = reine Nickschwenkung.
+##   +45° (Motor 45° unten): Achse zeigt radial durch den Motorfuß, der Schub
+##        schwenkt ENTLANG der Hüllenoberfläche (tangential) → gegensinnig
+##        geschwenkt entsteht neben der Gierkraft ein starkes Rollmoment.
+##   −45° (Chewie): Achse liegt tangential an der Hülle, der Schub schwenkt
+##        zur Hüllenmitte hin bzw. von ihr weg (radial) → gegensinnig
+##        geschwenkt fast reine Seitenkraft, kaum Rollmoment.
+## In beiden Fällen: gemeinsam schwenken → Nick, gegensinnig → Gier.
 @export_range(-90.0, 90.0, 1.0) var swivel_tilt_deg: float = 0.0
 
 # --- Schub vor / zurück -------------------------------------------------------

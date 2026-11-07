@@ -1,3 +1,4 @@
+# 2026-11-07 21:40 – Chewie: Hülle 85 g, Flossen je 10 g, Restmasse unten; Schwenkachse −45° (Schub schwenkt radial, kaum Rollmoment), Schwenkbereich ±50°
 # 2026-11-07 20:45 – Regler-Vorgaben für Direkt/Mode 2/Mode 3 (Gier-Anteile aus Chewies Teensy-Code, Roll-Feder-Dämpfer)
 # 2026-10-29 03:23 – Gier-Vorgaben: Chewie Knüppelstärke 1,3 / Dämpfung 1,3, Albacore 1,0 / 1,0
 # 2026-10-29 02:43 – Chewie: Renn-Abstimmung Gier (Rate P 2,5, max. 120 °/s, Motorschwenk Gier 40 %)
@@ -112,7 +113,7 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 		"pitch": {"ang_p": 3.0, "rate_p": 3.0, "rate_i": 0.3, "rate_d": 0.0, "max_rate": 30.0},
 		"roll": {"damper_angle": 2.0, "damper": 1.5},   # Roll: Feder-Dämpfer (Mode 2/3)
 		# Gier: Mode-2/3-Anteile wie im Teensy-Code von Chewie (noch nicht auf die Albacore abgestimmt)
-		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011},
+		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011, "damp": 3.0, "damp_max": 0.3},
 		"mix": [1.0, 1.0], "swv_pitch": 30.0}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
@@ -157,14 +158,16 @@ static func chewie(ship: AirshipPhysics) -> void:
 		# Mode 2 Leitwerk 0,6 / Motorschwenk 1,28 × Knüppel; Mode 3 Vorsteuerung 0,85 / 1,125,
 		# Gierrate voll 180 °/s, Drehratenregler 0,0014 / 0,0011 je °/s.
 		# Motorschwenk Gier 0,4 gilt nur noch im Modus Direkt.
-		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011},
+		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011, "damp": 3.0, "damp_max": 0.3},
 		"mix": [1.0, 0.4], "mix_yaw": 0.4, "swv_pitch": 80.0}
 	ship.sail_enabled = false                # Chewie hat keinen Turm
-	# Massen laut Nutzer: beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
+	# Massen laut Nutzer (07.11.2026): Hülle 85 g, jede Leitwerksflosse ca. 10 g;
+	# beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
 	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.
-	# Akku + Ballast klebt mit der Elektronik unten an der Hülle; die Menge
-	# ergibt sich aus dem Auftrieb, die Längslage trimmt sich automatisch.
-	ship.hull_mass_kg = 0.086
+	# Alle übrigen Massen (Elektronik, Akku, Ballast) kleben unten an der Hülle;
+	# die Menge ergibt sich aus dem Auftrieb, die Längslage trimmt sich automatisch.
+	ship.hull_mass_kg = 0.085
+	ship.fin_mass_kg = 0.010
 	ship.electronics_mass_kg = 0.030
 	ship.ballast_auto_x = true
 	# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
@@ -185,9 +188,14 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots: Array[VectorMotor] = [
-		# seitlich unten, 45° unter der Waagrechten (135° rechts, 225° links)
-		make_motor("Bugmotor rechts", 0.25, 135.0, 7.0, 110.0, 45.0),
-		make_motor("Bugmotor links", 0.25, 225.0, 7.0, 110.0, 45.0),
+		# seitlich unten, 45° unter der Waagrechten (135° rechts, 225° links).
+		# Schwenkachse −45° (07.11.2026): der Schub schwenkt radial zur Hüllenmitte
+		# hin bzw. weg. Mit +45° (Schub schwenkt entlang der Hülle) erzeugte
+		# gegensinniges Schwenken ein Rollmoment von rund der Hälfte des Giermoments,
+		# Chewie rollte in Mode 2 bei voller Kurve über 80° – am echten Chewie
+		# höchstens 10°. Schwenkbereich ±50° wie am echten Modell.
+		make_motor("Bugmotor rechts", 0.25, 135.0, 7.0, 50.0, -45.0),
+		make_motor("Bugmotor links", 0.25, 225.0, 7.0, 50.0, -45.0),
 	]
 	# Paar gemeinsam einstellbar; gegenläufige Propeller wie beim Quadcopter.
 	# Rückwärtsschub erlaubt (ESC vor/zurück), normaler Propeller ≈ 55 % rückwärts.

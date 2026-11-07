@@ -1,3 +1,4 @@
+# 2026-11-07 21:40 – Achsneigung der Schwenkmotoren −60…60° (negativ = Schub schwenkt radial wie bei Chewie)
 # 2026-11-07 21:10 – open_model_choice(): Modellliste aufklappen (Menüpunkt „Modell wählen“)
 # 2026-10-28 00:15 – Modellwahl meldet model_applied (PID-Vorgaben übernehmen)
 # 2026-10-27 23:49 – Reiter Hülle: Turm an/aus mit Lage, Länge, Höhe; Turm zählt nicht als Canard
@@ -467,7 +468,8 @@ func _on_part_selected(i: int) -> void:
 		mo.reverse_efficiency, func(v): set_all.call("reverse_efficiency", v, false), "%.2f"))
 	_editor_box.add_child(UITheme.make_slider_row("Schwenk max", 0.0, 120.0, 1.0, mo.max_swivel_deg,
 		func(v): set_all.call("max_swivel_deg", v, false), "%d°"))
-	_editor_box.add_child(UITheme.make_slider_row("Achsneigung (Pigleg)", 0.0, 60.0, 1.0, mo.swivel_tilt_deg,
+	# Negativ = Schub schwenkt radial zur Hüllenmitte (Chewie), positiv = entlang der Hülle (rollt stark)
+	_editor_box.add_child(UITheme.make_slider_row("Achsneigung (Pigleg, − = radial)", -60.0, 60.0, 1.0, mo.swivel_tilt_deg,
 		func(v): set_all.call("swivel_tilt_deg", v, true), "%d°"))
 	_editor_box.add_child(UITheme.make_label("Propeller", "MutedLabel"))
 	_editor_box.add_child(UITheme.make_slider_row("Durchmesser", 2.0, 15.0, 0.5, mo.prop_diameter_in,

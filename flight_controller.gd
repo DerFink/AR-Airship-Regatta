@@ -1,3 +1,4 @@
+# 2026-11-07 22:10 – Gierdämpfung bei losgelassenem Seitenknüppel in Mode 2/3 (Chewie drehte sonst endlos weiter), begrenzt auf ±30 % Ausschlag, blendet beim Steuern aus; Einstellungen Version 9
 # 2026-11-07 20:45 – Nur noch drei Modi wie am echten Chewie (Kanal 13): Direkt, Mode 2, Mode 3 nach dRehmFlight-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3); Geregelt, Luftschiff und Gedämpft entfallen; Gier mit getrennten Anteilen Leitwerk/Motorschwenk (Mode 2: 0,6/1,28; Mode 3: Vorsteuerung 0,85/1,125 + Drehratenregler 0,0014/0,0011 je °/s); Nick Mode 2 = Sollwinkel ±30°, Mode 3 = Nickrate 45 °/s; Roll über einfachen Feder-Dämpfer; Gas-Anpassung und Nick-Ruheband entfallen; Einstellungen Version 8
 # 2026-10-29 07:45 – Modus 4 „Gedämpft“: Nicklage wie Geregelt, Roll über einfachen Feder-Dämpfer, Gier-Knüppel voll ohne Gas-Anpassung und ohne Drehratengrenze (Dämpfung nur beim Loslassen), eigene Schwenkstärke Gier (swivel_damped)
 # 2026-10-29 03:38 – reset_to_defaults(): Werkseinstellung + Modell-Vorgaben
@@ -74,7 +75,7 @@ const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
 ## Version 8 = Direkt/Mode 2/Mode 3 (ältere Dateien: Reglerwerte werden ersetzt)
-const SETTINGS_VERSION := 8
+const SETTINGS_VERSION := 9     ## 9 = Gierdämpfung bei Knüppel Mitte
 ## true = keine oder ältere Einstellungsdatei → Modell-Vorgaben übernehmen
 var settings_outdated := true
 
@@ -139,11 +140,13 @@ var _sp_pitch := 0.0     ## Nick-Sollwinkel (rad)
 #         kT3/kM3   Mode 3: Vorsteuerung Leitwerk / Motorschwenk
 #         rmax      Mode 3: Soll-Gierrate bei vollem Knüppel (°/s)
 #         gT/gM     Mode 3: Drehratenregler Leitwerk / Motor je °/s Abweichung
+#         damp      Mode 2/3: Gierdämpfung bei losgelassenem Knüppel (Stellwert je rad/s)
+#         damp_max  Mode 2/3: größter Ausschlag der Gierdämpfung (Anteil des vollen Ausschlags)
 # =============================================================================
 var params := {        # Standard = Werte aus Chewies Teensy-Code
 	Axis.PITCH: {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
 	Axis.ROLL:  {"damper_angle": 2.0, "damper": 1.5},
-	Axis.YAW:   {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011},
+	Axis.YAW:   {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011, "damp": 3.0, "damp_max": 0.3},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
@@ -168,6 +171,8 @@ const UI_PARAMS := {
 		{"term": "rmax", "label": "Mode 3 Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
 		{"term": "gT", "label": "Mode 3 Regler Leitwerk je °/s", "min": 0.0, "max": 0.01, "step": 0.0001, "fmt": "%.4f"},
 		{"term": "gM", "label": "Mode 3 Regler Motor je °/s", "min": 0.0, "max": 0.01, "step": 0.0001, "fmt": "%.4f"},
+		{"term": "damp", "label": "Gierdämpfung bei Knüppel Mitte", "min": 0.0, "max": 5.0, "step": 0.05},
+		{"term": "damp_max", "label": "Gierdämpfung max. Ausschlag", "min": 0.0, "max": 1.0, "step": 0.05},
 	],
 }
 
@@ -308,16 +313,26 @@ func _physics_process(dt: float) -> void:
 	var u_yt := 0.0
 	var u_ym := 0.0
 	var sp_yaw := 0.0                                  # Soll-Gierrate (rad/s, nur Mode 3)
+	var a := absf(cmd_yaw)
+	var fade := clampf((a - YAW_DEADBAND) / YAW_FADE, 0.0, 1.0)       # 0 = Knüppel in der Mitte, 1 = gesteuert
 	if mode == Mode.MODE2:
 		u_yt = clampf(Y.kT2 * cmd_yaw, -1.0, 1.0)
 		u_ym = clampf(Y.kM2 * cmd_yaw, -1.0, 1.0)
 	else:
-		var a := absf(cmd_yaw)
-		var fade := clampf((a - YAW_DEADBAND) / YAW_FADE, 0.0, 1.0)   # Regler blendet hinter dem Totband ein
 		var err_dps: float = cmd_yaw * Y.rmax - rad_to_deg(rate_y)     # Abweichung in °/s
 		sp_yaw = deg_to_rad(cmd_yaw * Y.rmax)
 		u_yt = clampf(Y.kT3 * cmd_yaw + fade * Y.gT * err_dps, -1.0, 1.0)
 		u_ym = clampf(Y.kM3 * cmd_yaw + fade * Y.gM * err_dps, -1.0, 1.0)
+	# Gierdämpfung bei Knüppel in der Mitte (07.11.2026): Chewie ist um die
+	# Hochachse instabil (Munk-Moment größer als die Flossenwirkung) und drehte
+	# nach dem Loslassen im Simulator mit 50–100 °/s endlos weiter. Der Kreisel
+	# bremst die Drehung, sobald der Knüppel losgelassen ist; beim Steuern
+	# blendet die Dämpfung über denselben Knüppelweg aus (volle Ausschläge).
+	# Begrenzt auf ±damp_max: voller Ausschlag beim Abbremsen (v. a. obere Flosse)
+	# kippte Chewie im Test bis 21° in die Rolle.
+	var u_damp: float = clampf(-Y.damp * rate_y, -Y.damp_max, Y.damp_max) * (1.0 - fade)
+	u_yt = clampf(u_yt + u_damp, -1.0, 1.0)
+	u_ym = clampf(u_ym + u_damp, -1.0, 1.0)
 
 	loop_sample.emit(Axis.PITCH, sp_pitch, pitch)
 	loop_sample.emit(Axis.ROLL, 0.0, roll)

@@ -1,3 +1,4 @@
+# 2026-11-07 21:40 – Masse je Leitwerksflosse (fin_mass_kg) als Punktmasse am Einbauort: in Massenbilanz, Schwerpunkt, Austrimmen der Restmasse und Trägheit
 # 2026-10-29 01:13 – Test-Nickanschlag entfernt (ersetzt durch Nick-Schutz im Flugcontroller)
 # 2026-10-28 08:51 – Testhilfe Nickanschlag (pitch_limit_*): Nase bleibt innerhalb ±Grenze
 # 2026-10-28 00:15 – Signal model_applied und fc_gains (PID-Vorgaben je Modell)
@@ -57,6 +58,9 @@ signal model_applied
 ## Elektronik ohne Akku (Flugcontroller, Empfänger, BEC), in kg.
 ## Sitzt zusammen mit Akku und Ballast unten an der Hülle.
 @export_range(0.0, 10000.0, 0.001, "or_greater") var electronics_mass_kg: float = 0.030
+## Masse je Leitwerksflosse (mit Servo), in kg. Sitzt im Flächenschwerpunkt
+## der Flosse; 0 = Flossen gewichtslos (ältere Modelle).
+@export_range(0.0, 100.0, 0.001, "or_greater") var fin_mass_kg: float = 0.0
 ## Längsposition der unten angeklebten Restmasse (0 = Nase, 1 = Heck).
 @export_range(0.0, 1.0, 0.01) var ballast_x: float = 0.45
 ## true = Restmasse wird so verschoben, dass der Schwerpunkt genau unter dem
@@ -188,7 +192,13 @@ func rebuild_mass_properties() -> void:
 	var motor_mass := 0.0
 	for mot in motors:
 		motor_mass += mot.mass_kg
-	var fixed := hull_mass_kg + motor_mass + electronics_mass_kg
+	# Leitwerksflossen als Punktmassen an ihrem Einbauort (nur erzeugte Flossen, nicht Canards/Turm)
+	var fins: Array[ControlSurface] = []
+	for s in surfaces:
+		if s.tail_member:
+			fins.append(s)
+	var fin_total := fin_mass_kg * fins.size()
+	var fixed := hull_mass_kg + motor_mass + electronics_mass_kg + fin_total
 	if auto_trim:
 		# Auftrieb = ρ_Luft·V·g ; Gewicht = (Struktur + Gas)·g + gewünschte Schwere
 		var needed := air_density * V - gas_mass + trim_heaviness_n / gravity_mps2
@@ -206,6 +216,8 @@ func rebuild_mass_properties() -> void:
 	var mz_motors := 0.0
 	for mot in motors:
 		mz_motors += mot.mass_kg * mot.position.z
+	for s in fins:
+		mz_motors += fin_mass_kg * s.position.z             # Flossen hinten: Restmasse wandert nach vorn
 	if ballast_auto_x and bottom_mass_kg > 1e-6:
 		# Unten-Masse so legen, dass der Gesamtschwerpunkt unter dem Auftriebszentrum liegt
 		var z_needed := -mz_motors / bottom_mass_kg
@@ -217,6 +229,8 @@ func rebuild_mass_properties() -> void:
 	var moment := bottom_mass_pos * bottom_mass_kg
 	for mot in motors:
 		moment += mot.position * mot.mass_kg
+	for s in fins:
+		moment += s.position * fin_mass_kg
 	cg_offset = moment / maxf(total_mass, 1e-6)
 
 	# --- 3) Trägheitsmomente um das Auftriebszentrum (Diagonale) -----------
@@ -229,6 +243,8 @@ func rebuild_mass_properties() -> void:
 	var pts: Array = [[bottom_mass_kg, bottom_mass_pos]]
 	for mot in motors:
 		pts.append([mot.mass_kg, mot.position])
+	for s in fins:
+		pts.append([fin_mass_kg, s.position])
 	for p in pts:
 		var m: float = p[0]
 		var r: Vector3 = p[1]

@@ -1,3 +1,4 @@
+# 2026-11-07 21:40 – Masse je Leitwerksflosse „fm“ im Modell-String (ältere Strings: 0)
 # 2026-10-29 02:25 – mix_yaw in den Regler-Vorgaben
 # 2026-10-29 01:53 – Regler-Vorgaben als „fc“ (Werte je Achse, Bereiche aus UI_PARAMS); alte „pid“-Listen werden ignoriert
 # 2026-10-28 07:53 – Stärken (mix) in den PID-Vorgaben des Modell-Strings
@@ -39,7 +40,7 @@ const LIMITS := {
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
 	"sx": [0.05, 0.95], "sl": [0.02, 0.4], "sh": [0.05, 1.0],
-	"hm": [0.0, 1000.0], "el": [0.0, 1000.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
+	"hm": [0.0, 1000.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
@@ -60,7 +61,7 @@ static func encode(ship: AirshipPhysics) -> String:
 		# Massen: Hülle, Elektronik, Lage der unten angeklebten Restmasse
 		# (Schwerpunkt wird beim Laden daraus neu berechnet)
 		"mass": {"trim": ship.trim_heaviness_n, "hm": ship.hull_mass_kg, "el": ship.electronics_mass_kg,
-			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x},
+			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x, "fm": ship.fin_mass_kg},
 		"fins": [], "motors": [],
 		# Turm an der Unterseite (an/aus, Lage, Länge, Höhe)
 		"sail": {"on": ship.sail_enabled, "sx": ship.sail_x, "sl": ship.sail_length_frac, "sh": ship.sail_height_frac},
@@ -140,6 +141,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.trim_heaviness_n = d.mass.trim
 	ship.hull_mass_kg = d.mass.hm
 	ship.electronics_mass_kg = d.mass.el
+	ship.fin_mass_kg = d.mass.fm
 	ship.ballast_x = d.mass.bx
 	ship.ballast_auto_x = d.mass.bauto
 	ship.fc_gains = d.get("fc", {})
@@ -234,7 +236,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"cp": _num(hd, "cp", 0.65), "ld": _num(hd, "ld", 5.0), "vol": _num(hd, "vol", 0.25)},
 		# ältere Strings ohne Teilmassen bekommen die Standardwerte
 		"mass": {"trim": _num(md, "trim", 0.05), "hm": _num(md, "hm", 0.086), "el": _num(md, "el", 0.030),
-			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true)},
+			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true), "fm": _num(md, "fm", 0.0)},
 		"fins": [], "motors": [],
 	}
 	# Regler-Vorgaben (Kaskadenregler): je Achse bekannte Werte, begrenzt auf
