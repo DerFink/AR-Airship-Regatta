@@ -1,3 +1,4 @@
+# 2026-11-07 23:55 – Flossenwirkung mit Rumpf-Flossen-Interferenz (wie in der Flugphysik)
 # 2026-10-27 10:40 – Erstversion: Leitwerksvolumen V_T für Nick und Gier, Stabilitätsmaß gegen Munk-Moment, Canard-Berücksichtigung, Warnstufen
 # =============================================================================
 # TailValidator.gd
@@ -50,7 +51,7 @@ static func validate(hull: GertlerHull, surfaces: Array[ControlSurface],
 	for s in surfaces:
 		var n := s.normal.normalized()
 		var l := s.position.z - cg.z                  # + hinten, − vorne
-		var k := s.area_m2 * s.lift_slope() * s.efficiency
+		var k := s.area_m2 * s.lift_slope() * s.efficiency * ControlSurface.BODY_INTERFERENCE
 		var ny2 := n.y * n.y                          # wirkt im Nicken
 		var nx2 := n.x * n.x                          # wirkt im Gieren
 		pitch_slope += k * ny2 * l

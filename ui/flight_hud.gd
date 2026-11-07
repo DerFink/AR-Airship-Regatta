@@ -1,3 +1,4 @@
+# 2026-11-07 23:55 – Knopf „Zurücksetzen“ wieder oben rechts (vor „Armed“ und „Menü“)
 # 2026-11-07 21:10 – Oben rechts nur noch „Armed“ und „Menü“; Bau, Strecke, PID, AR, Zurücksetzen, Modellwahl, Bestenliste und Version im Menü (MainMenu); Modusschalter in der oberen Reihe
 # 2026-11-07 20:45 – Modusschalter mit 3 Stellungen Direkt / Mode 2 / Mode 3 (wie Kanal 13); Banner mit Kurzbeschreibung beim Umschalten
 # 2026-10-29 07:45 – Modusschalter mit 4 Stellungen (Gedämpft)
@@ -102,7 +103,10 @@ func _ready() -> void:
 	_btn_arm.toggled.connect(_on_arm_toggled)
 	var b_menu := UITheme.make_pill("Menü", true)   # ohne Symbol: die Standardschrift hat kein ☰
 	b_menu.pressed.connect(func(): _menu.show_menu())
-	for b in [_btn_arm, b_menu]: tr.add_child(b)
+	# „Zurücksetzen“ wieder direkt erreichbar (Wunsch Nutzer) – auch weiter im Menü
+	var b_reset := UITheme.make_pill("Zurücksetzen", true)
+	b_reset.pressed.connect(func(): reset_requested.emit())
+	for b in [b_reset, _btn_arm, b_menu]: tr.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()

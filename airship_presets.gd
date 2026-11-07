@@ -1,3 +1,4 @@
+# 2026-11-07 23:55 – Chewie: Schwenkachse wieder +45° (Schub schwenkt entlang der Hülle, vom Nutzer bestätigt)
 # 2026-11-07 23:00 – Chewie: Reglerwerte aus dem Teensy-Code (Werkseinstellung), untere Flossen 30° unter der Waagrechten (Einbauwinkel 60°/300° wie im Teensy-Mischer), Flossen ±50°; Albacore ohne eigene Reglerwerte
 # 2026-11-07 21:40 – Chewie: Hülle 85 g, Flossen je 10 g, Restmasse unten; Schwenkachse −45° (Schub schwenkt radial, kaum Rollmoment), Schwenkbereich ±50°
 # 2026-11-07 20:45 – Regler-Vorgaben für Direkt/Mode 2/Mode 3 (Gier-Anteile aus Chewies Teensy-Code, Roll-Feder-Dämpfer)
@@ -177,13 +178,12 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots: Array[VectorMotor] = [
 		# seitlich unten, 45° unter der Waagrechten (135° rechts, 225° links).
-		# Schwenkachse −45° (07.11.2026): der Schub schwenkt radial zur Hüllenmitte
-		# hin bzw. weg. Mit +45° (Schub schwenkt entlang der Hülle) erzeugte
-		# gegensinniges Schwenken ein Rollmoment von rund der Hälfte des Giermoments,
-		# Chewie rollte in Mode 2 bei voller Kurve über 80° – am echten Chewie
-		# höchstens 10°. Schwenkbereich ±50° wie am echten Modell.
-		make_motor("Bugmotor rechts", 0.25, 135.0, 7.0, 50.0, -45.0),
-		make_motor("Bugmotor links", 0.25, 225.0, 7.0, 50.0, -45.0),
+		# Schwenkachse +45° (bestätigt 07.11.2026): die Achse zeigt radial durch den
+		# Motorfuß, der Schub schwenkt ENTLANG der Hülle. Gegensinniges Schwenken
+		# (Gier) erzeugt dabei auch ein Rollmoment – der Teensy-Regler gleicht es über
+		# Flossen und Motorschwenker (MOTOR_ROLL_SIGN) aus. Schwenkbereich ±50°.
+		make_motor("Bugmotor rechts", 0.25, 135.0, 7.0, 50.0, 45.0),
+		make_motor("Bugmotor links", 0.25, 225.0, 7.0, 50.0, 45.0),
 	]
 	# Paar gemeinsam einstellbar; gegenläufige Propeller wie beim Quadcopter.
 	# Rückwärtsschub erlaubt (ESC vor/zurück), normaler Propeller ≈ 55 % rückwärts.

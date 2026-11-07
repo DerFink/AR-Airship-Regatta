@@ -1,3 +1,4 @@
+# 2026-11-07 23:55 – Flossen an der Hülle: wirksame Streckung doppelt (Hülle als Spiegelwand) und Rumpf-Flossen-Interferenz 1,3 (Chewie lief sonst nicht geradeaus)
 # 2026-11-07 23:00 – größter Ausschlag bis 80° einstellbar (Chewie: Pendelflossen ±50°)
 # 2026-10-27 23:49 – Kennung sail_member für den festen Turm
 # 2026-10-27 23:28 – Pseudo-Flex wirkt auch beim Pendelleitwerk, wenn eingeschaltet
@@ -127,7 +128,7 @@ func compute_force(v_local: Vector3, rho: float, dt: float) -> Vector3:
 
 	# 5) Auftrieb (mit Stall) und Widerstand
 	var cl := lift_coefficient(alpha)
-	var cdi := cl * cl / (PI * aspect_ratio * 0.85)
+	var cdi := cl * cl / (PI * effective_aspect_ratio() * 0.85)
 	var cd := cd0 + cdi + 1.2 * pow(sin(alpha), 2)     # Plattenwiderstand bei großen Winkeln
 
 	# Auftriebsrichtung: senkrecht zum Fahrtwind, in der Ebene von Wind und Normale
@@ -136,7 +137,7 @@ func compute_force(v_local: Vector3, rho: float, dt: float) -> Vector3:
 		lift_dir = n
 	lift_dir = lift_dir.normalized()
 
-	var lift := lift_dir * (q * area_m2 * cl * efficiency)
+	var lift := lift_dir * (q * area_m2 * cl * efficiency * BODY_INTERFERENCE)
 	var drag := flow * (q * area_m2 * cd)
 	return lift + drag
 
@@ -166,9 +167,23 @@ func place_on_hull(hull: GertlerHull) -> void:
 	normal = Vector3(0, 0, 1).cross(d).normalized()
 
 
-## Auftriebsanstieg nach Helmbold (gut für kleine Seitenverhältnisse).
+## Rumpf-Flossen-Interferenz: Die Hülle verstärkt die Flossenkraft (Querströmung
+## um den Rumpf, Übertragung der Flossenlast auf die Hülle). Faktor wie im
+## Luftschiff-Simulator (K = 1,3).
+const BODY_INTERFERENCE := 1.3
+
+
+## Wirksame Streckung: Die Flosse sitzt mit der Wurzel an der Hülle. Die Hülle
+## wirkt wie eine Spiegelwand, an der Wurzel strömt keine Luft um ⇒ die Flosse
+## wirkt wie eine doppelt so gestreckte freie Fläche.
+func effective_aspect_ratio() -> float:
+	return 2.0 * aspect_ratio
+
+
+## Auftriebsanstieg nach Helmbold (gut für kleine Seitenverhältnisse),
+## mit der wirksamen Streckung an der Hülle.
 func lift_slope() -> float:
-	var A := aspect_ratio
+	var A := effective_aspect_ratio()
 	return TAU * A / (2.0 + sqrt(A * A + 4.0))
 
 
@@ -198,5 +213,5 @@ func moment_per_rad(cg: Vector3 = Vector3.ZERO) -> Vector3:
 	# Fahrtwind kommt von vorn (+Z-Richtung im Körpersystem)
 	var flow := Vector3(0, 0, 1)
 	var lift_dir := (n - flow * flow.dot(n)).normalized()
-	var force := lift_dir * (area_m2 * lift_slope() * efficiency * tau)
+	var force := lift_dir * (area_m2 * lift_slope() * efficiency * BODY_INTERFERENCE * tau)
 	return (position - cg).cross(force)
