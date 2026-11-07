@@ -1,3 +1,4 @@
+# 2026-11-07 23:00 – Schwenk-Ausgabe über den nachgebauten Teensy-Mischer (Mode 1); kein Umdrehen bei Rückwärtsschub (wie am echten Modell)
 # 2026-11-07 21:05 – Mischer-Aufruf mit getrenntem Gierwunsch für Leitwerk und Schwenkmotoren
 # 2026-10-29 01:53 – Mischer-Aufruf mit getrennten Achsen
 # 2026-10-28 08:06 – Abschlussmeldung ENDE für die CI
@@ -38,10 +39,10 @@ func _initialize() -> void:
 	var fc := FlightController.new()
 	fc.airship = ship
 	fc.mode = FlightController.Mode.DIRECT
-	fc.tail_gain = 0.0; fc.vec_gain = 1.0   # nur Schwenkmotoren
+	fc.mode = FlightController.Mode.DIRECT   # Mode 1: Knüppel direkt (Teensy mixServosDirect)
 	for st in [["Nick hoch", Vector2(0, 0.5), Vector2(0, -1)], ["Gier rechts", Vector2(0, 0.5), Vector2(1, 0)]]:
 		fc.set_sticks(st[1], st[2])
-		fc._mix(Vector3(fc.cmd_pitch, 0, 0), Vector3(0, -fc.cmd_yaw, 0), Vector3(0, -fc.cmd_yaw * fc.vec_yaw_gain, 0), Vector3.ZERO)
+		fc._physics_process(1.0 / 60.0)
 		print("%s → Schwenk rechts=%.2f links=%.2f | Gas rechts=%.2f links=%.2f" % [st[0], ship.motors[0].swivel_cmd, ship.motors[1].swivel_cmd, ship.motors[0].throttle_cmd, ship.motors[1].throttle_cmd])
 	print("Stick-Beschriftung: ", fc.stick_labels())
 	fc.free()

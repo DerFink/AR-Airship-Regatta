@@ -1,3 +1,4 @@
+# 2026-11-07 23:00 – größter Ausschlag bis 80° (Chewie ±50°)
 # 2026-10-27 23:28 – Pseudo-Flex auch für Pendelleitwerke erlaubt (schaltbar)
 # 2026-10-27 15:09 – Erstversion: symmetrisches Leitwerk als Konfiguration (1–8 Flossen; Anordnungen +, ×, Y, λ, gleichmäßig), Bauart Klappe/Pendel, Fläche, Streckung, Pfeilung (Zuspitzung), V-Winkel, optional getrennte Flächen für Höhen- und Seitenleitwerk
 # =============================================================================
@@ -30,6 +31,9 @@ const LAYOUT_NAMES := ["+", "×", "Y", "λ", "gleichm."]
 @export_range(1, 8, 1) var count: int = 4
 ## Y/λ: Neigung der beiden Schrägflossen gegen die Waagrechte.
 @export_range(0.0, 85.0, 1.0) var v_angle_deg: float = 45.0
+## Flossenwirkung (Wirkungsgrad × Rumpf-Flossen-Interferenz). 0,8 = freie Flosse;
+## am Rumpf verstärkt die Hülle die Flossenkraft (Interferenz K ≈ 1,3 → ≈ 1,04).
+@export_range(0.3, 1.5, 0.01) var efficiency: float = 0.8
 ## EVEN: Drehung der ganzen Anordnung.
 @export_range(0.0, 359.0, 1.0) var rotation_deg: float = 0.0
 @export var kind: ControlSurface.Kind = ControlSurface.Kind.FLAP
@@ -44,7 +48,7 @@ const LAYOUT_NAMES := ["+", "×", "Y", "λ", "gleichm."]
 @export_range(0.2, 1.0, 0.05) var taper: float = 1.0
 ## Längsposition des Druckpunkts (0 = Nase, 1 = Heck).
 @export_range(0.5, 1.0, 0.01) var hull_x: float = 0.90
-@export_range(0.0, 45.0, 1.0) var max_deflection_deg: float = 25.0
+@export_range(0.0, 80.0, 1.0) var max_deflection_deg: float = 25.0
 @export var pseudo_flex: bool = false
 
 
@@ -109,6 +113,7 @@ func generate() -> Array[ControlSurface]:
 		s.aspect_ratio = aspect_ratio
 		s.taper = taper
 		s.max_deflection_deg = max_deflection_deg
+		s.efficiency = efficiency
 		s.pseudo_flex = pseudo_flex
 		out.append(s)
 	return out

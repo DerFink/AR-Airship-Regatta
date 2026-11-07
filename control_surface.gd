@@ -1,3 +1,4 @@
+# 2026-11-07 23:00 – größter Ausschlag bis 80° einstellbar (Chewie: Pendelflossen ±50°)
 # 2026-10-27 23:49 – Kennung sail_member für den festen Turm
 # 2026-10-27 23:28 – Pseudo-Flex wirkt auch beim Pendelleitwerk, wenn eingeschaltet
 # 2026-10-27 15:09 – Zuspitzung (taper, im LTA-Simulator „Pfeilung“) und Kennung tail_member für Flossen aus dem symmetrischen Leitwerk
@@ -56,11 +57,11 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 ## Profil-Nullwiderstand (flache Depronplatte ≈ 0,02).
 @export_range(0.0, 0.2, 0.001) var cd0: float = 0.02
 ## Leitwerks-Wirkungsgrad (Abschattung durch den Rumpf).
-@export_range(0.3, 1.0, 0.01) var efficiency: float = 0.8
+@export_range(0.3, 1.5, 0.01) var efficiency: float = 0.8
 
 # --- Ruder / Ausschlag --------------------------------------------------------
 ## Maximaler Ausschlag in Grad (Klappe bzw. ganze Fläche).
-@export_range(0.0, 45.0, 0.5) var max_deflection_deg: float = 25.0
+@export_range(0.0, 80.0, 0.5) var max_deflection_deg: float = 25.0
 ## Klappentiefe als Anteil der Profiltiefe (nur FLAP).
 @export_range(0.1, 0.6, 0.01) var flap_chord_ratio: float = 0.30
 ## Servo-Stellgeschwindigkeit in Grad/s (digitale Servos ~ 400–600 °/s).

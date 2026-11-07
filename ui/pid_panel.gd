@@ -1,3 +1,4 @@
+# 2026-11-07 23:00 – Mischer-Werte aus FlightController.MIX_PARAMS (Namen wie im Teensy-Code)
 # 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 mit Kurzbeschreibung; Nick-Sollwert: Max-Winkel, Mode-3-Nickrate, Rückkehr, Vorlauf (Ruheband und Gas-Anpassung entfallen); Anzeigeformat je Regler (z. B. 0,0014)
 # 2026-10-29 03:38 – Knopf „Alle Einstellungen zurücksetzen“ mit Rückfrage; linke Spalte wird beim Öffnen neu aufgebaut
 # 2026-10-29 02:25 – Regler „Motorschwenk Gier“ getrennt von Nick/Roll
@@ -191,27 +192,20 @@ func _fix_percent(row: Control) -> void:
 	upd.call(s.value)
 
 
-## Mischer-Einstellungen (gelten für alle Achsen).
+## Mischer-Einstellungen (gelten für alle Achsen) – Namen wie im Teensy-Code.
 func _build_mix() -> void:
 	for c in _mix_box.get_children(): c.queue_free()
-	_mix_box.add_child(UITheme.make_slider_row("Leitwerk", 0.0, 1.0, 0.05, fc.tail_gain,
-		func(v): fc.tail_gain = v; fc.save_settings(), "%.2f", 120))
-	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
-	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Nick/Roll", 0.0, 1.0, 0.05, fc.vec_gain,
-		func(v): fc.vec_gain = v; fc.save_settings(), "%.2f", 120))
-	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
-	_mix_box.add_child(UITheme.make_slider_row("Motorschwenk Gier (Direkt)", 0.0, 1.0, 0.05, fc.vec_yaw_gain,
-		func(v): fc.vec_yaw_gain = v; fc.save_settings(), "%.2f", 120))
-	_fix_percent(_mix_box.get_child(_mix_box.get_child_count() - 1))
-	_mix_box.add_child(UITheme.make_slider_row("Schwenk fürs Nicken max", 0.0, 120.0, 1.0, fc.swivel_pitch_max_deg,
-		func(v): fc.swivel_pitch_max_deg = v; fc.save_settings(), "%d°", 120))
+	for p in FlightController.MIX_PARAMS:
+		var field: String = p[0]
+		_mix_box.add_child(UITheme.make_slider_row(p[1], p[2], p[3], p[4], fc.get(field),
+			func(v): fc.set(field, v); fc.save_settings(), p[5], 120))
 
 
 # Regler für die gewählte Achse neu aufbauen
 func _build_gains() -> void:
 	for c in _gain_box.get_children(): c.queue_free()
 	if fc.mode == FlightController.Mode.DIRECT:
-		_gain_box.add_child(UITheme.make_label("Direkt: Knüppel wirken ungeregelt (Werte gelten für Mode 2/3).", "MutedLabel"))
+		_gain_box.add_child(UITheme.make_label("Direkt (Mode 1): Knüppel wirken ungeregelt (Werte gelten für Mode 2/3).", "MutedLabel"))
 	var axis := _axis
 	for p in FlightController.UI_PARAMS[axis]:
 		var term: String = p.term

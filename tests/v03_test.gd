@@ -1,3 +1,4 @@
+# 2026-11-07 23:00 – Schwenk-Ausgabe über den nachgebauten Teensy-Mischer (Mode 1); kein Umdrehen bei Rückwärtsschub (wie am echten Modell)
 # 2026-11-07 21:05 – Mischer-Aufruf mit getrenntem Gierwunsch für Leitwerk und Schwenkmotoren
 # 2026-10-29 01:53 – Mischer-Aufruf mit getrennten Achsen
 # 2026-10-28 07:53 – nur Schwenkmotoren über tail_gain/vec_gain statt Mischmodus
@@ -26,10 +27,10 @@ func _initialize() -> void:
 	AirshipPresets.chewie(ship)
 	var fc := FlightController.new()
 	fc.airship = ship
-	fc.tail_gain = 0.0; fc.vec_gain = 1.0   # nur Schwenkmotoren
+	fc.mode = FlightController.Mode.DIRECT   # Mode 1: Knüppel direkt (Teensy mixServosDirect)
 	for gas in [0.6, -0.6]:
 		fc.set_sticks(Vector2(0, gas), Vector2(0, -1))   # Knüppel ziehen = Nase hoch
-		fc._mix(Vector3(fc.cmd_pitch, 0, 0), Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+		fc._physics_process(1.0 / 60.0)
 		print("Gas %+.1f, Nick hoch → Schwenk rechts %+.2f links %+.2f" % [gas, ship.motors[0].swivel_cmd, ship.motors[1].swivel_cmd])
 
 	# --- 2. Modell-String ---------------------------------------------------

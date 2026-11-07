@@ -1,3 +1,4 @@
+# 2026-11-07 23:30 – Reglerwert heißt jetzt wie im Teensy-Code (Kp)
 # 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 # 2026-10-29 03:38 – Zurücksetzen aller Einstellungen geprüft
 # 2026-10-29 01:53 – an den Kaskadenregler angepasst (Parameter je Achse)
@@ -43,10 +44,10 @@ func _process(_dt: float) -> bool:
 			main._set_view(main.View.PID)
 		260:
 			print("PID-Regler-Zeilen: ", main.pid._gain_box.get_child_count())
-			main.fc.set_param(FlightController.Axis.PITCH, "rate_p", 1.2)
-			print("Rate P Nick = ", main.fc.get_param(FlightController.Axis.PITCH, "rate_p"))
+			main.fc.set_param(FlightController.Axis.PITCH, "Kp", 1.2)
+			print("Kp Nick = ", main.fc.get_param(FlightController.Axis.PITCH, "Kp"))
 			main.pid.emit_signal("reset_all_requested")
-			print("Nach Zurücksetzen: Rate P Nick = %.2f, Strecke %s, Modus %s" % [main.fc.get_param(FlightController.Axis.PITCH, "rate_p"), main.course.title(), FlightController.MODE_NAMES[main.fc.mode]])
+			print("Nach Zurücksetzen: Kp Nick = %.2f, Strecke %s, Modus %s" % [main.fc.get_param(FlightController.Axis.PITCH, "Kp"), main.course.title(), FlightController.MODE_NAMES[main.fc.mode]])
 			main._set_view(main.View.FLY)
 		300:
 			print("Watchdog vereinfachen-Test")

@@ -1,3 +1,4 @@
+# 2026-11-07 23:30 – Munk-Moment mit Abminderung munk_factor (Standard 0,6: Grenzschicht am Heck; mit 1,0 schwang Chewie mit den echten Teensy-Reglerwerten stark in Nick)
 # 2026-11-07 21:40 – Masse je Leitwerksflosse (fin_mass_kg) als Punktmasse am Einbauort: in Massenbilanz, Schwerpunkt, Austrimmen der Restmasse und Trägheit
 # 2026-10-29 01:13 – Test-Nickanschlag entfernt (ersetzt durch Nick-Schutz im Flugcontroller)
 # 2026-10-28 08:51 – Testhilfe Nickanschlag (pitch_limit_*): Nase bleibt innerhalb ±Grenze
@@ -105,6 +106,11 @@ signal model_applied
 @export_range(0.0, 2.0, 0.01) var hull_cd_crossflow: float = 1.0
 ## Schlankheits-Korrektur η für den Querstrom (0,5–0,7 für L/D 4–8).
 @export_range(0.1, 1.0, 0.01) var crossflow_eta: float = 0.6
+## Anteil des Munk-Moments aus der Potentialtheorie, der am echten Rumpf wirkt.
+## Die Grenzschicht am Heck nimmt einen Teil davon weg (1,0 = reine Theorie).
+## 0,6: mit dem vollen Wert schwang Chewie mit den Reglerwerten des echten
+## Teensy-Codes in Nick ±20° (am echten Modell nicht beobachtet).
+@export_range(0.0, 1.0, 0.01) var munk_factor: float = 0.6
 ## Anzahl Rumpfscheiben für die Querstrom-Integration (Watchdog reduziert).
 @export_range(2, 64, 1) var crossflow_slices: int = 16
 ## Kleine Zusatzdämpfung um die Längsachse (Rollen), N·m·s.
@@ -365,7 +371,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 
 	# --- 7) Virtuelle Massen & Munk-Moment (Kirchhoff) -----------------------
 	var Ma_v := added_mass * v_rel                      # komponentenweise = diag(Ma)·v
-	munk_moment = -v_rel.cross(Ma_v)                    # destabilisierend!
+	munk_moment = -v_rel.cross(Ma_v) * munk_factor      # destabilisierend!
 	T += munk_moment
 	F += added_mass * w_b.cross(v_rel) - w_b.cross(Ma_v)
 

@@ -1,3 +1,4 @@
+# 2026-11-07 23:00 – Chewie: Reglerwerte aus dem Teensy-Code (Werkseinstellung), untere Flossen 30° unter der Waagrechten (Einbauwinkel 60°/300° wie im Teensy-Mischer), Flossen ±50°; Albacore ohne eigene Reglerwerte
 # 2026-11-07 21:40 – Chewie: Hülle 85 g, Flossen je 10 g, Restmasse unten; Schwenkachse −45° (Schub schwenkt radial, kaum Rollmoment), Schwenkbereich ±50°
 # 2026-11-07 20:45 – Regler-Vorgaben für Direkt/Mode 2/Mode 3 (Gier-Anteile aus Chewies Teensy-Code, Roll-Feder-Dämpfer)
 # 2026-10-29 03:23 – Gier-Vorgaben: Chewie Knüppelstärke 1,3 / Dämpfung 1,3, Albacore 1,0 / 1,0
@@ -109,12 +110,8 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	t.hull_x = 0.95
 	# Reglerwerte (Kaskadenregler) aus automatischer Suche im Simulator
 	# (Testprogramm, 100 % mit Nickböe, Steigen)
-	ship.fc_gains = {
-		"pitch": {"ang_p": 3.0, "rate_p": 3.0, "rate_i": 0.3, "rate_d": 0.0, "max_rate": 30.0},
-		"roll": {"damper_angle": 2.0, "damper": 1.5},   # Roll: Feder-Dämpfer (Mode 2/3)
-		# Gier: Mode-2/3-Anteile wie im Teensy-Code von Chewie (noch nicht auf die Albacore abgestimmt)
-		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011, "damp": 3.0, "damp_max": 0.3},
-		"mix": [1.0, 1.0], "swv_pitch": 30.0}
+	# Regler: Werte aus Chewies Teensy-Code (noch nicht auf die Albacore abgestimmt)
+	ship.fc_gains = {}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	# Winkel 180° = Hüllenunterseite: wird der Motor im Baukasten nach vorn
@@ -147,19 +144,9 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
 	ship.livery.text = "aerarium e.V."       # fester Schriftzug
-	# Reglerwerte (Kaskadenregler) aus automatischer Suche im Simulator:
-	# Testprogramm (50 % Schub, je 0,5 s links/rechts), 100 % mit Nickböe,
-	# Steigen; geprüft auch an „falsch gebauten“ Varianten (Schub ±30 %,
-	# Schwenkachse 40/50°, verdrehte Flosse, größere Flossen).
-	ship.fc_gains = {
-		"pitch": {"ang_p": 4.0, "rate_p": 2.0, "rate_i": 0.2, "rate_d": 0.05, "max_rate": 35.0},
-		"roll": {"damper_angle": 2.0, "damper": 1.5},   # Roll: Feder-Dämpfer (Mode 2/3)
-		# Gier Mode 2/3: Werte aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3):
-		# Mode 2 Leitwerk 0,6 / Motorschwenk 1,28 × Knüppel; Mode 3 Vorsteuerung 0,85 / 1,125,
-		# Gierrate voll 180 °/s, Drehratenregler 0,0014 / 0,0011 je °/s.
-		# Motorschwenk Gier 0,4 gilt nur noch im Modus Direkt.
-		"yaw": {"kT2": 0.6, "kM2": 1.28, "kT3": 0.85, "kM3": 1.125, "rmax": 180.0, "gT": 0.0014, "gM": 0.0011, "damp": 3.0, "damp_max": 0.3},
-		"mix": [1.0, 0.4], "mix_yaw": 0.4, "swv_pitch": 80.0}
+	# Regler: Werte 1:1 aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3,
+	# Stand 04.11.2026) – das sind auch die Werkseinstellungen des FlightController.
+	ship.fc_gains = {}
 	ship.sail_enabled = false                # Chewie hat keinen Turm
 	# Massen laut Nutzer (07.11.2026): Hülle 85 g, jede Leitwerksflosse ca. 10 g;
 	# beide Motoren mit Schwenkservos + Teensy + RX + BEC = 90 g.
@@ -175,12 +162,13 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# unter der Waagrechten.
 	var t := TailConfig.new()
 	t.layout = TailConfig.Layout.LAMBDA
-	t.v_angle_deg = 45.0
+	# Untere Flossen 30° unter der Waagrechten: Einbauwinkel 60°/300° (von unten) wie im Teensy-Mischer
+	t.v_angle_deg = 30.0
 	t.kind = ControlSurface.Kind.ALL_MOVING
 	t.area_m2 = 0.0361
 	t.aspect_ratio = 1.0
 	t.taper = 0.8
-	t.max_deflection_deg = 35.0          # Pendel-Flossen: großer Ausschlag
+	t.max_deflection_deg = 50.0          # Pendel-Flossen ±50° (Angabe Nutzer)
 	t.pseudo_flex = false                # superleichte, starre 3D-Flossen: keine Verformung
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
