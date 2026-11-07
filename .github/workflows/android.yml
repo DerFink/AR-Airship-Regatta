@@ -1,3 +1,4 @@
+# 2026-11-08 00:10 – Browser-Version (Godot-Export „Web“) wird gebaut und auf GitHub Pages veröffentlicht
 # 2026-11-07 21:10 – Version und Build-Nummer werden vor dem Export in build_info.gd eingetragen; Test menu_test aufgenommen
 # 2026-10-29 01:53 – Test maneuver_test (Testprogramm enge Kurven) aufgenommen
 # 2026-10-28 08:15 – Test course_test aufgenommen
@@ -23,6 +24,8 @@ on:
 
 permissions:
   contents: write          # nötig, um das Release anzulegen
+  pages: write             # Browser-Version auf GitHub Pages
+  id-token: write
 
 jobs:
   android:
@@ -78,6 +81,17 @@ jobs:
           godot --headless --verbose --export-debug "Android Debug" build/ar-airship-regatta.apk
           ls -la build
 
+      - name: Browser-Version bauen
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+          ls -la build/web
+
+      - name: Browser-Version für GitHub Pages bereitstellen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
       - uses: actions/upload-artifact@v4
         with:
           name: ar-airship-regatta-apk
@@ -91,3 +105,14 @@ jobs:
           body: Debug-APK vom Commit ${{ github.sha }}. Auf dem Handy herunterladen und installieren (Installation aus unbekannten Quellen erlauben).
           files: build/ar-airship-regatta.apk
           make_latest: true
+
+  # Browser-Version veröffentlichen: https://<Konto>.github.io/<Repo>/
+  web:
+    needs: android
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
