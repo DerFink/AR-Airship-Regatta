@@ -1,3 +1,4 @@
+# 2026-11-07 21:10 – Oben rechts nur noch „Armed“ und „Menü“; Bau, Strecke, PID, AR, Zurücksetzen, Modellwahl, Bestenliste und Version im Menü (MainMenu); Modusschalter in der oberen Reihe
 # 2026-11-07 20:45 – Modusschalter mit 3 Stellungen Direkt / Mode 2 / Mode 3 (wie Kanal 13); Banner mit Kurzbeschreibung beim Umschalten
 # 2026-10-29 07:45 – Modusschalter mit 4 Stellungen (Gedämpft)
 # 2026-10-29 00:19 – Modusschalter rückt in die zweite Reihe, wenn oben kein Platz ist
@@ -14,7 +15,7 @@
 # -----------------------------------------------------------------------------
 # Oberfläche während des Fliegens (Querformat):
 #
-#   ┌ 12,4 km/h │ α 6° │ FC: Mode 2           Motoren │ Bau │ PID │ AR ┐
+#   ┌ 12,4 km/h │ α 6° │ Runde │ Direkt│Mode 2│Mode 3      Armed │ ☰ Menü ┐
 #   │                                                                   │
 #   │  ( Gas )               [Hinweis-Banner]              ( Nick·Gier )│
 #   └───────────────────────────────────────────────────────────────────┘
@@ -29,6 +30,8 @@ signal pid_requested
 signal ar_requested
 signal reset_requested
 signal course_requested
+signal model_requested
+signal leaderboard_requested
 
 var fc: FlightController
 var ship: AirshipPhysics
@@ -42,11 +45,14 @@ var _laps: Label                          ## Rundenzeiten unter der Telemetrie
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
-var _btn_ar: Button
 var _banner: PanelContainer
 var _banner_timer := 0.0
 var _tl: HBoxContainer
 var _tr: HBoxContainer
+var _menu: MainMenu                       ## Menü (Modell, Bau, Strecke, …, Version)
+var _ar_on := false                       ## AR an? (für die Anzeige im Menü)
+## Liefert {"model": Name, "course": Titel} fürs Menü (setzt main.gd)
+var menu_info: Callable
 
 
 func setup(controller: FlightController, airship: AirshipPhysics) -> void:
@@ -87,25 +93,16 @@ func _ready() -> void:
 		_mode_box.add_child(b)
 		_mode_btns[md] = b
 
-	# --- Menüs oben rechts --------------------------------------------------
+	# --- Oben rechts: nur „Armed“ und „Menü“ (Armen bleibt immer direkt erreichbar) ---
 	_tr = UITheme.make_hbox("xs")
 	var tr := _tr
 	add_child(tr)
 	_btn_arm = UITheme.make_pill("Disarmed", true)
 	_btn_arm.toggle_mode = true
 	_btn_arm.toggled.connect(_on_arm_toggled)
-	var b_reset := UITheme.make_pill("Zurücksetzen", true)
-	b_reset.pressed.connect(func(): reset_requested.emit())
-	var b_build := UITheme.make_pill("Bau", true)
-	b_build.pressed.connect(func(): builder_requested.emit())
-	var b_course := UITheme.make_pill("Strecke", true)
-	b_course.pressed.connect(func(): course_requested.emit())
-	var b_pid := UITheme.make_pill("PID", true)
-	b_pid.pressed.connect(func(): pid_requested.emit())
-	_btn_ar = UITheme.make_pill("AR", true)
-	_btn_ar.toggle_mode = true
-	_btn_ar.pressed.connect(func(): ar_requested.emit())
-	for b in [b_reset, _btn_arm, b_course, b_build, b_pid, _btn_ar]: tr.add_child(b)
+	var b_menu := UITheme.make_pill("Menü", true)   # ohne Symbol: die Standardschrift hat kein ☰
+	b_menu.pressed.connect(func(): _menu.show_menu())
+	for b in [_btn_arm, b_menu]: tr.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
@@ -117,6 +114,21 @@ func _ready() -> void:
 	# --- Hinweis-Banner unten mittig ---------------------------------------
 	_banner = UITheme.make_banner(360)
 	add_child(_banner)
+
+	# --- Menü (über allem; Einträge melden sich als Signale der Flugansicht) ---
+	_menu = MainMenu.new()
+	add_child(_menu)
+	_menu.info_source = func():
+		var d: Dictionary = menu_info.call() if menu_info.is_valid() else {}
+		d["ar"] = _ar_on
+		return d
+	_menu.model_requested.connect(func(): model_requested.emit())
+	_menu.builder_requested.connect(func(): builder_requested.emit())
+	_menu.course_requested.connect(func(): course_requested.emit())
+	_menu.leaderboard_requested.connect(func(): leaderboard_requested.emit())
+	_menu.pid_requested.connect(func(): pid_requested.emit())
+	_menu.ar_requested.connect(func(): ar_requested.emit())
+	_menu.reset_requested.connect(func(): reset_requested.emit())
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -181,7 +193,7 @@ func set_race_text(text: String, laps := "") -> void:
 
 
 func set_ar_active(active: bool) -> void:
-	_btn_ar.set_pressed_no_signal(active)
+	_ar_on = active
 
 
 func _on_arm_toggled(on: bool) -> void:

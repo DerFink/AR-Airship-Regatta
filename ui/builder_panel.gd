@@ -1,3 +1,4 @@
+# 2026-11-07 21:10 – open_model_choice(): Modellliste aufklappen (Menüpunkt „Modell wählen“)
 # 2026-10-28 00:15 – Modellwahl meldet model_applied (PID-Vorgaben übernehmen)
 # 2026-10-27 23:49 – Reiter Hülle: Turm an/aus mit Lage, Länge, Höhe; Turm zählt nicht als Canard
 # 2026-10-27 23:28 – Modellauswahl fest in der rechten Spalte; Schalter Elastisches Leitwerk für jede Bauart; neue Motorpaare seitlich unten (135°/225°)
@@ -230,6 +231,12 @@ func _build_hull_page(col: VBoxContainer) -> void:
 	_hull_rows.bx = UITheme.make_slider_row("Lage der Restmasse (0 Nase · 1 Heck)", 0.05, 0.95, 0.01, ship.ballast_x,
 		_on_ballast_x, "%.2f")
 	col.add_child(_hull_rows.bx)
+
+
+## Modellliste aufklappen (Menüpunkt „Modell wählen“ in der Flugansicht).
+func open_model_choice() -> void:
+	if _preset:
+		_preset.show_popup()
 
 
 ## Auswahlliste neu füllen (Presets + Sammlung + eigene Modelle).

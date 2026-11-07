@@ -1,3 +1,4 @@
+# 2026-11-07 21:10 – Menü der Flugansicht verdrahtet (Modell wählen, Bestenliste, Angaben Modell/Strecke)
 # 2026-10-29 03:38 – reset_all_settings(): Flugcontroller, Strecke, Startposition
 # 2026-10-29 00:19 – Bestenliste: nach dem Ziel Namen eintragen (Top 10), Ansicht LEADER
 # 2026-10-28 15:12 – Pilot 6 m neben Pylon 1; Startmodell Chewie; PID-Vorgaben beim ersten Start bzw. nach Update übernehmen
@@ -203,6 +204,10 @@ func _build_ui() -> void:
 	hud.ar_requested.connect(ar.toggle)
 	hud.reset_requested.connect(reset_ship)
 	hud.course_requested.connect(func(): _set_view(View.COURSE))
+	# Menü in der Flugansicht: Modellwahl öffnet den Baukasten mit aufgeklappter Modellliste
+	hud.model_requested.connect(func(): _set_view(View.BUILD); builder.open_model_choice.call_deferred())
+	hud.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
+	hud.menu_info = func(): return {"model": ship.model_name, "course": course.title()}
 	course_panel.closed.connect(func(): _set_view(View.FLY))
 	course_panel.course_changed.connect(reset_ship)
 	course_panel.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
