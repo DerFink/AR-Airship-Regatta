@@ -1,3 +1,4 @@
+# 2026-11-08 17:40 – Bestenliste mit dem Sender: SH bestätigt/schließt das Fenster, rechter Knüppel wählt
 # 2026-11-07 21:10 – Menü der Flugansicht verdrahtet (Modell wählen, Bestenliste, Angaben Modell/Strecke)
 # 2026-10-29 03:38 – reset_all_settings(): Flugcontroller, Strecke, Startposition
 # 2026-10-29 00:19 – Bestenliste: nach dem Ziel Namen eintragen (Top 10), Ansicht LEADER
@@ -202,7 +203,12 @@ func _build_ui() -> void:
 	hud.builder_requested.connect(func(): _set_view(View.BUILD))
 	hud.pid_requested.connect(func(): _set_view(View.PID))
 	hud.ar_requested.connect(ar.toggle)
-	hud.reset_requested.connect(reset_ship)
+	hud.reset_requested.connect(func():
+		# Schalter SH / Zurücksetzen: im Bestenlisten-Fenster bestätigt bzw. schließt er es
+		if view == View.LEADER:
+			leader_panel.confirm_by_switch()
+		else:
+			reset_ship())
 	hud.course_requested.connect(func(): _set_view(View.COURSE))
 	# Menü in der Flugansicht: Modellwahl öffnet den Baukasten mit aufgeklappter Modellliste
 	hud.model_requested.connect(func(): _set_view(View.BUILD); builder.open_model_choice.call_deferred())
@@ -212,6 +218,8 @@ func _build_ui() -> void:
 	course_panel.course_changed.connect(reset_ship)
 	course_panel.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
 	leader_panel.closed.connect(func(): _set_view(View.FLY))
+	# Auswahl Eintragen/Nicht eintragen mit dem rechten Senderknüppel (links/rechts)
+	leader_panel.stick_source = func(): return hud._joy.right.x if hud._joy and hud._joy.active() else 0.0
 	course.race_changed.connect(_on_race_changed)
 	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
 	ship.model_applied.connect(func(): fc.apply_model_gains(ship.fc_gains))

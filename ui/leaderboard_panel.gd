@@ -1,3 +1,4 @@
+# 2026-11-08 17:40 – Nach dem Ziel mit dem Sender bedienbar: rechter Knüppel wählt Eintragen/Nicht eintragen, SH bestätigt (ohne Wahl nicht gespeichert)
 # 2026-10-29 00:19 – Erstversion: Bestenliste anzeigen (Platz, Gesamtzeit, Einzelrunden, Name, Luftschiff, Datum) und nach dem Ziel Namen eintragen
 # =============================================================================
 # LeaderboardPanel.gd
@@ -22,6 +23,11 @@ var _panel: PanelContainer
 var _box: VBoxContainer
 var _name_edit: LineEdit
 var _pending := false              ## true = Ergebnis wartet aufs Eintragen
+## Bedienung mit dem Sender: liefert den rechten Knüppel links/rechts (−1…1)
+var stick_source: Callable
+var _choice := 0                   ## 0 = nichts gewählt, 1 = Eintragen, 2 = Nicht eintragen
+var _btn_ok: Button
+var _btn_no: Button
 
 
 func setup(c: Course, s: AirshipPhysics) -> void:
@@ -67,14 +73,43 @@ func show_result() -> void:
 	_name_edit.placeholder_text = "Dein Name"
 	_box.add_child(_name_edit)
 	var row := UITheme.make_hbox("sm")
-	var ok := UITheme.make_button("Eintragen")
+	var ok := UITheme.make_button("◀ Eintragen")
 	ok.pressed.connect(_on_enter)
-	var no := UITheme.make_button("Nicht eintragen")
+	var no := UITheme.make_button("Nicht eintragen ▶")
 	no.pressed.connect(func(): _pending = false; closed.emit())
-	row.add_child(ok)
-	row.add_child(no)
+	for b in [ok, no]:
+		b.toggle_mode = true                     # „gedrückt“ = mit dem Knüppel markiert
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(b)
+	_btn_ok = ok
+	_btn_no = no
+	_choice = 0
 	_box.add_child(row)
+	var hint := UITheme.make_label("Sender: rechter Knüppel links/rechts = wählen · Schalter SH = bestätigen (ohne Wahl: nicht gespeichert)", "MutedLabel")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_box.add_child(hint)
 	_layout.call_deferred()
+
+
+## Rechter Senderknüppel wählt (links = Eintragen, rechts = Nicht eintragen).
+func _process(_dt: float) -> void:
+	if not visible or not _pending or not stick_source.is_valid() or _btn_ok == null:
+		return
+	var x: float = stick_source.call()
+	if x < -0.5: _choice = 1
+	elif x > 0.5: _choice = 2
+	_btn_ok.set_pressed_no_signal(_choice == 1)
+	_btn_no.set_pressed_no_signal(_choice == 2)
+
+
+## Schalter SH: Ergebnis-Fenster → gewählte Aktion (ohne Wahl: nicht speichern,
+## schließen); Liste → schließen.
+func confirm_by_switch() -> void:
+	if _pending and _choice == 1:
+		_on_enter()                              # speichern, danach Liste zeigen
+	else:
+		_pending = false
+		closed.emit()
 
 
 func _on_enter() -> void:
