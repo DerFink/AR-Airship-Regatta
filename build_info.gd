@@ -10,7 +10,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "0.10.0"
+const VERSION := "0.10.1"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)

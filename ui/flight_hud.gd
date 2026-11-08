@@ -1,3 +1,4 @@
+# 2026-11-08 14:30 – Sender per USB (Taranis als Joystick): Knüppel, SF = Arming, SC = Modus; Sender getrennt → Motoren aus
 # 2026-11-07 23:55 – Knopf „Zurücksetzen“ wieder oben rechts (vor „Armed“ und „Menü“)
 # 2026-11-07 21:10 – Oben rechts nur noch „Armed“ und „Menü“; Bau, Strecke, PID, AR, Zurücksetzen, Modellwahl, Bestenliste und Version im Menü (MainMenu); Modusschalter in der oberen Reihe
 # 2026-11-07 20:45 – Modusschalter mit 3 Stellungen Direkt / Mode 2 / Mode 3 (wie Kanal 13); Banner mit Kurzbeschreibung beim Umschalten
@@ -51,6 +52,7 @@ var _banner_timer := 0.0
 var _tl: HBoxContainer
 var _tr: HBoxContainer
 var _menu: MainMenu                       ## Menü (Modell, Bau, Strecke, …, Version)
+var _joy: JoystickInput                   ## Sender per USB (Taranis); steuert statt der Bildschirmknüppel
 var _ar_on := false                       ## AR an? (für die Anzeige im Menü)
 ## Liefert {"model": Name, "course": Titel} fürs Menü (setzt main.gd)
 var menu_info: Callable
@@ -118,6 +120,20 @@ func _ready() -> void:
 	# --- Hinweis-Banner unten mittig ---------------------------------------
 	_banner = UITheme.make_banner(360)
 	add_child(_banner)
+
+	# --- Sender per USB (Taranis/EdgeTX als Joystick) -------------------------
+	_joy = JoystickInput.new()
+	add_child(_joy)
+	_joy.connected.connect(func(n): show_notice("Sender verbunden: %s – SF unten = scharf, SC = Modus" % n, "info", 4.0))
+	_joy.disconnected.connect(func():
+		if fc: fc.armed = false                     # Failsafe: Sender weg → Motoren aus
+		show_notice("Sender getrennt – Motoren aus", "warning", 4.0))
+	_joy.arm_switched.connect(func(on):
+		if fc: fc.armed = on)
+	_joy.mode_switched.connect(func(m):
+		if fc and int(fc.mode) != m:
+			fc.mode = m
+			show_notice(FlightController.MODE_HINTS[m], "info", 3.0))
 
 	# --- Menü (über allem; Einträge melden sich als Signale der Flugansicht) ---
 	_menu = MainMenu.new()
@@ -209,7 +225,10 @@ func _on_arm_toggled(on: bool) -> void:
 func _process(dt: float) -> void:
 	# Knüppel → Flugcontroller
 	if fc:
-		fc.set_sticks(stick_left.value, stick_right.value)
+		if _joy and _joy.active():
+			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
+		else:
+			fc.set_sticks(stick_left.value, stick_right.value)
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
