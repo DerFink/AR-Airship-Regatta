@@ -1,3 +1,4 @@
+# 2026-11-08 18:15 – Browser-Version je Build unter eigenem Namen (ar-<Nr>.html), index.html leitet weiter
 # 2026-11-08 00:10 – Browser-Version (Godot-Export „Web“) wird gebaut und auf GitHub Pages veröffentlicht
 # 2026-11-07 21:10 – Version und Build-Nummer werden vor dem Export in build_info.gd eingetragen; Test menu_test aufgenommen
 # 2026-10-29 01:53 – Test maneuver_test (Testprogramm enge Kurven) aufgenommen
@@ -84,7 +85,12 @@ jobs:
       - name: Browser-Version bauen
         run: |
           mkdir -p build/web
-          godot --headless --export-release "Web" build/web/index.html
+          # Jeder Build mit eigenem Dateinamen (ar-<Nr>.html/.pck/.wasm/.js): der Browser
+          # kann keine alten Dateien aus dem Zwischenspeicher nehmen
+          N=${{ github.run_number }}
+          godot --headless --export-release "Web" build/web/ar-$N.html
+          # Einstiegsseite leitet immer auf den neuesten Build weiter
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="cache-control" content="no-cache"><title>AR Airship Regatta</title><script>location.replace("ar-%s.html")</script><a href="ar-%s.html">Simulator starten</a>\n' "$N" "$N" > build/web/index.html
           ls -la build/web
 
       - name: Browser-Version für GitHub Pages bereitstellen

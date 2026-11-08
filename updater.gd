@@ -1,3 +1,4 @@
+# 2026-11-08 18:15 – Browser-Version: „Nach Update suchen“ lädt die neue Seite (ar-<Build>.html, jeder Build mit eigenen Dateinamen – kein Zwischenspeicher-Problem)
 # 2026-11-07 21:10 – Erstversion: Update-Suche über die GitHub-Releases (neuester „Android-Build N“ gegen BuildInfo.BUILD); neuere APK wird im Browser heruntergeladen
 # =============================================================================
 # Updater.gd
@@ -60,11 +61,38 @@ func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedB
 	if res.build <= BuildInfo.BUILD:
 		status.emit("Du hast die neueste Version (Build %d)." % BuildInfo.BUILD, true)
 		return
+	if OS.has_feature("web"):
+		_web_switch(res.build)                   # Browser: neue Seite laden statt APK
+		return
 	if res.url == "":
 		status.emit("Build %d ist da, aber ohne APK – später nochmal versuchen." % res.build, true)
 		return
 	status.emit("Neuer Build %d gefunden. Der Download startet im Browser – danach die Download-Meldung antippen und „Installieren“ wählen. Deine Einstellungen bleiben erhalten." % res.build, true)
 	OS.shell_open(res.url)
+
+
+# =============================================================================
+# Browser-Version: Jeder Build liegt unter eigenem Namen (ar-<Build>.html, .pck,
+# .wasm …), daher kann kein Zwischenspeicher alte Dateien liefern. Erst prüfen,
+# ob die neue Seite schon veröffentlicht ist (die Veröffentlichung läuft nach
+# dem Android-Release), dann dorthin wechseln.
+# =============================================================================
+var _web_target := 0
+
+func _web_switch(build: int) -> void:
+	_web_target = build
+	var base := str(JavaScriptBridge.eval("location.origin + location.pathname.replace(/[^/]*$/, '')"))
+	var probe := HTTPRequest.new()
+	probe.timeout = 15.0
+	add_child(probe)
+	probe.request_completed.connect(func(result: int, code: int, _h, _b):
+		probe.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and code == 200:
+			status.emit("Neuer Build %d gefunden – Seite wird neu geladen …" % build, true)
+			JavaScriptBridge.eval("location.href = 'ar-%d.html'" % build)
+		else:
+			status.emit("Build %d wird gerade veröffentlicht – in 2–3 Minuten noch einmal suchen." % build, true))
+	probe.request(base + "ar-%d.html" % build)
 
 
 ## Release-Antwort auswerten: Build-Nummer aus dem Tag und Download-Adresse der APK.
