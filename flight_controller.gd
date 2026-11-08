@@ -1,3 +1,4 @@
+# 2026-11-08 20:00 – Gierschwenk ab 22 % Gas mit (Grenze/Gas)² zurückgenommen (Wenderadius ≤ 2 m, kein Umkippen bei Vollgas); Mode 3: Vorlauf-Grenze nur bei bewegtem Höhenknüppel
 # 2026-11-08 16:20 – Expo auf dem Seitenknüppel (yaw_expo 0,3, im PID-Menü unter Mischer einstellbar)
 # 2026-11-08 15:25 – Mode 3: sanfter Gierdämpfer bei Knüppel Mitte (Kd_yaw_m3 0,4 – bei 60 % Schub blieben mit 0,2 noch ±23 °/s Pendeln; blendet aus, wenn der Drehratenregler einblendet)
 # 2026-11-07 23:00 – Regelung 1:1 aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3, Stand 04.11.2026) übernommen: controlANGLE (PID Nick/Roll in Grad, ×0,01), rateModeUpdate (Mode 3), mixServosStabilized / mixServosDirect mit Einbauwinkeln 60/300/180°, Rollwinkel-Drehung der Stabilisierung, Gesamt-Ausschlag 0,5 (Mode 2/3), Motorschwenker an der Roll-Regelung (MOTOR_ROLL_SIGN), Mode-1-Rolle auf dem linken Knüppel; alle Werte heißen wie im Teensy-Code; eigene Gierdämpfung und Allokations-Mischer entfallen; Einstellungen Version 10
@@ -198,10 +199,15 @@ var mode1_roll_motor := 0.0        ## Mode 1: Rolle → Motorschwenker (0 = aus)
 ## Expo auf dem Seitenknüppel (alle Modi): 0 = linear, 1 = ganz weich um die Mitte.
 ## Wie am RC-Sender: Ausgabe = (1 − e)·x + e·x³ – Vollausschlag bleibt 100 %.
 var yaw_expo := 0.3
+## Gashebel, bis zu dem der Gierschwenk voll wirkt (0,22 ≈ 5 % Schub); darüber
+## wird er mit (Grenze/Gas)² zurückgenommen. 1,0 = nie zurücknehmen (wie Teensy-Code).
+var yaw_swivel_full_lever := 0.22
+var yaw_swivel_scale := 1.0        ## aktueller Faktor (Anzeige/Test)
 
 ## Mischer-Werte fürs PID-Menü (Feld, Beschriftung, min, max, Schritt, Format)
 const MIX_PARAMS := [
 	["yaw_expo", "Expo Seitenknüppel (Gier)", 0.0, 1.0, 0.05, "%.2f"],
+	["yaw_swivel_full_lever", "Gierschwenk voll bis Gas", 0.05, 1.0, 0.01, "%.2f"],
 	["servo_throw_m23", "Gesamt-Ausschlag Mode 2/3", 0.1, 1.0, 0.05, "%.2f"],
 	["servo_throw_m1", "Gesamt-Ausschlag Mode 1", 0.1, 1.0, 0.05, "%.2f"],
 	["tail_pitch_gain", "tail_pitch_gain_m2", 0.0, 5.0, 0.1, "%.1f"],
@@ -315,8 +321,12 @@ func _physics_process(dt: float) -> void:
 			_pitch_sp_m3 += stick_p * pitch_rate_dps * d               # Sollwinkel wandert mit der Knüppel-Drehrate
 		else:
 			_pitch_sp_m3 = move_toward(_pitch_sp_m3, 0.0, pitch_return_dps * d)   # zurück auf 0
+		# Vorlauf-Grenze nur bei bewegtem Höhenknüppel (08.11.2026): im Teensy-Code wirkte sie
+		# immer und zog den Sollwinkel mit nach oben, wenn die Nase von selbst hochging
+		# (Vollgas in der Kurve); danach erst auf ±maxPitch begrenzen
+		if absf(stick_p) > M3_DEADBAND:
+			_pitch_sp_m3 = clampf(_pitch_sp_m3, pitch_imu - pitch_lead_deg, pitch_imu + pitch_lead_deg)
 		_pitch_sp_m3 = clampf(_pitch_sp_m3, -pitch_max_deg, pitch_max_deg)
-		_pitch_sp_m3 = clampf(_pitch_sp_m3, pitch_imu - pitch_lead_deg, pitch_imu + pitch_lead_deg)
 		pitch_des = _pitch_sp_m3                                         # ab hier arbeitet alles mit diesem Sollwinkel
 		var stick_y := yaw_des / MAX_YAW
 		var weight := clampf((absf(stick_y) - M3_DEADBAND) / M3_YAW_FADE, 0.0, 1.0)   # ohne Knüppel keine Gierdämpfung
@@ -358,6 +368,12 @@ func _physics_process(dt: float) -> void:
 	var tail_yaw := ys_t * yaw_des + yl_t
 	var tail_roll := roll_gain * roll_pid
 	var motor_roll := motor_roll_sign * motor_roll_gain * roll_pid       # gleichsinnig an beiden Schwenkern (wie Gier)
+	# Gierschwenk mit dem Gas zurücknehmen (08.11.2026): Der Schwenk entlang der Hülle
+	# rollt das Schiff mit Kraft ∝ Schub. Bis yaw_swivel_full_lever voller Schwenk,
+	# darüber Faktor (Grenze/Gas)², so bleibt die seitliche Schubkraft gleich groß.
+	# Simulator: Wenderadius in Mode 2/3 bei jedem Gas ≤ 2 m, Rollen ≤ 40°.
+	var lever := absf(cmd_throttle)
+	yaw_swivel_scale = 1.0 if lever <= yaw_swivel_full_lever else pow(yaw_swivel_full_lever / lever, 2.0)
 
 	_calibrate()
 	# Leitwerke: s = Mitte − (NickKnüppel·sin n + NickStab·sin(n+Roll) + Gier·cos n + Roll)
@@ -378,8 +394,10 @@ func _physics_process(dt: float) -> void:
 		var c: Dictionary = _mot_cal[i]
 		var n: float = c.n
 		var a: float = n + c.m * roll_imu
-		var delta: float = motor_pitch_stick * sin(deg_to_rad(n)) * c.wp + motor_pitch_stab * sin(deg_to_rad(a)) * c.wp \
-				+ (motor_yaw * cos(deg_to_rad(n)) + motor_roll) * c.wy
+		var dp: float = motor_pitch_stick * sin(deg_to_rad(n)) * c.wp + motor_pitch_stab * sin(deg_to_rad(a)) * c.wp
+		var dy: float = (motor_yaw * cos(deg_to_rad(n)) + motor_roll) * c.wy
+		dy *= yaw_swivel_scale                                          # Gierschwenk ab yaw_swivel_full_lever zurücknehmen
+		var delta: float = dp + dy
 		mot.swivel_cmd = _servo_to_cmd(c.s * delta, servo_throw_m23, mot.max_swivel_deg)
 		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)   # Gas nur vom Piloten, alle Motoren gleich
 
@@ -542,7 +560,7 @@ func apply_model_gains(gains: Dictionary) -> void:
 const GENERAL_KEYS := ["stick_mode", "pitch_max_deg", "pitch_rate_dps", "pitch_return_dps", "pitch_lead_deg",
 	"servo_throw_m1", "servo_throw_m23", "tail_pitch_gain", "motor_pitch_gain", "motor_roll_gain", "motor_roll_sign",
 	"stick_pitch_motor", "stick_pitch_tail", "mode1_stick_pitch_motor", "mode1_stick_yaw_motor",
-	"mode1_stick_pitch_tail", "mode1_stick_yaw_tail", "mode1_roll_tail", "mode1_roll_motor", "yaw_expo"]
+	"mode1_stick_pitch_tail", "mode1_stick_yaw_tail", "mode1_roll_tail", "mode1_roll_motor", "yaw_expo", "yaw_swivel_full_lever"]
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
