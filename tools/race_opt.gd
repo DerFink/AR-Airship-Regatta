@@ -1,3 +1,4 @@
+# 2026-11-08 22:40 – Tangentiale Sollbahn (path \"tan\"), Krümmungs-Vorsteuerung (kff), Reglerwerte je Kandidat (fc), Böen (noise_seed), Maße Bahnabweichung/Rollen
 # 2026-11-08 22:20 – Gasprofil je Kurve: vor der Kurve weg, im Bogen viel, danach kurz zurück, dann Gerade (t_cut/t_arc/t_dip/t_str)
 # 2026-11-08 22:10 – Vollgas-Stoß nach dem Bogen und am Start (boost, boost_start); Ein-/Ausgabedatei über RACE_IN/RACE_OUT
 # 2026-11-08 22:00 – Flossen so groß, dass sie nicht über das Boxmaß hinausragen (höchstens Chewie-Größe)
@@ -223,10 +224,20 @@ func _make_path(c: Dictionary) -> Array:
 		for k in n:
 			var a := lerpf(a0, a1, float(k) / n)
 			pts.append([center + Vector2(cos(a), sin(a)) * r, true])
-	seg.call(Vector2(0, R1), Vector2(dist, -R2), false)
-	arc_pts.call(Vector2(dist, 0), R2, -PI * 0.5, PI * 0.5)          # über +x-Seite (hinter Pylon 2)
-	seg.call(Vector2(dist, R2), Vector2(0, -R1), false)
-	arc_pts.call(Vector2(0, 0), R1, -PI * 0.5, -PI * 1.5)            # über −x-Seite (vor Pylon 1)
+	if str(c.get("path", "")) == "tan":
+		# Tangentiale Acht (08.11.2026): die Diagonalen berühren beide Kreise tangential
+		# (innere Tangenten), kein Knick am Bogenanfang ⇒ keine S-Kurven durch die Sollbahn
+		var al := asin(clampf((R1 + R2) / dist, -0.99, 0.99))
+		var sa := sin(al); var ca := cos(al)
+		seg.call(Vector2(R1 * sa, R1 * ca), Vector2(dist - R2 * sa, -R2 * ca), false)
+		arc_pts.call(Vector2(dist, 0), R2, -(PI * 0.5 + al), PI * 0.5 + al)
+		seg.call(Vector2(dist - R2 * sa, R2 * ca), Vector2(R1 * sa, -R1 * ca), false)
+		arc_pts.call(Vector2(0, 0), R1, -(PI * 0.5 - al), -(PI * 1.5 + al))
+	else:
+		seg.call(Vector2(0, R1), Vector2(dist, -R2), false)
+		arc_pts.call(Vector2(dist, 0), R2, -PI * 0.5, PI * 0.5)          # über +x-Seite (hinter Pylon 2)
+		seg.call(Vector2(dist, R2), Vector2(0, -R1), false)
+		arc_pts.call(Vector2(0, 0), R1, -PI * 0.5, -PI * 1.5)            # über −x-Seite (vor Pylon 1)
 	# Je Punkt: Weg bis zum nächsten Bogenanfang und Weg seit dem letzten Bogenende (m)
 	var n := pts.size()
 	var to_arc := []; to_arc.resize(n); var since := []; since.resize(n)
@@ -267,7 +278,28 @@ func _step(r: Dictionary, dt: float) -> void:
 		fc.apply_model_gains(s.fc_gains)
 		fc.mode = 0 if bool(c.get("model_opts", {}).get("no_fc", false)) else int(c.get("mode", 2))
 		fc.armed = true
+		# Reglerwerte überschreiben: {"yaw.Kp_yaw_m3": 0.5, "pitch.Kp": 0.7, "yaw_swivel_full_lever": 0.3}
+		var fo: Dictionary = c.get("fc", {})
+		for key in fo:
+			var parts := str(key).split(".")
+			if parts.size() == 2:
+				var ax: int = {"roll": FlightController.Axis.ROLL, "pitch": FlightController.Axis.PITCH, "yaw": FlightController.Axis.YAW}[parts[0]]
+				fc.params[ax][parts[1]] = float(fo[key])
+			else:
+				fc.set(str(key), float(fo[key]))
+		# Störungen (Böen): gleiche Folge je Startwert
+		if c.has("noise_seed"):
+			var rng := RandomNumberGenerator.new()
+			rng.seed = int(c.noise_seed)
+			r.rng = rng
+			r.next_kick = rng.randf_range(0.5, 2.0)
+			s.rotate_y(deg_to_rad(rng.randf_range(-5.0, 5.0)))
 	r.t += dt
+	if r.has("rng") and r.t >= r.next_kick:
+		var rng: RandomNumberGenerator = r.rng
+		r.next_kick = r.t + rng.randf_range(1.0, 3.0)
+		s.angular_velocity += Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized() * 0.3
+		s.linear_velocity += Vector3(rng.randf_range(-1, 1), 0.0, rng.randf_range(-1, 1)) * 0.3
 	var b := s.global_transform.basis
 	var p3: Vector3 = s.global_position - r.off
 	var p := Vector2(p3.x, p3.z)
@@ -289,7 +321,20 @@ func _step(r: Dictionary, dt: float) -> void:
 	var rgt := Vector2(right3.x, right3.z).normalized()
 	var want := (tgt - p).normalized()
 	var err := atan2(want.dot(rgt), want.dot(fwd))
-	var yaw := clampf(float(c.k) * err, -1.0, 1.0)
+	var yaw_cmd := float(c.k) * err
+	# Vorsteuerung (kff): Kursänderung der Sollbahn auf den nächsten 0,5 s als Gierrate,
+	# Seitenknüppel voll = 180 °/s (Mode 3)
+	if c.has("kff") and float(c.kff) > 0.0:
+		var v := maxf(s.linear_velocity.length(), 0.5)
+		var m := clampi(int(v * 0.5 / 0.1), 2, 60)
+		var t0: Vector2 = (path[(best + 1) % n][0] - path[best % n][0]).normalized()
+		var t1: Vector2 = (path[(best + m + 1) % n][0] - path[(best + m) % n][0]).normalized()
+		var d_psi := atan2(t1.dot(rgt), t1.dot(fwd)) - atan2(t0.dot(rgt), t0.dot(fwd))
+		d_psi = wrapf(d_psi, -PI, PI)
+		yaw_cmd += float(c.kff) * rad_to_deg(d_psi / 0.5) / 180.0
+	var yaw := clampf(yaw_cmd, -1.0, 1.0)
+	r.dev2 = r.get("dev2", 0.0) + bd * dt
+	r.roll_max = maxf(r.get("roll_max", 0.0), absf(rad_to_deg(atan2(-b.x.y, b.y.y))))
 	# Gas: im Bogen oder kurz davor gedrosselt
 	var brake_n := int(float(c.get("brake", 0.0)) / 0.1)
 	var in_turn: bool = path[(best + brake_n) % n][1] or path[best % n][1]
@@ -349,7 +394,8 @@ func _finish() -> void:
 			"box": [snappedf(bx.x, 0.001), snappedf(bx.y, 0.001), snappedf(bx.z, 0.001)], "vref": snappedf(vref, 0.0001),
 			"tau": snappedf(pow(vref, 1.0 / 3.0), 0.0001), "score": snappedf(total * pow(vref, 1.0 / 3.0), 0.01) if total > 0 else -1.0,
 			"mass_g": snappedf(r.s.structure_mass_kg * 1000.0, 0.1), "rest_g": snappedf(r.s.rest_mass_kg * 1000.0, 0.1),
-			"overweight": r.s.overweight, "motor_x": r.s.motors[0].hull_x})
+			"overweight": r.s.overweight, "motor_x": r.s.motors[0].hull_x,
+			"dev_rms": snappedf(sqrt(r.get("dev2", 0.0) / maxf(r.t, 0.01)), 0.001), "roll_max": snappedf(r.get("roll_max", 0.0), 0.1)})
 	var fa := FileAccess.open(OS.get_environment("RACE_OUT") if OS.has_environment("RACE_OUT") else "user://race_out.json", FileAccess.WRITE)
 	fa.store_string(JSON.stringify(out))
 	fa.close()
