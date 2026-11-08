@@ -1,3 +1,5 @@
+# 2026-11-08 22:20 – Gasprofil je Kurve: vor der Kurve weg, im Bogen viel, danach kurz zurück, dann Gerade (t_cut/t_arc/t_dip/t_str)
+# 2026-11-08 22:10 – Vollgas-Stoß nach dem Bogen und am Start (boost, boost_start); Ein-/Ausgabedatei über RACE_IN/RACE_OUT
 # 2026-11-08 22:00 – Flossen so groß, dass sie nicht über das Boxmaß hinausragen (höchstens Chewie-Größe)
 # 2026-11-08 21:50 – Bugmotor so platziert, dass er das Boxmaß nicht vergrößert
 # 2026-11-08 21:30 – Konfigurationen für den Vergleich (Volumen, Leitwerk X/+/λ/umgekehrtes V, Antrieb mit/ohne Schwenk/Bugmotor), Boxmaß und F7b-Wertung in der Ausgabe
@@ -36,7 +38,7 @@ var dist := Course.CUP_DISTANCE
 
 
 func _initialize() -> void:
-	var txt := FileAccess.get_file_as_string("user://race_in.json")
+	var txt := FileAccess.get_file_as_string(OS.get_environment("RACE_IN") if OS.has_environment("RACE_IN") else "user://race_in.json")
 	var inp = JSON.parse_string(txt)
 	trace = bool(inp.get("trace", false))
 	var i := 0
@@ -225,6 +227,21 @@ func _make_path(c: Dictionary) -> Array:
 	arc_pts.call(Vector2(dist, 0), R2, -PI * 0.5, PI * 0.5)          # über +x-Seite (hinter Pylon 2)
 	seg.call(Vector2(dist, R2), Vector2(0, -R1), false)
 	arc_pts.call(Vector2(0, 0), R1, -PI * 0.5, -PI * 1.5)            # über −x-Seite (vor Pylon 1)
+	# Je Punkt: Weg bis zum nächsten Bogenanfang und Weg seit dem letzten Bogenende (m)
+	var n := pts.size()
+	var to_arc := []; to_arc.resize(n); var since := []; since.resize(n)
+	var d := 1e9
+	for k in range(2 * n - 1, -1, -1):                    # rückwärts (zweimal herum, Bahn ist geschlossen)
+		var i := k % n
+		d = 0.0 if pts[i][1] else d + 0.1
+		if k < n: to_arc[i] = d
+	d = 1e9
+	for k in 2 * n:
+		var i := k % n
+		d = 0.0 if pts[i][1] else d + 0.1
+		if k >= n: since[i] = d
+	for i in n:
+		pts[i].append(to_arc[i]); pts[i].append(since[i])
 	return pts
 
 
@@ -277,6 +294,26 @@ func _step(r: Dictionary, dt: float) -> void:
 	var brake_n := int(float(c.brake) / 0.1)
 	var in_turn: bool = path[(best + brake_n) % n][1] or path[best % n][1]
 	var thr: float = c.t_turn if in_turn else c.t_str
+	# Gasprofil (08.11.2026, Erfahrung Pilot): vor der Kurve Gas weg (t_cut, cut_before m),
+	# im Bogen viel Gas (t_arc), nach dem Bogen kurz zurück (t_dip, dip_len m, sonst
+	# bäumt das Schiff auf), danach t_str; am Start boost_start s Vollgas
+	if c.has("t_arc"):
+		var pt: Array = path[best % n]
+		if pt[1]: thr = c.t_arc
+		elif pt[2] <= float(c.cut_before): thr = c.t_cut
+		elif pt[3] <= float(c.dip_len): thr = c.t_dip
+		else: thr = c.t_str
+	# Vollgas-Stoß (08.11.2026): „boost“ Meter nach jedem Bogen und am Start Vollgas,
+	# um schneller wieder Fahrt aufzunehmen (0 = aus)
+	var boost_n := int(float(c.get("boost", 0.0)) / 0.1)
+	if boost_n > 0 and not path[best % n][1]:
+		var after_arc := false
+		for kk in range(1, boost_n + 1, 5):
+			if path[(best - kk + n) % n][1]: after_arc = true; break
+		if after_arc:
+			thr = 1.0
+	if r.t < float(c.get("boost_start", 0.0)):
+		thr = 1.0
 	# Höhe halten (Nickknüppel: −y = Nase hoch)
 	var h: float = p3.y
 	var vz := s.linear_velocity.y
@@ -313,7 +350,7 @@ func _finish() -> void:
 			"tau": snappedf(pow(vref, 1.0 / 3.0), 0.0001), "score": snappedf(total * pow(vref, 1.0 / 3.0), 0.01) if total > 0 else -1.0,
 			"mass_g": snappedf(r.s.structure_mass_kg * 1000.0, 0.1), "rest_g": snappedf(r.s.rest_mass_kg * 1000.0, 0.1),
 			"overweight": r.s.overweight, "motor_x": r.s.motors[0].hull_x})
-	var fa := FileAccess.open("user://race_out.json", FileAccess.WRITE)
+	var fa := FileAccess.open(OS.get_environment("RACE_OUT") if OS.has_environment("RACE_OUT") else "user://race_out.json", FileAccess.WRITE)
 	fa.store_string(JSON.stringify(out))
 	fa.close()
 	print("FERTIG ", out.size())
