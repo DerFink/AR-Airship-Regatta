@@ -1,3 +1,4 @@
+# 2026-11-08 15:25 – Schalter SH (Kanal 7) setzt zurück
 # 2026-11-08 14:30 – Sender per USB (Taranis als Joystick): Knüppel, SF = Arming, SC = Modus; Sender getrennt → Motoren aus
 # 2026-11-07 23:55 – Knopf „Zurücksetzen“ wieder oben rechts (vor „Armed“ und „Menü“)
 # 2026-11-07 21:10 – Oben rechts nur noch „Armed“ und „Menü“; Bau, Strecke, PID, AR, Zurücksetzen, Modellwahl, Bestenliste und Version im Menü (MainMenu); Modusschalter in der oberen Reihe
@@ -130,6 +131,7 @@ func _ready() -> void:
 		show_notice("Sender getrennt – Motoren aus", "warning", 4.0))
 	_joy.arm_switched.connect(func(on):
 		if fc: fc.armed = on)
+	_joy.reset_switched.connect(func(): reset_requested.emit())   # SH oben = Zurücksetzen
 	_joy.mode_switched.connect(func(m):
 		if fc and int(fc.mode) != m:
 			fc.mode = m

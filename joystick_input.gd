@@ -1,3 +1,4 @@
+# 2026-11-08 15:25 – Schalter SH auf Kanal 7: nach oben umlegen = Zurücksetzen
 # 2026-11-08 14:30 – Erstversion: Taranis (EdgeTX, USB-Joystick) als Fernsteuerung: Knüppel wie am Handy, SF = Arming (unten scharf), SC = Modus (oben Mode 1 / Mitte Mode 2 / unten Mode 3)
 # =============================================================================
 # JoystickInput.gd
@@ -13,6 +14,7 @@
 #   CH4  linker Knüppel links/rechts              → Rolle in Mode 1
 #   CH5  Schalter SF  oben = nicht scharf, unten = scharf (Arming)
 #   CH6  Schalter SC  oben = Mode 1 (Direkt), Mitte = Mode 2, unten = Mode 3
+#   CH7  Schalter SH  oben = zurücksetzen (wirkt im Moment des Umlegens nach oben, einmal)
 # Läuft eine Richtung verkehrt, im Sender beim Kanal die Gewichtung auf −100 % stellen.
 #
 # Sicherheit:
@@ -30,6 +32,8 @@ signal disconnected
 signal arm_switched(armed: bool)
 ## Schalter SC umgelegt: 0 = Mode 1 (Direkt), 1 = Mode 2, 2 = Mode 3
 signal mode_switched(mode: int)
+## Schalter SH nach oben gelegt: Luftschiff zurücksetzen (an den Start)
+signal reset_switched
 
 # Achsen (Kanal − 1) im klassischen EdgeTX-Joystick-Modus
 const AXIS_YAW := 0        ## CH1 Seite
@@ -38,6 +42,7 @@ const AXIS_THROTTLE := 2   ## CH3 Gas
 const AXIS_ROLL := 3       ## CH4 linker Knüppel links/rechts
 const AXIS_ARM := 4        ## CH5 Schalter SF
 const AXIS_MODE := 5       ## CH6 Schalter SC
+const AXIS_RESET := 6      ## CH7 Schalter SH (oben = zurücksetzen)
 ## EdgeTX gibt +100 % als +1 aus (Höhe und Gas hoch = +100 %), das passt direkt
 ## zu den Bildschirmknüppeln (hoch = +). Bei true wird die Achse umgedreht.
 const INVERT_PITCH := false
@@ -49,6 +54,7 @@ var right := Vector2.ZERO           ## wie der rechte Bildschirmknüppel (x = Gi
 var _arm_state := -1                ## −1 = unbekannt, 0 = oben, 1 = unten
 var _arm_seen_off := false          ## SF war seit dem Einstecken mindestens einmal oben
 var _mode_state := -1
+var _reset_state := -1              ## −1 = unbekannt, 1 = oben, 0 = unten
 
 
 func _ready() -> void:
@@ -72,7 +78,7 @@ func _pick_device() -> void:
 	device = pads[0] if pads.size() > 0 else -1
 	if device == old:
 		return
-	_arm_state = -1; _arm_seen_off = false; _mode_state = -1
+	_arm_state = -1; _arm_seen_off = false; _mode_state = -1; _reset_state = -1
 	left = Vector2.ZERO; right = Vector2.ZERO
 	if device >= 0:
 		connected.emit(Input.get_joy_name(device))
@@ -106,6 +112,13 @@ func _process(_dt: float) -> void:
 	if m != _mode_state:
 		_mode_state = m
 		mode_switched.emit(m)
+	# Schalter SH: Zurücksetzen nur beim Umlegen nach oben (Kanal < −50 %), nicht
+	# dauernd und nicht beim Einstecken, wenn SH schon oben steht
+	var rs := 1 if Input.get_joy_axis(device, AXIS_RESET) < -0.5 else 0
+	if rs != _reset_state:
+		if _reset_state == 0 and rs == 1:
+			reset_switched.emit()
+		_reset_state = rs
 
 
 ## Kleine Totzone um die Mitte (Knüppel-Rauschen)

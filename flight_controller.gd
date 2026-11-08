@@ -1,3 +1,4 @@
+# 2026-11-08 15:25 – Mode 3: sanfter Gierdämpfer bei Knüppel Mitte (Kd_yaw_m3 0,4 – bei 60 % Schub blieben mit 0,2 noch ±23 °/s Pendeln; blendet aus, wenn der Drehratenregler einblendet)
 # 2026-11-07 23:00 – Regelung 1:1 aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3, Stand 04.11.2026) übernommen: controlANGLE (PID Nick/Roll in Grad, ×0,01), rateModeUpdate (Mode 3), mixServosStabilized / mixServosDirect mit Einbauwinkeln 60/300/180°, Rollwinkel-Drehung der Stabilisierung, Gesamt-Ausschlag 0,5 (Mode 2/3), Motorschwenker an der Roll-Regelung (MOTOR_ROLL_SIGN), Mode-1-Rolle auf dem linken Knüppel; alle Werte heißen wie im Teensy-Code; eigene Gierdämpfung und Allokations-Mischer entfallen; Einstellungen Version 10
 # 2026-11-07 22:10 – Gierdämpfung bei losgelassenem Seitenknüppel in Mode 2/3 (Chewie drehte sonst endlos weiter), begrenzt auf ±30 % Ausschlag, blendet beim Steuern aus; Einstellungen Version 9
 # 2026-11-07 20:45 – Nur noch drei Modi wie am echten Chewie (Kanal 13): Direkt, Mode 2, Mode 3 nach dRehmFlight-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3); Geregelt, Luftschiff und Gedämpft entfallen; Gier mit getrennten Anteilen Leitwerk/Motorschwenk (Mode 2: 0,6/1,28; Mode 3: Vorsteuerung 0,85/1,125 + Drehratenregler 0,0014/0,0011 je °/s); Nick Mode 2 = Sollwinkel ±30°, Mode 3 = Nickrate 45 °/s; Roll über einfachen Feder-Dämpfer; Gas-Anpassung und Nick-Ruheband entfallen; Einstellungen Version 8
@@ -139,6 +140,7 @@ var _pitch_sp_m3 := 0.0  ## pitchSetpointM3 (Grad)
 #   Gier  stick_yaw_motor/tail        Mode 2 Vorsteuerung (Servoweg je °/s-Knüppelwert)
 #         stick_yaw_motor/tail_m3     Mode 3 Vorsteuerung
 #         Kp_yaw_m3                   Mode 3 Drehratenregler (×0,01 je °/s)
+#         Kd_yaw_m3                   Mode 3 Gierdämpfer bei Knüppel Mitte (×0,01 je °/s, nicht im Teensy-Code)
 #         yaw_rate_max                MODE3_YAW_RATE_MAX_DPS
 #         yaw_loop_motor/tail_m3      Mode 3 Regler → Servoweg
 # =============================================================================
@@ -147,7 +149,7 @@ var params := {
 	Axis.ROLL:  {"Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "roll_vs_pitch": 1.5},
 	Axis.YAW:   {"stick_yaw_motor": 0.016, "stick_yaw_tail": 0.005,
 				 "stick_yaw_motor_m3": 0.0125, "stick_yaw_tail_m3": 0.00625,
-				 "Kp_yaw_m3": 0.4, "yaw_rate_max": 180.0, "yaw_loop_motor_m3": 0.6, "yaw_loop_tail_m3": 0.5},
+				 "Kp_yaw_m3": 0.4, "Kd_yaw_m3": 0.4, "yaw_rate_max": 180.0, "yaw_loop_motor_m3": 0.6, "yaw_loop_tail_m3": 0.5},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
@@ -170,6 +172,7 @@ const UI_PARAMS := {
 		{"term": "stick_yaw_motor_m3", "label": "Mode 3 stick_yaw_motor_m3", "min": 0.0, "max": 0.05, "step": 0.00025, "fmt": "%.5f"},
 		{"term": "stick_yaw_tail_m3", "label": "Mode 3 stick_yaw_tail_m3", "min": 0.0, "max": 0.05, "step": 0.00025, "fmt": "%.5f"},
 		{"term": "Kp_yaw_m3", "label": "Mode 3 Kp_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "Kd_yaw_m3", "label": "Mode 3 Gierdämpfer Kd_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
 		{"term": "yaw_rate_max", "label": "Mode 3 Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
 		{"term": "yaw_loop_motor_m3", "label": "Mode 3 yaw_loop_motor_m3", "min": 0.0, "max": 2.0, "step": 0.05},
 		{"term": "yaw_loop_tail_m3", "label": "Mode 3 yaw_loop_tail_m3", "min": 0.0, "max": 2.0, "step": 0.05},
@@ -307,6 +310,12 @@ func _physics_process(dt: float) -> void:
 		var stick_y := yaw_des / MAX_YAW
 		var weight := clampf((absf(stick_y) - M3_DEADBAND) / M3_YAW_FADE, 0.0, 1.0)   # ohne Knüppel keine Gierdämpfung
 		yaw_rate_pid = weight * 0.01 * Y.Kp_yaw_m3 * (stick_y * Y.yaw_rate_max - gyro_yaw)
+		# Gierdämpfer (08.11.2026, Wunsch Nutzer – nicht im Teensy-Code): bei Knüppel
+		# in der Mitte bremst der Kreisel die Drehung sanft ab. Er blendet genau dort
+		# aus, wo der Drehratenregler einblendet (1 − weight), wirkt also nie doppelt.
+		# Bewusst schwächer als der Nick-Dämpfer (Kd_yaw_m3 0,4 ⇒ 0,002 Servoweg je °/s
+		# am Leitwerk, Nick: Kd 0,15 × tail_pitch_gain 2 = 0,003).
+		yaw_rate_pid += (1.0 - weight) * 0.01 * -Y.Kd_yaw_m3 * gyro_yaw
 
 	# --- controlANGLE(): PID Roll und Nick (Grad, ×0,01) ------------------------
 	var R: Dictionary = params[Axis.ROLL]
