@@ -1,3 +1,4 @@
+# 2026-11-08 15:40 – Hinweis beim Verbinden: SF oben = scharf
 # 2026-11-08 15:25 – Schalter SH (Kanal 7) setzt zurück
 # 2026-11-08 14:30 – Sender per USB (Taranis als Joystick): Knüppel, SF = Arming, SC = Modus; Sender getrennt → Motoren aus
 # 2026-11-07 23:55 – Knopf „Zurücksetzen“ wieder oben rechts (vor „Armed“ und „Menü“)
@@ -125,7 +126,7 @@ func _ready() -> void:
 	# --- Sender per USB (Taranis/EdgeTX als Joystick) -------------------------
 	_joy = JoystickInput.new()
 	add_child(_joy)
-	_joy.connected.connect(func(n): show_notice("Sender verbunden: %s – SF unten = scharf, SC = Modus" % n, "info", 4.0))
+	_joy.connected.connect(func(n): show_notice("Sender verbunden: %s – SF oben = scharf, SC = Modus" % n, "info", 4.0))
 	_joy.disconnected.connect(func():
 		if fc: fc.armed = false                     # Failsafe: Sender weg → Motoren aus
 		show_notice("Sender getrennt – Motoren aus", "warning", 4.0))

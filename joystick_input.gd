@@ -1,3 +1,4 @@
+# 2026-11-08 15:40 – Arming andersherum: SF oben = scharf, SF unten = aus
 # 2026-11-08 15:25 – Schalter SH auf Kanal 7: nach oben umlegen = Zurücksetzen
 # 2026-11-08 14:30 – Erstversion: Taranis (EdgeTX, USB-Joystick) als Fernsteuerung: Knüppel wie am Handy, SF = Arming (unten scharf), SC = Modus (oben Mode 1 / Mitte Mode 2 / unten Mode 3)
 # =============================================================================
@@ -12,14 +13,14 @@
 #   CH2  Höhe    (rechter Knüppel hoch/runter)    → Nick
 #   CH3  Gas     (linker Knüppel hoch/runter)     → Gas (Mitte = Stopp, wie am echten Chewie)
 #   CH4  linker Knüppel links/rechts              → Rolle in Mode 1
-#   CH5  Schalter SF  oben = nicht scharf, unten = scharf (Arming)
+#   CH5  Schalter SF  oben = scharf, unten = nicht scharf (Arming)
 #   CH6  Schalter SC  oben = Mode 1 (Direkt), Mitte = Mode 2, unten = Mode 3
 #   CH7  Schalter SH  oben = zurücksetzen (wirkt im Moment des Umlegens nach oben, einmal)
 # Läuft eine Richtung verkehrt, im Sender beim Kanal die Gewichtung auf −100 % stellen.
 #
 # Sicherheit:
-#   - Scharf wird nur beim UMSCHALTEN von SF nach unten (steht SF beim Einstecken
-#     schon unten, bleibt alles aus, bis SF einmal oben war).
+#   - Scharf wird nur beim UMSCHALTEN von SF nach oben (steht SF beim Einstecken
+#     schon oben, bleibt alles aus, bis SF einmal unten war).
 #   - Wird der Sender abgezogen, gehen die Motoren sofort aus.
 # =============================================================================
 class_name JoystickInput
@@ -96,8 +97,8 @@ func _process(_dt: float) -> void:
 	left = Vector2(_dz(roll), _dz(thr))                # Gas: Mitte = Stopp
 	right = Vector2(_dz(yaw), _dz(pitch))
 
-	# Schalter SF: unten (Kanal > +50 %) = scharf
-	var a := 1 if Input.get_joy_axis(device, AXIS_ARM) > 0.5 else 0
+	# Schalter SF: oben (Kanal < −50 %) = scharf, unten = aus (Wunsch Nutzer 08.11.2026)
+	var a := 1 if Input.get_joy_axis(device, AXIS_ARM) < -0.5 else 0
 	if a != _arm_state:
 		var first := _arm_state < 0
 		_arm_state = a
@@ -105,7 +106,7 @@ func _process(_dt: float) -> void:
 			_arm_seen_off = true
 			if not first: arm_switched.emit(false)
 		elif _arm_seen_off:
-			arm_switched.emit(true)                  # nur nach echtem Umlegen von oben nach unten
+			arm_switched.emit(true)                  # nur nach echtem Umlegen von unten nach oben
 	# Schalter SC: oben / Mitte / unten
 	var mv := Input.get_joy_axis(device, AXIS_MODE)
 	var m := 0 if mv < -0.5 else (2 if mv > 0.5 else 1)
