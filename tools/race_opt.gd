@@ -1,3 +1,4 @@
+# 2026-11-08 21:30 – Konfigurationen für den Vergleich (Volumen, Leitwerk X/+/λ/umgekehrtes V, Antrieb mit/ohne Schwenk/Bugmotor), Boxmaß und F7b-Wertung in der Ausgabe
 # 2026-11-08 21:00 – Erstversion: Autopilot fliegt die Acht (3 Runden, fliegender Start) mit mehreren Parametersätzen gleichzeitig; Ergebnis als JSON, beste Bahn als CSV
 # =============================================================================
 # race_opt.gd  (Werkzeug, headless:  godot --headless --fixed-fps 60 -s tools/race_opt.gd)
@@ -56,13 +57,127 @@ func _initialize() -> void:
 		i += 1
 
 
-## Modell-Varianten (für spätere Konfigurationsvergleiche)
+## Modell-Varianten für den Konfigurationsvergleich (08.11.2026)
+##   thrust / swivel        Schub je Motor (N) bzw. Schwenkbereich (°) überschreiben
+##   volume                 Hüllenvolumen (m³), L/D bleibt 6; alles andere skaliert:
+##                          Fläche/Schub/Motoren/Schwenk ∝ (V/0,25)^(2/3), Hülle 27 g/m²
+##   tail   "X" | "+" | "L" (Lambda) | "IV" (umgekehrtes V + Finne oben bis zur Boxkante)
+##   prop   "swivel" (2 Motoren seitlich unten, Schwenk entlang der Hülle, wie Chewie)
+##          "fixed"  (dieselben Motoren ohne Schwenk)
+##          "bow"    (1 Motor vorn unten, schwenkt um die Hochachse, liegt im Boxmaß)
+##   no_fc  true = ohne Teensy (Mode 1 Direkt, Elektronik leichter)
 func _apply_opts(s: AirshipPhysics, o: Dictionary) -> void:
+	if o.has("volume") or o.has("tail") or o.has("prop"):
+		_build_config(s, o)
 	if o.has("thrust"):
 		for m in s.motors: m.max_thrust_n = float(o.thrust)
 	if o.has("swivel"):
 		for m in s.motors: m.max_swivel_deg = float(o.swivel)
 	s.rebuild_mass_properties()
+
+
+func _build_config(s: AirshipPhysics, o: Dictionary) -> void:
+	var V := float(o.get("volume", 0.25))
+	var k := pow(V / 0.25, 2.0 / 3.0)                 # Flächen-/Schub-Maßstab
+	var kl := pow(V / 0.25, 1.0 / 3.0)                # Längen-Maßstab
+	s.hull.volume_m3 = V
+	s.set_hull(s.hull)
+	# Hülle 27 g/m² (Oberfläche aus der Gertler-Form)
+	s.hull_mass_kg = 0.027 * _hull_area(s.hull)
+	# Elektronik: Teensy + RX + BEC 30 g; ohne Teensy 25 g
+	s.electronics_mass_kg = 0.025 if bool(o.get("no_fc", false)) else 0.030
+	# Leitwerk: gleiche Gesamtfläche wie Chewie (3 × 0,0361 m²) × k, Pendelflossen ±50°
+	var t: TailConfig = s.tail
+	var a_tot := 3.0 * 0.0361 * k
+	t.split_hv = false
+	match str(o.get("tail", "L")):
+		"X":
+			t.layout = TailConfig.Layout.CROSS; t.area_m2 = a_tot / 4.0
+		"+":
+			t.layout = TailConfig.Layout.PLUS; t.area_m2 = a_tot / 4.0
+		"IV":
+			# zwei Schrägflossen 30° unter der Waagrechten tragen die Fläche,
+			# oben eine Finne nur bis zur Oberkante der Hülle (Boxmaß unverändert)
+			t.layout = TailConfig.Layout.LAMBDA; t.v_angle_deg = 30.0; t.split_hv = true
+			t.area_h_m2 = a_tot / 2.0
+			var gap := s.hull.diameter_m * 0.5 - s.hull.radius_at(t.hull_x)
+			t.area_v_m2 = maxf(0.002, gap * gap / t.aspect_ratio)
+		_:
+			t.layout = TailConfig.Layout.LAMBDA; t.v_angle_deg = 30.0; t.area_m2 = a_tot / 3.0
+	s.fin_mass_kg = 0.010 * k                          # Flosse + Servo
+	s.tail = t
+	s.surfaces.clear()
+	# Antrieb
+	var prop := str(o.get("prop", "swivel"))
+	var thrust := 7.0 * k
+	var rp := 0.0508 * kl                             # 4"-Propeller, mit der Länge skaliert
+	var mots: Array[VectorMotor] = []
+	if prop == "bow":
+		var m := AirshipPresets.make_motor("Bugmotor", 0.10, 180.0, 2.0 * thrust, 45.0, 90.0)
+		m.prop_diameter_in = 4.0 * kl * sqrt(2.0)
+		m.standoff_m = rp * sqrt(2.0) + 0.01
+		m.mass_kg = (2.0 * 0.0185 + 0.0115) * k        # Motor für doppelten Schub + ein Schwenkservo
+		m.reverse_allowed = true; m.reverse_efficiency = 0.55; m.spool_time_s = 0.03
+		mots.append(m)
+	else:
+		mots = AirshipPresets.chewie_motor_pair()
+		for m in mots:
+			m.max_thrust_n = thrust
+			m.standoff_m = rp + 0.01
+			m.prop_diameter_in = 4.0 * kl
+			if prop == "fixed":
+				m.max_swivel_deg = 0.0
+				m.mass_kg = 0.0185 * k                    # ohne Schwenkmechanismus (23 g für beide)
+			else:
+				m.mass_kg = 0.030 * k
+	s.motors = mots
+	s.rebuild_mass_properties()
+	# Motoren seitlich: so weit vorn/unten setzen, dass sie das Boxmaß nicht vergrößern
+	if prop != "bow":
+		var base := _box(s, true)
+		for x in [0.25, 0.22, 0.19, 0.16, 0.13, 0.10]:
+			for m in s.motors: m.hull_x = x
+			s.rebuild_mass_properties()
+			var b := _box(s, false)
+			if b.y <= base.y + 0.001 and b.z <= base.z + 0.001:
+				break
+
+
+## Oberfläche der Gertler-Hülle (Kegelstumpf-Summe)
+static func _hull_area(h: GertlerHull) -> float:
+	var A := 0.0
+	var n := 400
+	for i in n:
+		var x0 := float(i) / n
+		var x1 := float(i + 1) / n
+		var r0 := h.radius_at(x0)
+		var r1 := h.radius_at(x1)
+		var dl := (x1 - x0) * h.length_m
+		A += PI * (r0 + r1) * sqrt(dl * dl + (r1 - r0) * (r1 - r0))
+	return A
+
+
+## Boxmaß über alles (x = Länge, y = Breite, z = Höhe): Hülle, Flossen,
+## Motoren mit Propellerkreis, Akku unten (2 cm × Längenmaßstab).
+## hull_only: nur Hülle, Flossen und Akku (Bezug für die Motorplatzierung).
+func _box(s: AirshipPhysics, hull_only: bool) -> Vector3:
+	var h := s.hull
+	var r := h.diameter_m * 0.5
+	var kl := pow(h.volume_m3 / 0.25, 1.0 / 3.0)
+	var right := r; var left := r; var up := r; var down := r + 0.02 * kl
+	for srf in s.surfaces:
+		if not srf.tail_member: continue
+		var a := deg_to_rad(srf.hull_angle_deg)
+		var tip := h.radius_at(srf.hull_x) + sqrt(srf.aspect_ratio * srf.area_m2)
+		right = maxf(right, tip * sin(a)); left = maxf(left, -tip * sin(a))
+		up = maxf(up, tip * cos(a)); down = maxf(down, -tip * cos(a))
+	if not hull_only:
+		for m in s.motors:
+			var rp := m.prop_diameter_in * 0.0254 * 0.5
+			var c: Vector3 = m.position
+			right = maxf(right, c.x + rp); left = maxf(left, -c.x + rp)
+			up = maxf(up, c.y + rp); down = maxf(down, -c.y + rp)
+	return Vector3(h.length_m, right + left, up + down)
 
 
 ## Bahn als Punktliste (je ≈ 0,1 m) mit Markierung „im Bogen“
@@ -105,7 +220,7 @@ func _step(r: Dictionary, dt: float) -> void:
 	var c: Dictionary = r.c
 	if f == 1:
 		fc.apply_model_gains(s.fc_gains)
-		fc.mode = int(c.get("mode", 2))
+		fc.mode = 0 if bool(c.get("model_opts", {}).get("no_fc", false)) else int(c.get("mode", 2))
 		fc.armed = true
 	r.t += dt
 	var b := s.global_transform.basis
@@ -163,7 +278,13 @@ func _finish() -> void:
 		var total := -1.0
 		if course.race == Course.Race.DONE and r.fail == "":
 			total = snappedf(course.time_s, 0.01)
-		out.append({"c": r.c, "total": total, "laps": laps, "fail": r.fail, "tr": r.tr if trace else []})
+		var bx := _box(r.s, false)
+		var vref := bx.x * bx.y * bx.z * PI / 6.0
+		out.append({"c": r.c, "total": total, "laps": laps, "fail": r.fail, "tr": r.tr if trace else [],
+			"box": [snappedf(bx.x, 0.001), snappedf(bx.y, 0.001), snappedf(bx.z, 0.001)], "vref": snappedf(vref, 0.0001),
+			"tau": snappedf(pow(vref, 1.0 / 3.0), 0.0001), "score": snappedf(total * pow(vref, 1.0 / 3.0), 0.01) if total > 0 else -1.0,
+			"mass_g": snappedf(r.s.structure_mass_kg * 1000.0, 0.1), "rest_g": snappedf(r.s.rest_mass_kg * 1000.0, 0.1),
+			"overweight": r.s.overweight, "motor_x": r.s.motors[0].hull_x})
 	var fa := FileAccess.open("user://race_out.json", FileAccess.WRITE)
 	fa.store_string(JSON.stringify(out))
 	fa.close()
