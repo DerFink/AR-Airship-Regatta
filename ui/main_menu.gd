@@ -1,3 +1,4 @@
+# 2026-11-08 18:00 – Zeile „Sender“ im Menü: verbundenes Gerät (grün) oder „Kein Sender – Bildschirmknüppel“
 # 2026-11-07 21:10 – Erstversion: Menü in der Flugansicht nach freigegebenem Entwurf (zweispaltig: Modell wählen, Bau, Strecke, Bestenliste, PID / Flugcontroller, AR, Zurücksetzen; Fußzeile mit Version und „Nach Update suchen“)
 # =============================================================================
 # MainMenu.gd
@@ -35,6 +36,7 @@ var info_source: Callable
 var _panel: PanelContainer
 var _grid: GridContainer
 var _ver: Label
+var _dev: Label                   ## Zeile „Sender: …“ bzw. „Kein Sender – Bildschirmknüppel“
 var _status: Label
 var _btn_update: Button
 var _updater: Updater
@@ -62,6 +64,12 @@ func _ready() -> void:
 	_grid.add_theme_constant_override("h_separation", UITheme.space("sm"))
 	_grid.add_theme_constant_override("v_separation", UITheme.space("sm"))
 	box.add_child(_grid)
+
+	# Zeile „Sender“: welches Gerät steuert (Taranis per USB) oder Bildschirmknüppel
+	_dev = UITheme.make_label("", "MutedLabel")
+	_dev.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dev.custom_minimum_size.x = 400
+	box.add_child(_dev)
 
 	# Fußzeile: Version und Update-Suche
 	var foot := UITheme.make_hbox("sm")
@@ -105,6 +113,13 @@ func hide_menu() -> void:
 func _fill() -> void:
 	for c in _grid.get_children(): c.queue_free()
 	var info: Dictionary = info_source.call() if info_source.is_valid() else {}
+	var joy: String = info.get("joy", "")
+	if joy != "":
+		_dev.text = "● Sender: %s    SF oben = scharf · SC = Modus · SH = Zurücksetzen" % joy
+		_dev.modulate = Color(0.55, 0.9, 0.65)          # grün = verbunden
+	else:
+		_dev.text = "Kein Sender – Bildschirmknüppel"
+		_dev.modulate = Color(1, 1, 1)
 	_add("Modell wählen", info.get("model", ""), model_requested)
 	_add("Bau", "", builder_requested)
 	_add("Strecke", info.get("course", ""), course_requested)

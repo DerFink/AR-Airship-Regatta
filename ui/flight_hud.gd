@@ -1,3 +1,4 @@
+# 2026-11-08 18:00 – Menü zeigt das verbundene Sendergerät
 # 2026-11-08 17:15 – Bildschirmknüppel bewegen sich mit den Senderknüppeln
 # 2026-11-08 15:40 – Hinweis beim Verbinden: SF oben = scharf
 # 2026-11-08 15:25 – Schalter SH (Kanal 7) setzt zurück
@@ -145,6 +146,7 @@ func _ready() -> void:
 	_menu.info_source = func():
 		var d: Dictionary = menu_info.call() if menu_info.is_valid() else {}
 		d["ar"] = _ar_on
+		d["joy"] = Input.get_joy_name(_joy.device) if _joy and _joy.active() else ""
 		return d
 	_menu.model_requested.connect(func(): model_requested.emit())
 	_menu.builder_requested.connect(func(): builder_requested.emit())
