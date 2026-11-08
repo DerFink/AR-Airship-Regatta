@@ -291,9 +291,9 @@ func _step(r: Dictionary, dt: float) -> void:
 	var err := atan2(want.dot(rgt), want.dot(fwd))
 	var yaw := clampf(float(c.k) * err, -1.0, 1.0)
 	# Gas: im Bogen oder kurz davor gedrosselt
-	var brake_n := int(float(c.brake) / 0.1)
+	var brake_n := int(float(c.get("brake", 0.0)) / 0.1)
 	var in_turn: bool = path[(best + brake_n) % n][1] or path[best % n][1]
-	var thr: float = c.t_turn if in_turn else c.t_str
+	var thr: float = float(c.get("t_turn", 0.5)) if in_turn else float(c.t_str)
 	# Gasprofil (08.11.2026, Erfahrung Pilot): vor der Kurve Gas weg (t_cut, cut_before m),
 	# im Bogen viel Gas (t_arc), nach dem Bogen kurz zurück (t_dip, dip_len m, sonst
 	# bäumt das Schiff auf), danach t_str; am Start boost_start s Vollgas
