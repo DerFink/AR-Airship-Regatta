@@ -1,3 +1,4 @@
+# 2026-11-08 17:15 – Sender automatisch unter mehreren Geräten finden (Name FrSky/Taranis/EdgeTX oder ausgelenkte Schalterkanäle), alle 0,5 s neu prüfen
 # 2026-11-08 15:40 – Arming andersherum: SF oben = scharf, SF unten = aus
 # 2026-11-08 15:25 – Schalter SH auf Kanal 7: nach oben umlegen = Zurücksetzen
 # 2026-11-08 14:30 – Erstversion: Taranis (EdgeTX, USB-Joystick) als Fernsteuerung: Knüppel wie am Handy, SF = Arming (unten scharf), SC = Modus (oben Mode 1 / Mitte Mode 2 / unten Mode 3)
@@ -72,11 +73,27 @@ func _on_joy_changed(_dev: int, _connected: bool) -> void:
 	_pick_device()
 
 
-## Ersten angeschlossenen Joystick nehmen.
+## Sender unter den angeschlossenen Geräten suchen. Am PC hängen oft weitere
+## „Joysticks“ (Headsets, Tastaturen mit Zusatztasten, virtuelle Controller) –
+## deshalb zuerst nach dem Namen (FrSky/Taranis/EdgeTX/OpenTX), sonst das Gerät
+## mit den meisten ausgelenkten Achsen (am Sender stehen die Schalterkanäle
+## SF/SC/SH immer am Anschlag, ein unbenutztes Gerät meldet 0).
 func _pick_device() -> void:
 	var pads := Input.get_connected_joypads()
 	var old := device
-	device = pads[0] if pads.size() > 0 else -1
+	device = -1
+	var best := -1.0
+	for d in pads:
+		var n := Input.get_joy_name(d).to_lower()
+		var score := 0.0
+		for key in ["frsky", "taranis", "edgetx", "opentx", "radiomaster", "jumper"]:
+			if key in n:
+				score += 100.0
+		for ax in 8:
+			score += absf(Input.get_joy_axis(d, ax))
+		if score > best:
+			best = score
+			device = d
 	if device == old:
 		return
 	_arm_state = -1; _arm_seen_off = false; _mode_state = -1; _reset_state = -1
@@ -87,7 +104,15 @@ func _pick_device() -> void:
 		disconnected.emit()                          # Failsafe: Motoren aus (macht die Flugansicht)
 
 
-func _process(_dt: float) -> void:
+var _rescan_t := 0.0
+
+func _process(dt: float) -> void:
+	# Alle 0,5 s neu wählen: der Browser meldet Geräte erst nach der ersten Bewegung,
+	# und das zuerst gemeldete Gerät ist nicht unbedingt der Sender
+	_rescan_t -= dt
+	if _rescan_t <= 0.0:
+		_rescan_t = 0.5
+		_pick_device()
 	if device < 0:
 		return
 	var yaw := Input.get_joy_axis(device, AXIS_YAW)

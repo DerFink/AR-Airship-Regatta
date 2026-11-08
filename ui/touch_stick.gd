@@ -1,3 +1,4 @@
+# 2026-11-08 17:15 – show_external(): Knüppel zeigt die Stellung des angeschlossenen Senders
 # 2026-10-27 10:42 – Erstversion: virtueller Knüppel mit Multitouch, Totzone, Selbstzentrierung je Achse, Maus-Ersatz für Desktop, Farben aus UITheme
 # =============================================================================
 # TouchStick.gd
@@ -106,6 +107,13 @@ func _set_value(v: Vector2) -> void:
 # -----------------------------------------------------------------------------
 # Zeichnen: Ring, Fadenkreuz, Knopf, Beschriftung – alles aus UITheme
 # -----------------------------------------------------------------------------
+## Knüppel von außen stellen (Sender per USB): der Knopf zeigt die Stellung
+## der Fernsteuerung. Wird ignoriert, solange ein Finger/die Maus ihn hält.
+func show_external(v: Vector2) -> void:
+	if _finger < 0 and not _mouse_down:
+		_set_value(v)
+
+
 func _draw() -> void:
 	var c := _ring_center()
 	var r := _radius()

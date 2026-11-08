@@ -1,3 +1,4 @@
+# 2026-11-08 17:15 – Bildschirmknüppel bewegen sich mit den Senderknüppeln
 # 2026-11-08 15:40 – Hinweis beim Verbinden: SF oben = scharf
 # 2026-11-08 15:25 – Schalter SH (Kanal 7) setzt zurück
 # 2026-11-08 14:30 – Sender per USB (Taranis als Joystick): Knüppel, SF = Arming, SC = Modus; Sender getrennt → Motoren aus
@@ -230,6 +231,8 @@ func _process(dt: float) -> void:
 	if fc:
 		if _joy and _joy.active():
 			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
+			stick_left.show_external(_joy.left)       # Bildschirmknüppel zeigen die Senderknüppel
+			stick_right.show_external(_joy.right)
 		else:
 			fc.set_sticks(stick_left.value, stick_right.value)
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
