@@ -1,3 +1,5 @@
+# 2026-11-08 22:00 – Flossen so groß, dass sie nicht über das Boxmaß hinausragen (höchstens Chewie-Größe)
+# 2026-11-08 21:50 – Bugmotor so platziert, dass er das Boxmaß nicht vergrößert
 # 2026-11-08 21:30 – Konfigurationen für den Vergleich (Volumen, Leitwerk X/+/λ/umgekehrtes V, Antrieb mit/ohne Schwenk/Bugmotor), Boxmaß und F7b-Wertung in der Ausgabe
 # 2026-11-08 21:00 – Erstversion: Autopilot fliegt die Acht (3 Runden, fliegender Start) mit mehreren Parametersätzen gleichzeitig; Ergebnis als JSON, beste Bahn als CSV
 # =============================================================================
@@ -86,25 +88,40 @@ func _build_config(s: AirshipPhysics, o: Dictionary) -> void:
 	s.hull_mass_kg = 0.027 * _hull_area(s.hull)
 	# Elektronik: Teensy + RX + BEC 30 g; ohne Teensy 25 g
 	s.electronics_mass_kg = 0.025 if bool(o.get("no_fc", false)) else 0.030
-	# Leitwerk: gleiche Gesamtfläche wie Chewie (3 × 0,0361 m²) × k, Pendelflossen ±50°
+	# Leitwerk (08.11.2026): Pendelflossen ±50°, jede Flosse so groß, dass ihre Spitze
+	# nicht über das Boxmaß der Hülle (+ Akku unten) hinausragt – höchstens aber
+	# Chewies Flossengröße (0,0361 m² × k). Am Heck ist die Hülle dünn, dort passen
+	# schräge Flossen gut in die Ecken der Box.
 	var t: TailConfig = s.tail
-	var a_tot := 3.0 * 0.0361 * k
-	t.split_hv = false
+	var a_max := 0.0361 * k
+	var r_max := s.hull.diameter_m * 0.5
+	var batt := 0.02 * kl
+	var r_f := s.hull.radius_at(t.hull_x)
+	var fit := func(angle_deg: float) -> float:
+		var a := deg_to_rad(angle_deg)
+		var lim := INF
+		if absf(sin(a)) > 1e-3: lim = minf(lim, r_max / absf(sin(a)))
+		if cos(a) > 1e-3: lim = minf(lim, r_max / cos(a))
+		if cos(a) < -1e-3: lim = minf(lim, (r_max + batt) / -cos(a))
+		var b := maxf(lim - r_f, 0.0)
+		return clampf(b * b / t.aspect_ratio, 0.002, a_max)
+	t.split_hv = true
 	match str(o.get("tail", "L")):
 		"X":
-			t.layout = TailConfig.Layout.CROSS; t.area_m2 = a_tot / 4.0
+			t.layout = TailConfig.Layout.CROSS
+			t.area_h_m2 = fit.call(45.0); t.area_v_m2 = t.area_h_m2
 		"+":
-			t.layout = TailConfig.Layout.PLUS; t.area_m2 = a_tot / 4.0
+			t.layout = TailConfig.Layout.PLUS
+			t.area_h_m2 = fit.call(90.0); t.area_v_m2 = fit.call(0.0)
 		"IV":
-			# zwei Schrägflossen 30° unter der Waagrechten tragen die Fläche,
-			# oben eine Finne nur bis zur Oberkante der Hülle (Boxmaß unverändert)
-			t.layout = TailConfig.Layout.LAMBDA; t.v_angle_deg = 30.0; t.split_hv = true
-			t.area_h_m2 = a_tot / 2.0
-			var gap := s.hull.diameter_m * 0.5 - s.hull.radius_at(t.hull_x)
-			t.area_v_m2 = maxf(0.002, gap * gap / t.aspect_ratio)
+			# umgekehrtes V: zwei Schrägflossen 45° unter der Waagrechten + Finne oben
+			t.layout = TailConfig.Layout.LAMBDA; t.v_angle_deg = 44.0
+			t.area_h_m2 = fit.call(134.0); t.area_v_m2 = fit.call(0.0)
 		_:
-			t.layout = TailConfig.Layout.LAMBDA; t.v_angle_deg = 30.0; t.area_m2 = a_tot / 3.0
-	s.fin_mass_kg = 0.010 * k                          # Flosse + Servo
+			# Lambda wie Chewie: gleichmäßig verteilt, untere Flossen 30° unter der Waagrechten
+			t.layout = TailConfig.Layout.LAMBDA; t.v_angle_deg = 30.0
+			t.area_h_m2 = fit.call(120.0); t.area_v_m2 = fit.call(0.0)
+	s.fin_mass_kg = 0.010 * k                          # Flosse + Servo (Mittelwert, unabhängig von der Flossengröße)
 	s.tail = t
 	s.surfaces.clear()
 	# Antrieb
@@ -132,6 +149,17 @@ func _build_config(s: AirshipPhysics, o: Dictionary) -> void:
 				m.mass_kg = 0.030 * k
 	s.motors = mots
 	s.rebuild_mass_properties()
+	# Bugmotor: so weit hinten wie möglich, aber Motor + Propellerkreis dürfen nicht
+	# unter die Box (Hülle + Akku) ragen – vorn ist die Hülle schlank genug
+	if prop == "bow":
+		var bottom := _box(s, true).z - s.hull.diameter_m * 0.5   # Abstand Achse → Boxunterkante
+		var m: VectorMotor = s.motors[0]
+		var rpb := m.prop_diameter_in * 0.0254 * 0.5
+		for i in range(30, -1, -1):
+			m.hull_x = i * 0.01
+			if s.hull.radius_at(m.hull_x) + m.standoff_m + rpb <= bottom + 0.0005:
+				break
+		s.rebuild_mass_properties()
 	# Motoren seitlich: so weit vorn/unten setzen, dass sie das Boxmaß nicht vergrößern
 	if prop != "bow":
 		var base := _box(s, true)
