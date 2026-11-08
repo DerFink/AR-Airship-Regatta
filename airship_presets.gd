@@ -1,3 +1,4 @@
+# 2026-11-08 19:30 – Chewie-/Albacore-Motoren: Hochlaufzeit 30 ms wie bei Quadcopter-Motoren (vorher 80 ms)
 # 2026-11-08 16:20 – Albacore standardmäßig ohne Turm und mit Chewies Bugmotoren (gemeinsame Funktion chewie_motor_pair)
 # 2026-11-08 14:30 – Chewie: Schwenkbereich der Motoren ±45° (Angabe Nutzer)
 # 2026-11-07 23:55 – Chewie: Schwenkachse wieder +45° (Schub schwenkt entlang der Hülle, vom Nutzer bestätigt)
@@ -202,6 +203,6 @@ static func chewie_motor_pair() -> Array[VectorMotor]:
 		mots[i].prop_pitch_in = 3.0
 		mots[i].prop_blades = 2
 		mots[i].max_rpm = 27000.0
-		mots[i].spool_time_s = 0.08      # kleine Motoren drehen schnell hoch
+		mots[i].spool_time_s = 0.03      # Quadcopter-Motor: ≈ 30 ms Zeitkonstante (vorher 80 ms)
 		mots[i].mass_kg = 0.030          # Motor + Propeller + Schwenkservo (Annahme)
 	return mots
