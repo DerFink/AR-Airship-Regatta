@@ -1,3 +1,4 @@
+# 2026-11-08 20:30 – Chewie: Gesamtmasse 260 g (≈ 1 % schwerer als der Auftrieb)
 # 2026-11-08 19:30 – Chewie-/Albacore-Motoren: Hochlaufzeit 30 ms wie bei Quadcopter-Motoren (vorher 80 ms)
 # 2026-11-08 16:20 – Albacore standardmäßig ohne Turm und mit Chewies Bugmotoren (gemeinsame Funktion chewie_motor_pair)
 # 2026-11-08 14:30 – Chewie: Schwenkbereich der Motoren ±45° (Angabe Nutzer)
@@ -153,6 +154,9 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# die Menge ergibt sich aus dem Auftrieb, die Längslage trimmt sich automatisch.
 	ship.hull_mass_kg = 0.085
 	ship.fin_mass_kg = 0.010
+	# Gesamtmasse exakt 260 g, etwa 1 % schwerer als der Auftrieb (Angabe Nutzer 08.11.2026):
+	# Auftrieb 0,25 m³ · (1,20 − 0,17) kg/m³ = 257,5 g ⇒ 2,5 g zu schwer = 0,0245 N
+	ship.trim_heaviness_n = 0.0245
 	ship.electronics_mass_kg = 0.030
 	ship.ballast_auto_x = true
 	# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
