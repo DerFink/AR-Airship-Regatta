@@ -1,3 +1,4 @@
+# 2026-11-08 16:20 – Albacore standardmäßig ohne Turm und mit Chewies Bugmotoren (gemeinsame Funktion chewie_motor_pair)
 # 2026-11-08 14:30 – Chewie: Schwenkbereich der Motoren ±45° (Angabe Nutzer)
 # 2026-11-07 23:55 – Chewie: Schwenkachse wieder +45° (Schub schwenkt entlang der Hülle, vom Nutzer bestätigt)
 # 2026-11-07 23:00 – Chewie: Reglerwerte aus dem Teensy-Code (Werkseinstellung), untere Flossen 30° unter der Waagrechten (Einbauwinkel 60°/300° wie im Teensy-Mischer), Flossen ±50°; Albacore ohne eigene Reglerwerte
@@ -89,7 +90,7 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.livery = Livery.new()
 	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
 	# Turm wie beim Original, aber an der Unterseite (Optik + Wirkung als feste Flosse)
-	ship.sail_enabled = true
+	ship.sail_enabled = false              # Turm standardmäßig aus (im Baukasten zuschaltbar)
 	# Maße aus dem Bauplan abgemessen (Genauigkeit ca. ±10 %)
 	ship.sail_x = 0.36
 	ship.sail_length_frac = 0.135
@@ -116,15 +117,9 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.fc_gains = {}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
-	# Winkel 180° = Hüllenunterseite: wird der Motor im Baukasten nach vorn
-	# verschoben, wandert er unten an der Hülle entlang (wichtig für den Schwerpunkt)
-	var heck := make_motor("Heckmotor", 1.0, 180.0, 1.5, 0.0)
-	heck.standoff_m = 0.0                # sitzt auf der Längsachse an der Heckspitze
-	heck.pair_id = "heck"
-	heck.prop_diameter_in = 7.0          # größerer, langsamer Propeller → tieferer Ton
-	heck.max_rpm = 12000.0
-	var mots: Array[VectorMotor] = [heck]
-	ship.motors = mots
+	# Antrieb wie bei Chewie (Wunsch Nutzer 08.11.2026): zwei schwenkbare Bugmotoren
+	# seitlich unten statt des Heckmotors
+	ship.motors = chewie_motor_pair()
 	ship.rebuild_mass_properties()
 
 
@@ -177,6 +172,16 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# Antrieb laut Nutzer: 2 × GEPRC SpeedX2 1804 mit 4"-Propellern.
 	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
+	var mots := chewie_motor_pair()
+	ship.motors = mots
+	ship.rebuild_mass_properties()
+
+
+## Chewies Antrieb: zwei Bugmotoren seitlich unten (45° unter der Waagrechten) an
+## Schwenkachsen, die radial durch den Motorfuß zeigen (Schub schwenkt entlang der
+## Hülle), ±45° Schwenk, gegenläufige 4"-Propeller, Rückwärtsschub erlaubt.
+## Wird auch für die Albacore verwendet.
+static func chewie_motor_pair() -> Array[VectorMotor]:
 	var mots: Array[VectorMotor] = [
 		# seitlich unten, 45° unter der Waagrechten (135° rechts, 225° links).
 		# Schwenkachse +45° (bestätigt 07.11.2026): die Achse zeigt radial durch den
@@ -198,6 +203,5 @@ static func chewie(ship: AirshipPhysics) -> void:
 		mots[i].prop_blades = 2
 		mots[i].max_rpm = 27000.0
 		mots[i].spool_time_s = 0.08      # kleine Motoren drehen schnell hoch
-		mots[i].mass_kg = 0.030          # Motor + Propeller + Schwenkservo (Annahme, s. o.)
-	ship.motors = mots
-	ship.rebuild_mass_properties()
+		mots[i].mass_kg = 0.030          # Motor + Propeller + Schwenkservo (Annahme)
+	return mots

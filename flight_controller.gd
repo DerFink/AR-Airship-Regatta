@@ -1,3 +1,4 @@
+# 2026-11-08 16:20 – Expo auf dem Seitenknüppel (yaw_expo 0,3, im PID-Menü unter Mischer einstellbar)
 # 2026-11-08 15:25 – Mode 3: sanfter Gierdämpfer bei Knüppel Mitte (Kd_yaw_m3 0,4 – bei 60 % Schub blieben mit 0,2 noch ±23 °/s Pendeln; blendet aus, wenn der Drehratenregler einblendet)
 # 2026-11-07 23:00 – Regelung 1:1 aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3, Stand 04.11.2026) übernommen: controlANGLE (PID Nick/Roll in Grad, ×0,01), rateModeUpdate (Mode 3), mixServosStabilized / mixServosDirect mit Einbauwinkeln 60/300/180°, Rollwinkel-Drehung der Stabilisierung, Gesamt-Ausschlag 0,5 (Mode 2/3), Motorschwenker an der Roll-Regelung (MOTOR_ROLL_SIGN), Mode-1-Rolle auf dem linken Knüppel; alle Werte heißen wie im Teensy-Code; eigene Gierdämpfung und Allokations-Mischer entfallen; Einstellungen Version 10
 # 2026-11-07 22:10 – Gierdämpfung bei losgelassenem Seitenknüppel in Mode 2/3 (Chewie drehte sonst endlos weiter), begrenzt auf ±30 % Ausschlag, blendet beim Steuern aus; Einstellungen Version 9
@@ -194,9 +195,13 @@ var mode1_stick_pitch_tail := 0.02
 var mode1_stick_yaw_tail := 0.005
 var mode1_roll_tail := 0.25        ## Mode 1: Rolle → Leitwerke (alle gleichsinnig)
 var mode1_roll_motor := 0.0        ## Mode 1: Rolle → Motorschwenker (0 = aus)
+## Expo auf dem Seitenknüppel (alle Modi): 0 = linear, 1 = ganz weich um die Mitte.
+## Wie am RC-Sender: Ausgabe = (1 − e)·x + e·x³ – Vollausschlag bleibt 100 %.
+var yaw_expo := 0.3
 
 ## Mischer-Werte fürs PID-Menü (Feld, Beschriftung, min, max, Schritt, Format)
 const MIX_PARAMS := [
+	["yaw_expo", "Expo Seitenknüppel (Gier)", 0.0, 1.0, 0.05, "%.2f"],
 	["servo_throw_m23", "Gesamt-Ausschlag Mode 2/3", 0.1, 1.0, 0.05, "%.2f"],
 	["servo_throw_m1", "Gesamt-Ausschlag Mode 1", 0.1, 1.0, 0.05, "%.2f"],
 	["tail_pitch_gain", "tail_pitch_gain_m2", 0.0, 5.0, 0.1, "%.1f"],
@@ -248,7 +253,7 @@ func _notification(what: int) -> void:
 func set_sticks(left: Vector2, right: Vector2) -> void:
 	stick_left = left
 	stick_right = right
-	cmd_yaw = right.x                     # Gier: immer rechts, links/rechts
+	cmd_yaw = expo(right.x, yaw_expo)     # Gier: immer rechts, links/rechts, mit Expo
 	cmd_aux = left.x                      # Mode 1: Rolle
 	# Nick wie beim RC-Sender: Knüppel nach vorn (hoch) = Nase runter,
 	# Knüppel zu sich ziehen = Nase hoch. Deshalb das Minus.
@@ -256,6 +261,12 @@ func set_sticks(left: Vector2, right: Vector2) -> void:
 		cmd_pitch = -left.y; cmd_throttle = right.y
 	else:                                 # Mode 2 (Standard)
 		cmd_throttle = left.y; cmd_pitch = -right.y
+
+
+## Expo wie am RC-Sender: feinfühlig um die Mitte, Vollausschlag unverändert.
+static func expo(x: float, e: float) -> float:
+	x = clampf(x, -1.0, 1.0)
+	return (1.0 - e) * x + e * x * x * x
 
 
 ## Beschriftung der Knüppel für das HUD (passt sich dem Stick-Mode an).
@@ -531,7 +542,7 @@ func apply_model_gains(gains: Dictionary) -> void:
 const GENERAL_KEYS := ["stick_mode", "pitch_max_deg", "pitch_rate_dps", "pitch_return_dps", "pitch_lead_deg",
 	"servo_throw_m1", "servo_throw_m23", "tail_pitch_gain", "motor_pitch_gain", "motor_roll_gain", "motor_roll_sign",
 	"stick_pitch_motor", "stick_pitch_tail", "mode1_stick_pitch_motor", "mode1_stick_yaw_motor",
-	"mode1_stick_pitch_tail", "mode1_stick_yaw_tail", "mode1_roll_tail", "mode1_roll_motor"]
+	"mode1_stick_pitch_tail", "mode1_stick_yaw_tail", "mode1_roll_tail", "mode1_roll_motor", "yaw_expo"]
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
