@@ -1,3 +1,4 @@
+# 2026-11-09 13:40 – Ergebnis wird beim Zieleinlauf festgehalten (vorher: SH setzte zugleich das Rennen zurück → Eintrag mit 0 s); Knopf „Liste löschen“ mit Rückfrage
 # 2026-11-08 17:40 – Nach dem Ziel mit dem Sender bedienbar: rechter Knüppel wählt Eintragen/Nicht eintragen, SH bestätigt (ohne Wahl nicht gespeichert)
 # 2026-10-29 00:19 – Erstversion: Bestenliste anzeigen (Platz, Gesamtzeit, Einzelrunden, Name, Luftschiff, Datum) und nach dem Ziel Namen eintragen
 # =============================================================================
@@ -28,6 +29,10 @@ var stick_source: Callable
 var _choice := 0                   ## 0 = nichts gewählt, 1 = Eintragen, 2 = Nicht eintragen
 var _btn_ok: Button
 var _btn_no: Button
+## Ergebnis beim Zieleinlauf festgehalten – das Rennen kann danach schon
+## zurückgesetzt sein (Schalter SH bestätigt UND setzt zurück)
+var _res_total := 0.0
+var _res_laps := PackedFloat32Array()
 
 
 func setup(c: Course, s: AirshipPhysics) -> void:
@@ -61,10 +66,12 @@ func show_list() -> void:
 ## Nach dem Ziel: Ergebnis zeigen und Namen abfragen (nur wenn Top 10).
 func show_result() -> void:
 	_pending = true
+	_res_total = course.time_s
+	_res_laps = PackedFloat32Array(course.lap_times)
 	for c in _box.get_children(): c.queue_free()
-	var place := Leaderboard.rank_for(course.course_key(), course.time_s)
-	_box.add_child(UITheme.make_title("Ziel · %s · Platz %d" % [Course.format_time(course.time_s), place]))
-	_box.add_child(UITheme.make_label("%s · Runden %s" % [course.title(), _laps_text(course.lap_times)], "MutedLabel"))
+	var place := Leaderboard.rank_for(course.course_key(), _res_total)
+	_box.add_child(UITheme.make_title("Ziel · %s · Platz %d" % [Course.format_time(_res_total), place]))
+	_box.add_child(UITheme.make_label("%s · Runden %s" % [course.title(), _laps_text(_res_laps)], "MutedLabel"))
 	_box.add_child(UITheme.make_label("Name", "MutedLabel"))
 	_name_edit = LineEdit.new()
 	_name_edit.text = Leaderboard.last_name()
@@ -113,7 +120,7 @@ func confirm_by_switch() -> void:
 
 
 func _on_enter() -> void:
-	Leaderboard.add(course.course_key(), course.time_s, course.lap_times, _name_edit.text, ship.model_name)
+	Leaderboard.add(course.course_key(), _res_total, _res_laps, _name_edit.text, ship.model_name)
 	_pending = false
 	_fill_list()
 
@@ -131,9 +138,22 @@ func _fill_list() -> void:
 		_box.add_child(top)
 		var sub := UITheme.make_label("     %s · %s · %s" % [e.get("name", ""), e.get("model", ""), e.get("date", "")], "MutedLabel")
 		_box.add_child(sub)
+	var row := UITheme.make_hbox("sm")
+	# „Liste löschen“: erst antippen → Rückfrage im Knopf, zweites Antippen löscht
+	var clr := UITheme.make_button("Liste löschen")
+	clr.disabled = lst.is_empty()
+	clr.pressed.connect(func():
+		if clr.text == "Liste löschen":
+			clr.text = "Wirklich löschen?"
+		else:
+			Leaderboard.clear(course.course_key())
+			_fill_list())
 	var done := UITheme.make_button("Fertig")
 	done.pressed.connect(func(): closed.emit())
-	_box.add_child(done)
+	for b in [clr, done]:
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(b)
+	_box.add_child(row)
 	_layout.call_deferred()
 
 

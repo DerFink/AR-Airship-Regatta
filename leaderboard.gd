@@ -1,3 +1,4 @@
+# 2026-11-09 13:40 – Ungültige Einträge (Zeit 0 oder keine 3 Runden) werden nicht gespeichert und nicht angezeigt; clear(): Liste einer Strecke löschen
 # 2026-10-29 00:19 – Erstversion: Bestenliste je Strecke (Wertung über 3 Runden, Einzelrunden gespeichert), Top 10, Name wird gemerkt; Datei user://bestenliste.json
 # =============================================================================
 # Leaderboard.gd
@@ -43,7 +44,10 @@ static func _save(data: Dictionary) -> void:
 ## Einträge einer Strecke, schnellste zuerst.
 static func entries(course_key: String) -> Array:
 	var lst = _load().lists.get(course_key, [])
-	return lst if lst is Array else []
+	if not lst is Array:
+		return []
+	# nur gültige Rennen (Zeit > 0) – fängt alte, fehlerhafte Einträge ab
+	return lst.filter(func(e): return e is Dictionary and float(e.get("total", 0.0)) > 0.0)
 
 
 ## Zuletzt verwendeter Name (Vorbelegung des Eingabefelds).
@@ -63,12 +67,14 @@ static func rank_for(course_key: String, total: float) -> int:
 
 ## Rennen eintragen; Rückgabe: Platz (1…10) oder 0, wenn nicht in den Top 10.
 static func add(course_key: String, total: float, laps: PackedFloat32Array, name: String, model: String) -> int:
+	if total <= 0.0 or laps.size() < 3:
+		return 0                                  # kein vollständiges Rennen → nicht speichern
 	var data := _load()
 	var clean := name.strip_edges().left(MAX_NAME)
 	if clean == "":
 		clean = "Pilot"
 	data.name = clean
-	var lst: Array = data.lists.get(course_key, [])
+	var lst: Array = (data.lists.get(course_key, []) as Array).filter(func(e): return float(e.get("total", 0.0)) > 0.0)
 	var lap_list := []
 	for t in laps: lap_list.append(snappedf(t, 0.01))
 	lst.append({"total": snappedf(total, 0.01), "laps": lap_list, "name": clean,
@@ -81,3 +87,10 @@ static func add(course_key: String, total: float, laps: PackedFloat32Array, name
 		if lst[i].name == clean and is_equal_approx(float(lst[i].total), snappedf(total, 0.01)):
 			return i + 1
 	return 0
+
+
+## Bestenliste einer Strecke löschen (Knopf „Liste löschen“). Der gemerkte Name bleibt.
+static func clear(course_key: String) -> void:
+	var data := _load()
+	data.lists.erase(course_key)
+	_save(data)

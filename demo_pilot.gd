@@ -1,3 +1,4 @@
+# 2026-11-09 14:00 – Robuste Bestrunde Mode 3 (Böen und Knüppelverzögerung mitgerechnet)
 # 2026-11-09 13:15 – Neue Bestrunde Mode 3 (mit Boden gerechnet, Sollhöhe 2,2 m); Demo wieder in Mode 3; rechnet vor dem Flugregler (vorher 1 Schritt Verzögerung → Höhe schaukelte sich auf)
 # 2026-11-09 12:45 – Demo fliegt in Mode 2 (die Werte stammen aus Mode 2 – Fehler im Optimierer), kein Bodenkontakt mehr; Höhenhaltung aus FLY (h_target/h_kp/h_kd)
 # 2026-11-09 10:20 – Reglerwerte aus FlightController.SIM_OPT (gleich wie die Reglerwahl „Sim-optimiert“)
@@ -20,12 +21,13 @@ func _init() -> void:
 
 signal finished
 
-## Beste gefundene Flugweise in Mode 3 (Suche vom 09.11.2026 mit Boden: Hülle nie
-## tiefer als 0,3 m; Mittel aus 3 Flügen mit Böen 10,44 s, Hülle min. 0,77 m über Boden)
-const FLY := {"R1": 2.004, "R2": 2.031, "L": 3.578, "k": 2.683, "kff": 0.084,
-	"t_str": 1.0, "cut_before": 3.0, "t_cut": 1.0, "t_arc": 1.0,
-	"dip_len": 2.329, "t_dip": 0.991, "boost_start": 0.883,
-	"h_target": 2.187, "h_kp": 1.248, "h_kd": 0.956}
+## Beste gefundene Flugweise in Mode 3 (Suche vom 09.11.2026: mit Boden, je Satz 4 Flüge –
+## ohne/mit Böen, 0–2 Schritte Knüppelverzögerung; Mittel 10,56 s, Hülle min. 0,75 m
+## über Boden, Höhenschwankung ±0,23 m)
+const FLY := {"R1": 2.24, "R2": 2.137, "L": 3.819, "k": 2.522, "kff": 0.087,
+	"t_str": 0.998, "cut_before": 2.795, "t_cut": 0.976, "t_arc": 1.0,
+	"dip_len": 2.783, "t_dip": 0.978, "boost_start": 0.836,
+	"h_target": 1.777, "h_kp": 1.087, "h_kd": 0.839}
 const STEP := 0.1                 ## Punktabstand der Sollbahn (m)
 
 var ship: AirshipPhysics

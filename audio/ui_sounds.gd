@@ -1,3 +1,4 @@
+# 2026-11-09 13:50 – Ohne Ton (im Flug fast immer) Stille in einem Aufruf statt Abtastwert für Abtastwert – entlastet besonders die Browser-Version
 # 2026-10-27 11:08 – Erstversion: ruhige Klänge für den Baukasten (sanfte Glockentöne bei Aktionen, sehr leiser Klangteppich), prozedural erzeugt; im Flug still
 # =============================================================================
 # UISounds.gd
@@ -58,6 +59,13 @@ func _process(_dt: float) -> void:
 		return
 	var frames := _playback.get_frames_available()
 	if frames <= 0:
+		return
+	# Nichts zu hören (keine Glocke, kein Klangteppich): Stille in einem Stück
+	# nachschieben – die Schleife unten kostet im Browser spürbar Rechenzeit
+	if _voices.is_empty() and not _pad_on and _pad_gain <= 0.0001:
+		var silence := PackedVector2Array()
+		silence.resize(frames)
+		_playback.push_buffer(silence)
 		return
 	var decay := exp(-1.0 / (SAMPLE_RATE * 0.55))     # ca. 0,55 s Ausklang
 	for i in frames:
