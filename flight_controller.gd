@@ -1,3 +1,4 @@
+# 2026-11-09 15:20 – Mode 3: Gier als vollständiger PID-Drehratenregler (Kp/Ki/Kd_yaw_m3, immer aktiv, Sollrate 0 bei Knüppel Mitte ⇒ hält die Richtung; ersetzt Einblenden und Gierdämpfer); Höhenknüppel loslassen ⇒ Sollwinkel sofort 0 (wie Mode 2); Einstellungen Version 11
 # 2026-11-09 14:35 – Nick-Schutz (Mode 2/3): geht die Lage über maxPitch hinaus, wird die Knüppel-Vorsteuerung in diese Richtung über pitch_protect_band_deg (10°) ausgeblendet – vorher stellte sich bei gehaltenem Höhenknüppel ≈ 60° Nick ein (Flossen überzogen, „steuerlos“); Gas bleibt unberührt
 # 2026-11-09 14:00 – SIM_OPT: robuste Werte (Böen, Knüppelverzögerung, Boden)
 # 2026-11-09 13:00 – SIM_OPT: neue Werte aus der Optimierung in echtem Mode 3 mit Boden
@@ -79,8 +80,9 @@ enum Axis { ROLL, PITCH, YAW }
 const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
 const SETTINGS_PATH := "user://flight_controller.cfg"
+## Version 11 = Mode-3-Gier als PID (Kd_yaw_m3 hat eine neue Bedeutung)
 ## Version 10 = Regelung aus dem Teensy-Code (ältere Dateien: Werte werden ersetzt)
-const SETTINGS_VERSION := 10
+const SETTINGS_VERSION := 11
 ## true = keine oder ältere Einstellungsdatei → Modell-Vorgaben übernehmen
 var settings_outdated := true
 
@@ -136,6 +138,11 @@ var cmd_aux := 0.0       ## linker Knüppel links/rechts: Rolle in Mode 1 (Teens
 var _int_roll := 0.0
 var _int_pitch := 0.0
 var _pitch_sp_m3 := 0.0  ## pitchSetpointM3 (Grad)
+var _int_yaw := 0.0      ## Mode 3: Integral des Gierraten-Fehlers (°/s · s)
+var _gyro_yaw_prev := 0.0
+var _yaw_acc_f := 0.0    ## gefilterte Drehbeschleunigung (°/s²) für den D-Anteil
+## Mode 3 Gier-Integral begrenzen (°/s · s) – Ki 1 ⇒ höchstens 0,3 Servoweg
+const I_LIMIT_YAW := 30.0
 
 
 # =============================================================================
@@ -145,8 +152,10 @@ var _pitch_sp_m3 := 0.0  ## pitchSetpointM3 (Grad)
 #         roll_vs_pitch     Roll-Wirkung der Leitwerke relativ zu Nick
 #   Gier  stick_yaw_motor/tail        Mode 2 Vorsteuerung (Servoweg je °/s-Knüppelwert)
 #         stick_yaw_motor/tail_m3     Mode 3 Vorsteuerung
-#         Kp_yaw_m3                   Mode 3 Drehratenregler (×0,01 je °/s)
-#         Kd_yaw_m3                   Mode 3 Gierdämpfer bei Knüppel Mitte (×0,01 je °/s, nicht im Teensy-Code)
+#         Kp_yaw_m3                   Mode 3 Drehratenregler P (×0,01 je °/s Fehler)
+#         Ki_yaw_m3                   Mode 3 Drehratenregler I (×0,01 je °/s·s, nicht im Teensy-Code)
+#         Kd_yaw_m3                   Mode 3 Drehratenregler D auf die gemessene
+#                                     Drehbeschleunigung (×0,01 je °/s², nicht im Teensy-Code)
 #         yaw_rate_max                MODE3_YAW_RATE_MAX_DPS
 #         yaw_loop_motor/tail_m3      Mode 3 Regler → Servoweg
 # =============================================================================
@@ -155,7 +164,7 @@ var params := {
 	Axis.ROLL:  {"Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "roll_vs_pitch": 1.5},
 	Axis.YAW:   {"stick_yaw_motor": 0.016, "stick_yaw_tail": 0.005,
 				 "stick_yaw_motor_m3": 0.0125, "stick_yaw_tail_m3": 0.00625,
-				 "Kp_yaw_m3": 0.4, "Kd_yaw_m3": 0.4, "yaw_rate_max": 180.0, "yaw_loop_motor_m3": 0.6, "yaw_loop_tail_m3": 0.5},
+				 "Kp_yaw_m3": 1.8, "Ki_yaw_m3": 0.8, "Kd_yaw_m3": 0.03, "yaw_rate_max": 180.0, "yaw_loop_motor_m3": 0.6, "yaw_loop_tail_m3": 0.5},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
@@ -178,7 +187,8 @@ const UI_PARAMS := {
 		{"term": "stick_yaw_motor_m3", "label": "Mode 3 stick_yaw_motor_m3", "min": 0.0, "max": 0.05, "step": 0.00025, "fmt": "%.5f"},
 		{"term": "stick_yaw_tail_m3", "label": "Mode 3 stick_yaw_tail_m3", "min": 0.0, "max": 0.05, "step": 0.00025, "fmt": "%.5f"},
 		{"term": "Kp_yaw_m3", "label": "Mode 3 Kp_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
-		{"term": "Kd_yaw_m3", "label": "Mode 3 Gierdämpfer Kd_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "Ki_yaw_m3", "label": "Mode 3 Ki_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "Kd_yaw_m3", "label": "Mode 3 Kd_yaw_m3", "min": 0.0, "max": 0.2, "step": 0.002, "fmt": "%.3f"},
 		{"term": "yaw_rate_max", "label": "Mode 3 Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
 		{"term": "yaw_loop_motor_m3", "label": "Mode 3 yaw_loop_motor_m3", "min": 0.0, "max": 2.0, "step": 0.05},
 		{"term": "yaw_loop_tail_m3", "label": "Mode 3 yaw_loop_tail_m3", "min": 0.0, "max": 2.0, "step": 0.05},
@@ -234,8 +244,7 @@ var preset := "teensy"
 ## Böen und 0–2 Schritten Knüppelverzögerung). Schlüssel "achse.wert" = PID-Parameter,
 ## sonst allgemeine Einstellung.
 const SIM_OPT := {"pitch.Kp": 1.5, "pitch.Kd": 0.27, "roll.Kp": 0.572, "roll.Kd": 0.108,
-	"yaw_swivel_full_lever": 0.318, "yaw.Kp_yaw_m3": 0.754, "yaw.Kd_yaw_m3": 0.433,
-	"yaw.yaw_loop_motor_m3": 1.206, "yaw.yaw_loop_tail_m3": 0.206}
+	"yaw_swivel_full_lever": 0.318}
 const PRESET_NAMES := {"teensy": "Teensy", "sim": "Sim-optimiert"}
 
 ## Werkseinstellungen (beim Erzeugen gemerkt, vor dem Laden gespeicherter Werte)
@@ -371,7 +380,10 @@ func _physics_process(dt: float) -> void:
 		if absf(stick_p) > M3_DEADBAND:
 			_pitch_sp_m3 += stick_p * pitch_rate_dps * d               # Sollwinkel wandert mit der Knüppel-Drehrate
 		else:
-			_pitch_sp_m3 = move_toward(_pitch_sp_m3, 0.0, pitch_return_dps * d)   # zurück auf 0
+			# Höhenknüppel losgelassen (09.11.2026, Wunsch Nutzer): Sollwinkel sofort 0 –
+			# die Nase geht wie in Mode 2 gleich auf Waagrecht zurück (Teensy-Code: mit
+			# pitch_return_dps = 20 °/s langsam zurück)
+			_pitch_sp_m3 = 0.0
 		# Vorlauf-Grenze nur bei bewegtem Höhenknüppel (08.11.2026): im Teensy-Code wirkte sie
 		# immer und zog den Sollwinkel mit nach oben, wenn die Nase von selbst hochging
 		# (Vollgas in der Kurve); danach erst auf ±maxPitch begrenzen
@@ -379,15 +391,22 @@ func _physics_process(dt: float) -> void:
 			_pitch_sp_m3 = clampf(_pitch_sp_m3, pitch_imu - pitch_lead_deg, pitch_imu + pitch_lead_deg)
 		_pitch_sp_m3 = clampf(_pitch_sp_m3, -pitch_max_deg, pitch_max_deg)
 		pitch_des = _pitch_sp_m3                                         # ab hier arbeitet alles mit diesem Sollwinkel
+		# Gier: PID-Drehratenregler (09.11.2026, Wunsch Nutzer). Immer aktiv:
+		# Knüppel → Sollrate (± yaw_rate_max), Knüppel Mitte → Sollrate 0, d. h. der
+		# Regler bremst jede Drehung ab und hält mit dem I-Anteil die Richtung
+		# (vorher: P-Regler erst ab 5–20 % Knüppelweg eingeblendet, in der Mitte nur
+		# ein Dämpfer). D wirkt auf die gemessene Drehbeschleunigung (kein Sprung
+		# beim Knüppelausschlag), 20-ms-Tiefpass gegen Kreiselrauschen.
 		var stick_y := yaw_des / MAX_YAW
-		var weight := clampf((absf(stick_y) - M3_DEADBAND) / M3_YAW_FADE, 0.0, 1.0)   # ohne Knüppel keine Gierdämpfung
-		yaw_rate_pid = weight * 0.01 * Y.Kp_yaw_m3 * (stick_y * Y.yaw_rate_max - gyro_yaw)
-		# Gierdämpfer (08.11.2026, Wunsch Nutzer – nicht im Teensy-Code): bei Knüppel
-		# in der Mitte bremst der Kreisel die Drehung sanft ab. Er blendet genau dort
-		# aus, wo der Drehratenregler einblendet (1 − weight), wirkt also nie doppelt.
-		# Bewusst schwächer als der Nick-Dämpfer (Kd_yaw_m3 0,4 ⇒ 0,002 Servoweg je °/s
-		# am Leitwerk, Nick: Kd 0,15 × tail_pitch_gain 2 = 0,003).
-		yaw_rate_pid += (1.0 - weight) * 0.01 * -Y.Kd_yaw_m3 * gyro_yaw
+		if not armed:
+			_int_yaw = 0.0                                               # am Boden/ohne Motoren nichts aufsammeln
+		var err_yaw: float = stick_y * Y.yaw_rate_max - gyro_yaw
+		_int_yaw = clampf(_int_yaw + err_yaw * d, -I_LIMIT_YAW, I_LIMIT_YAW)
+		if d > 0.0:
+			var acc := (gyro_yaw - _gyro_yaw_prev) / d
+			_yaw_acc_f += (acc - _yaw_acc_f) * clampf(d / 0.02, 0.0, 1.0)
+		_gyro_yaw_prev = gyro_yaw
+		yaw_rate_pid = 0.01 * (Y.Kp_yaw_m3 * err_yaw + Y.Ki_yaw_m3 * _int_yaw - Y.Kd_yaw_m3 * _yaw_acc_f)
 
 	# --- controlANGLE(): PID Roll und Nick (Grad, ×0,01) ------------------------
 	var R: Dictionary = params[Axis.ROLL]
@@ -584,6 +603,8 @@ func _calibrate() -> void:
 func _reset_integrators() -> void:
 	_int_roll = 0.0
 	_int_pitch = 0.0
+	_int_yaw = 0.0
+	_yaw_acc_f = 0.0
 
 
 # =============================================================================
