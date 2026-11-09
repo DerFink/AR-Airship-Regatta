@@ -1,3 +1,4 @@
+# 2026-11-09 14:20 – Menüpunkt „Sender kalibrieren“
 # 2026-11-09 10:00 – Menüpunkt „Demo-Flug“
 # 2026-11-08 18:00 – Zeile „Sender“ im Menü: verbundenes Gerät (grün) oder „Kein Sender – Bildschirmknüppel“
 # 2026-11-07 21:10 – Erstversion: Menü in der Flugansicht nach freigegebenem Entwurf (zweispaltig: Modell wählen, Bau, Strecke, Bestenliste, PID / Flugcontroller, AR, Zurücksetzen; Fußzeile mit Version und „Nach Update suchen“)
@@ -29,6 +30,7 @@ signal pid_requested
 signal ar_requested
 signal reset_requested
 signal demo_requested
+signal calibrate_requested
 signal closed
 
 ## Liefert die Zusatzangaben rechts in den Einträgen (Modellname, Strecke, AR).
@@ -130,6 +132,7 @@ func _fill() -> void:
 	_add("AR", "an" if info.get("ar", false) else "aus", ar_requested)
 	_add("Zurücksetzen (an den Start)", "", reset_requested)
 	_add("Demo-Flug", "Chewie, schnellste Runde", demo_requested)
+	_add("Sender kalibrieren", "Taranis per USB", calibrate_requested)
 
 
 ## Ein Menüeintrag: Text links, Zusatzangabe rechts; Tippen schließt das Menü

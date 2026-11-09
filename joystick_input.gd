@@ -1,3 +1,4 @@
+# 2026-11-09 14:20 – Kalibrierung je Kanal (Min/Mitte/Max, Richtung umkehren), gespeichert in user://sender_kalibrierung.cfg; während der Kalibrierung keine Schalter-Signale
 # 2026-11-08 17:15 – Sender automatisch unter mehreren Geräten finden (Name FrSky/Taranis/EdgeTX oder ausgelenkte Schalterkanäle), alle 0,5 s neu prüfen
 # 2026-11-08 15:40 – Arming andersherum: SF oben = scharf, SF unten = aus
 # 2026-11-08 15:25 – Schalter SH auf Kanal 7: nach oben umlegen = Zurücksetzen
@@ -50,6 +51,25 @@ const AXIS_RESET := 6      ## CH7 Schalter SH (oben = zurücksetzen)
 const INVERT_PITCH := false
 const INVERT_THROTTLE := false
 
+## Anzahl ausgewerteter Kanäle (CH1…CH7)
+const CHANNELS := 7
+const CAL_PATH := "user://sender_kalibrierung.cfg"
+## Kalibrierung je Kanal (Index = Kanal − 1), Rohwerte wie vom Sender gemeldet:
+##   min / center / max  → werden auf −1 / 0 / +1 umgerechnet
+##   inv                 → Richtung umkehren (nach der Umrechnung)
+## Werkseinstellung: −1 / 0 / +1, nicht umgekehrt (= unverändert wie bisher).
+var cal: Array = []
+## true, solange das Kalibrierfenster offen ist: Knüppel werden weiter gelesen
+## (für die Anzeige), Schalter lösen aber nichts aus (kein Scharfschalten,
+## kein Moduswechsel, kein Zurücksetzen).
+var calibrating := false:
+	set(v):
+		calibrating = v
+		if not v:
+			# Nach dem Kalibrieren Schalter neu einlesen. Sicherheit: steht SF dann
+			# schon oben, wird NICHT scharf geschaltet – erst nach unten und wieder hoch.
+			_arm_state = -1; _arm_seen_off = false; _mode_state = -1; _reset_state = -1
+
 var device := -1                    ## Godot-Gerätenummer, −1 = kein Sender
 var left := Vector2.ZERO            ## wie der linke Bildschirmknüppel (x = Rolle, y = Gas)
 var right := Vector2.ZERO           ## wie der rechte Bildschirmknüppel (x = Gier, y = Nick)
@@ -60,6 +80,8 @@ var _reset_state := -1              ## −1 = unbekannt, 1 = oben, 0 = unten
 
 
 func _ready() -> void:
+	cal = default_cal()
+	load_cal()
 	Input.joy_connection_changed.connect(_on_joy_changed)
 	_pick_device()
 
@@ -115,15 +137,18 @@ func _process(dt: float) -> void:
 		_pick_device()
 	if device < 0:
 		return
-	var yaw := Input.get_joy_axis(device, AXIS_YAW)
-	var pitch := Input.get_joy_axis(device, AXIS_PITCH) * (-1.0 if INVERT_PITCH else 1.0)
-	var thr := Input.get_joy_axis(device, AXIS_THROTTLE) * (-1.0 if INVERT_THROTTLE else 1.0)
-	var roll := Input.get_joy_axis(device, AXIS_ROLL)
+	# Alle Kanäle über die Kalibrierung (Min/Mitte/Max, Umkehr) auf −1…+1
+	var yaw := value(AXIS_YAW)
+	var pitch := value(AXIS_PITCH) * (-1.0 if INVERT_PITCH else 1.0)
+	var thr := value(AXIS_THROTTLE) * (-1.0 if INVERT_THROTTLE else 1.0)
+	var roll := value(AXIS_ROLL)
 	left = Vector2(_dz(roll), _dz(thr))                # Gas: Mitte = Stopp
 	right = Vector2(_dz(yaw), _dz(pitch))
 
+	if calibrating:
+		return                                       # Kalibrierung: Schalter lösen nichts aus
 	# Schalter SF: oben (Kanal < −50 %) = scharf, unten = aus (Wunsch Nutzer 08.11.2026)
-	var a := 1 if Input.get_joy_axis(device, AXIS_ARM) < -0.5 else 0
+	var a := 1 if value(AXIS_ARM) < -0.5 else 0
 	if a != _arm_state:
 		var first := _arm_state < 0
 		_arm_state = a
@@ -133,14 +158,14 @@ func _process(dt: float) -> void:
 		elif _arm_seen_off:
 			arm_switched.emit(true)                  # nur nach echtem Umlegen von unten nach oben
 	# Schalter SC: oben / Mitte / unten
-	var mv := Input.get_joy_axis(device, AXIS_MODE)
+	var mv := value(AXIS_MODE)
 	var m := 0 if mv < -0.5 else (2 if mv > 0.5 else 1)
 	if m != _mode_state:
 		_mode_state = m
 		mode_switched.emit(m)
 	# Schalter SH: Zurücksetzen nur beim Umlegen nach oben (Kanal < −50 %), nicht
 	# dauernd und nicht beim Einstecken, wenn SH schon oben steht
-	var rs := 1 if Input.get_joy_axis(device, AXIS_RESET) < -0.5 else 0
+	var rs := 1 if value(AXIS_RESET) < -0.5 else 0
 	if rs != _reset_state:
 		if _reset_state == 0 and rs == 1:
 			reset_switched.emit()
@@ -150,3 +175,60 @@ func _process(dt: float) -> void:
 ## Kleine Totzone um die Mitte (Knüppel-Rauschen)
 static func _dz(v: float) -> float:
 	return 0.0 if absf(v) < 0.02 else clampf(v, -1.0, 1.0)
+
+
+
+# =============================================================================
+# Kalibrierung
+# =============================================================================
+
+## Werkseinstellung: Rohwert = Wert (−1 / 0 / +1), keine Umkehr.
+static func default_cal() -> Array:
+	var c := []
+	for i in CHANNELS:
+		c.append({"min": -1.0, "center": 0.0, "max": 1.0, "inv": false})
+	return c
+
+
+## Rohwert eines Kanals (0 = CH1), wie ihn der Sender meldet.
+func raw(ch: int) -> float:
+	return Input.get_joy_axis(device, ch) if device >= 0 else 0.0
+
+
+## Kalibrierter Wert eines Kanals (−1…+1) mit den gespeicherten Werten.
+func value(ch: int) -> float:
+	return apply_cal(raw(ch), cal[ch])
+
+
+## Rohwert mit einem Kalibriersatz {min, center, max, inv} umrechnen:
+## Mitte → 0, Min → −1, Max → +1 (beide Hälften getrennt, so passt auch eine
+## Mitte, die nicht genau zwischen den Anschlägen liegt).
+static func apply_cal(v: float, c: Dictionary) -> float:
+	var lo: float = c.min
+	var mid: float = c.center
+	var hi: float = c.max
+	var out := 0.0
+	if v >= mid:
+		out = (v - mid) / maxf(hi - mid, 0.05)
+	else:
+		out = (v - mid) / maxf(mid - lo, 0.05)
+	out = clampf(out, -1.0, 1.0)
+	return -out if c.inv else out
+
+
+func save_cal() -> void:
+	var f := ConfigFile.new()
+	for i in CHANNELS:
+		for k in ["min", "center", "max", "inv"]:
+			f.set_value("ch%d" % (i + 1), k, cal[i][k])
+	f.save(CAL_PATH)
+
+
+func load_cal() -> void:
+	var f := ConfigFile.new()
+	if f.load(CAL_PATH) != OK:
+		return
+	for i in CHANNELS:
+		var sec := "ch%d" % (i + 1)
+		for k in ["min", "center", "max", "inv"]:
+			cal[i][k] = f.get_value(sec, k, cal[i][k])

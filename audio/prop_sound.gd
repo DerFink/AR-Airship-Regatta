@@ -1,3 +1,4 @@
+# 2026-11-09 14:00 – Feiner: 44,1 kHz statt 22 kHz; Rauschen als eigene, 4 s lange Schleife (vorher wiederholte sich das Rauschen mit der 1-s-Tonschleife – bei hoher Drehzahl mehrmals pro Sekunde hörbar als grobes Muster)
 # 2026-11-09 13:45 – Klang nicht mehr Abtastwert für Abtastwert im Skript erzeugt (im Browser abgehackt und verzögert), sondern beim Start einmal als Schleife berechnet; im Flug nur noch Tonhöhe und Lautstärke nachgeführt. Rückwärtslauf als zweite Schleife (mehr Rauschen, Flattern), weich überblendet
 # 2026-10-27 11:08 – Erstversion: prozedurales Propellergeräusch (Quadcopter-Klang) je Motor, abhängig von Propellergröße, Blattzahl, Drehzahl und Drehrichtung; räumlich am Motor; ohne Drehzahl absolute Stille
 # =============================================================================
@@ -29,8 +30,9 @@
 class_name PropSound
 extends AudioStreamPlayer3D
 
-const SAMPLE_RATE := 22050          ## reicht für den Klang, schont das Handy
-const LOOP_FRAMES := 22050          ## 1 s Schleife (Rauschen wiederholt sich nicht hörbar)
+const SAMPLE_RATE := 44100          ## volle Auflösung (hohe Drehzahl = Tonhöhe bis ×4)
+const LOOP_FRAMES := 44100          ## 1 s Tonschleife (Ton ist periodisch, Wiederholung unhörbar)
+const NOISE_FRAMES := 176400        ## 4 s Rauschschleife (Wiederholung nicht als Muster hörbar)
 const F_REF := 200.0                ## Blattfolge-Ton der Schleife (Hz)
 const POLE_PAIRS := 7.0             ## typischer Außenläufer (14 Pole)
 const RPM_TAU := 0.03               ## Trägheit der Drehzahl-Anzeige im Klang (s)
@@ -39,11 +41,13 @@ const RPM_TAU := 0.03               ## Trägheit der Drehzahl-Anzeige im Klang (
 static var _cache := {}
 
 var motor: VectorMotor
-var _rev_player: AudioStreamPlayer3D   ## zweite Schleife für den Rückwärtslauf
+var _rev_player: AudioStreamPlayer3D   ## zweite Tonschleife für den Rückwärtslauf
+var _noise_player: AudioStreamPlayer3D ## Luftrauschen (eigene, lange Schleife)
 var _rpm := 0.0                        ## geglättete Drehzahl (vermeidet Sprünge)
 var _rev_mix := 0.0                    ## 0 = vorwärts, 1 = rückwärts (weich überblendet)
 var _gain_fwd := 1.0                   ## gleicht die Normierung der Schleifen aus (gleiche Lautstärke wie vorher)
 var _gain_rev := 1.0
+var _noise_gain := 1.0
 
 
 func setup(m: VectorMotor) -> void:
@@ -67,10 +71,20 @@ func _ready() -> void:
 	_gain_rev = _cache["%d_true_g" % motor.prop_blades]
 	_rev_player.volume_db = -80.0
 	add_child(_rev_player)
+	# Rauschen: eigene lange Schleife, folgt der Drehzahl ebenfalls über die Tonhöhe
+	_noise_player = AudioStreamPlayer3D.new()
+	_noise_player.unit_size = unit_size
+	_noise_player.max_db = max_db
+	_noise_player.attenuation_model = attenuation_model
+	_noise_player.stream = _noise_loop()
+	_noise_gain = _cache["noise_g"]
+	_noise_player.volume_db = -80.0
+	add_child(_noise_player)
 	# Beide laufen dauernd (stumm im Stillstand) – so gibt es beim Anlaufen
 	# keinen Startverzug.
 	play()
 	_rev_player.play()
+	_noise_player.play(randf() * 3.5)               # versetzt starten: die Motoren rauschen nicht gleich
 
 
 ## Jedes Bild: Tonhöhe und Lautstärke an die Drehzahl anpassen.
@@ -83,6 +97,7 @@ func _process(dt: float) -> void:
 	if _rpm < 30.0:
 		volume_db = -80.0                       # Stillstand = Stille
 		_rev_player.volume_db = -80.0
+		_noise_player.volume_db = -80.0
 		return
 	# Tonhöhe: Blattfolge-Frequenz, Drehrichtung verstimmt minimal (Schwebung)
 	var detune := 1.0 + 0.012 * float(motor.spin_dir)
@@ -90,40 +105,29 @@ func _process(dt: float) -> void:
 	var ps := clampf(f_blade / F_REF, 0.05, 8.0)
 	pitch_scale = ps
 	_rev_player.pitch_scale = ps
+	_noise_player.pitch_scale = ps
 	# Lautstärke: steigt mit Drehzahl (≈ Leistung) und Propellergröße
 	var size_gain := clampf(pow(motor.prop_diameter_in / 5.0, 1.2), 0.4, 3.0) * 0.45
 	var level := pow(_rpm / motor.max_rpm, 1.5) * size_gain
-	volume_db = linear_to_db(maxf(level * _gain_fwd * (1.0 - _rev_mix), 1e-4))
-	_rev_player.volume_db = linear_to_db(maxf(level * _gain_rev * _rev_mix, 1e-4))
+	# Anteile wie in der Erstversion: Ton (1 − Rauschanteil) · 0,5, Rauschen Anteil · 2;
+	# Rauschanteil vorwärts 0,35, rückwärts 0,6
+	var noise_share := lerpf(0.35, 0.6, _rev_mix)
+	volume_db = linear_to_db(maxf(level * 0.5 * 0.65 * _gain_fwd * (1.0 - _rev_mix), 1e-4))
+	_rev_player.volume_db = linear_to_db(maxf(level * 0.5 * 0.4 * _gain_rev * _rev_mix, 1e-4))
+	_noise_player.volume_db = linear_to_db(maxf(level * 2.0 * noise_share * _noise_gain, 1e-4))
 
 
-## Eine Sekunde Klang bei F_REF berechnen (einmal je Blattzahl/Richtung).
+## Eine Sekunde Ton bei F_REF berechnen (einmal je Blattzahl/Richtung).
+## Enthält Blattfolge-Ton und Motor-Pfeifen; das Rauschen kommt aus _noise_loop().
 static func _loop(blades: int, reverse: bool) -> AudioStreamWAV:
 	var key := "%d_%s" % [blades, reverse]
 	if _cache.has(key):
 		return _cache[key]
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345 + blades
 	# Ganze Zahl von Schwingungen je Schleife → nahtloser Übergang
 	var n_blade := F_REF * LOOP_FRAMES / SAMPLE_RATE                      # 200 Schwingungen
 	var n_motor := roundf(n_blade * POLE_PAIRS / float(blades))          # Motor-Pfeifen
-	var noise_share := 0.6 if reverse else 0.35
-	# Rausch-Tiefpass wie vorher: Grenze folgt der Blattfolge (hier F_REF;
-	# durch pitch_scale wandert sie im Flug mit der Drehzahl mit)
-	var a := clampf(F_REF * 6.0 / SAMPLE_RATE, 0.02, 0.9)
 	var raw := PackedFloat32Array()
 	raw.resize(LOOP_FRAMES)
-	var lp := 0.0
-	# Rauschen zweimal durchlaufen lassen, damit der Filter am Schleifenanfang
-	# schon eingeschwungen ist (sonst kleiner Sprung an der Nahtstelle)
-	var noise := PackedFloat32Array()
-	noise.resize(LOOP_FRAMES)
-	for i in LOOP_FRAMES: noise[i] = rng.randf_range(-1.0, 1.0)
-	for pass_i in 2:
-		for i in LOOP_FRAMES:
-			lp += (noise[i] - lp) * a
-			if pass_i == 1: raw[i] = lp
-	var peak := 0.0
 	for i in LOOP_FRAMES:
 		var ph := float(i) / LOOP_FRAMES
 		var p := TAU * n_blade * ph
@@ -131,19 +135,48 @@ static func _loop(blades: int, reverse: bool) -> AudioStreamWAV:
 		var tone := sin(p) + 0.5 * sin(2.0 * p) + 0.25 * sin(3.0 * p) + 0.12 * sin(4.0 * p)
 		# 2) leises Motor-Pfeifen
 		tone += 0.08 * sin(TAU * n_motor * ph)
-		# 3) Luftrauschen
-		var s := tone * (1.0 - noise_share) * 0.5 + raw[i] * noise_share * 2.0
 		# Rückwärts: leichtes Flattern (Strömung reißt am Profil ab)
 		if reverse:
-			s *= 1.0 + 0.3 * sin(PI * fposmod(n_blade * ph, 1.0))
-		raw[i] = s
-		peak = maxf(peak, absf(s))
-	# Als 16-Bit-Mono-Schleife speichern (auf ±0,9 normiert; Lautstärke kommt
-	# im Flug über volume_db)
+			tone *= 1.0 + 0.3 * sin(PI * fposmod(n_blade * ph, 1.0))
+		raw[i] = tone
+	_cache[key] = _to_wav(raw, key)
+	return _cache[key]
+
+
+## Luftrauschen: 4 s tiefpassgefiltertes Rauschen (Grenze folgt der Blattfolge
+## F_REF und wandert über pitch_scale mit der Drehzahl mit). Für alle Motoren gleich.
+static func _noise_loop() -> AudioStreamWAV:
+	if _cache.has("noise"):
+		return _cache["noise"]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711
+	var a := clampf(F_REF * 6.0 / SAMPLE_RATE, 0.005, 0.9)
+	var noise := PackedFloat32Array()
+	noise.resize(NOISE_FRAMES)
+	for i in NOISE_FRAMES: noise[i] = rng.randf_range(-1.0, 1.0)
+	# Filter vorab einschwingen (Ende der Schleife), damit die Nahtstelle nicht springt
+	var lp := 0.0
+	for i in range(NOISE_FRAMES - 4000, NOISE_FRAMES):
+		lp += (noise[i] - lp) * a
+	var raw := PackedFloat32Array()
+	raw.resize(NOISE_FRAMES)
+	for i in NOISE_FRAMES:
+		lp += (noise[i] - lp) * a
+		raw[i] = lp
+	_cache["noise"] = _to_wav(raw, "noise")
+	return _cache["noise"]
+
+
+## Als 16-Bit-Mono-Schleife speichern (auf ±0,9 normiert). Der Faktor zurück auf
+## die ursprüngliche Lautstärke steht in _cache[key + "_g"].
+static func _to_wav(raw: PackedFloat32Array, key: String) -> AudioStreamWAV:
+	var peak := 0.0
+	for v in raw: peak = maxf(peak, absf(v))
+	var n := raw.size()
 	var bytes := PackedByteArray()
-	bytes.resize(LOOP_FRAMES * 2)
+	bytes.resize(n * 2)
 	var norm := 0.9 / maxf(peak, 1e-6)
-	for i in LOOP_FRAMES:
+	for i in n:
 		bytes.encode_s16(i * 2, int(clampf(raw[i] * norm, -1.0, 1.0) * 32767.0))
 	var wav := AudioStreamWAV.new()
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
@@ -152,7 +185,6 @@ static func _loop(blades: int, reverse: bool) -> AudioStreamWAV:
 	wav.data = bytes
 	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	wav.loop_begin = 0
-	wav.loop_end = LOOP_FRAMES
-	_cache[key] = wav
-	_cache[key + "_g"] = peak / 0.9           # Faktor zurück auf die ursprüngliche Lautstärke
+	wav.loop_end = n
+	_cache[key + "_g"] = peak / 0.9
 	return wav

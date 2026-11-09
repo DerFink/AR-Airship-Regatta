@@ -1,3 +1,4 @@
+# 2026-11-09 14:20 – Fenster „Sender kalibrieren“ (aus dem Menü); solange offen: Motoren aus, Knüppel wirken nicht
 # 2026-11-09 10:20 – Neben dem Modusschalter: Reglerwahl „Teensy | Sim-optimiert“ und Knopf „Demo“ (während der Demo „Demo stoppen“)
 # 2026-11-09 10:00 – Demo-Flug: Menüeintrag, Knüppel werden während der Demo nicht an den Regler gegeben
 # 2026-11-08 18:00 – Menü zeigt das verbundene Sendergerät
@@ -60,6 +61,7 @@ var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
 var _preset_btns := {}                    ## "teensy"/"sim" → Button
 var _btn_demo: Button
+var _calib: CalibrationPanel              ## Fenster „Sender kalibrieren“
 var _banner: PanelContainer
 var _banner_timer := 0.0
 var _tl: HBoxContainer
@@ -188,6 +190,13 @@ func _ready() -> void:
 	_menu.ar_requested.connect(func(): ar_requested.emit())
 	_menu.reset_requested.connect(func(): reset_requested.emit())
 	_menu.demo_requested.connect(func(): demo_requested.emit())
+	# Fenster „Sender kalibrieren“ (über allem)
+	_calib = CalibrationPanel.new()
+	_calib.joy = _joy
+	add_child(_calib)
+	_menu.calibrate_requested.connect(func():
+		if fc: fc.armed = false                     # Motoren aus, bevor geknüppelt wird
+		_calib.show_panel())
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -264,7 +273,10 @@ func _on_arm_toggled(on: bool) -> void:
 func _process(dt: float) -> void:
 	# Knüppel → Flugcontroller
 	if fc:
-		if demo_active:
+		if _calib and _calib.visible:
+			fc.armed = false                          # Kalibrieren: Motoren aus, Knüppel wirken nicht
+			fc.set_sticks(Vector2.ZERO, Vector2.ZERO)
+		elif demo_active:
 			pass                                      # Demo-Flug: der Autopilot steuert
 		elif _joy and _joy.active():
 			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
