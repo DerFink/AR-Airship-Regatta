@@ -1,3 +1,4 @@
+# 2026-11-09 14:10 – Auch Sender mit kleinem Ausschlag (z. B. nur ±60 %) werden erfasst: Knüppel gelten als bewegt, sobald sie je Seite ≥ 30 % über die Mitte hinaus waren; der erreichte Anschlag wird zu 100 %
 # 2026-11-09 14:20 – Erstversion: Fenster „Sender kalibrieren“ nach freigegebenem Entwurf (beide Knüppelfelder, Kanalliste mit Min/Mitte/Max, Status und Richtungsumkehr, Schalterstellungen; Motoren aus, solange offen)
 # =============================================================================
 # CalibrationPanel.gd
@@ -22,9 +23,10 @@ extends Control
 
 signal closed
 
-## Mindest-Bereich (Rohwert, max − min), ab dem ein Kanal als erfasst gilt
-const STICK_RANGE_OK := 1.5         ## Knüppel: fast ganz −1…+1
-const SWITCH_RANGE_OK := 1.0        ## Schalter: mindestens zwei Stellungen
+## Ab wann ein Kanal als erfasst gilt. Der erreichte Anschlag wird dann zu
+## ±100 % – auch wenn der Sender selbst nur z. B. ±60 % ausgibt.
+const STICK_SIDE_OK := 0.3          ## Knüppel: je Seite mindestens 30 % über die Mitte hinaus
+const SWITCH_RANGE_OK := 0.5        ## Schalter: mindestens zwei Stellungen (max − min)
 ## Kanalnamen (Index = Kanal − 1) und ob es ein Knüppel ist
 const NAMES := ["Seite", "Höhe", "Gas", "Rolle", "SF Scharf", "SC Modus", "SH Zurücks."]
 
@@ -149,8 +151,10 @@ func hide_panel() -> void:
 
 ## Ist ein Kanal weit genug bewegt worden?
 func _captured(i: int) -> bool:
-	var need := STICK_RANGE_OK if i < 4 else SWITCH_RANGE_OK
-	return _cap[i].max - _cap[i].min >= need
+	if i < 4:
+		var mid: float = _work[i].center
+		return _cap[i].max - mid >= STICK_SIDE_OK and mid - _cap[i].min >= STICK_SIDE_OK
+	return _cap[i].max - _cap[i].min >= SWITCH_RANGE_OK
 
 
 ## Kalibriersatz eines Kanals für Anzeige und Speichern: erfasster Bereich,
