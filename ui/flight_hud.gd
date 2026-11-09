@@ -1,3 +1,4 @@
+# 2026-11-09 10:00 – Demo-Flug: Menüeintrag, Knüppel werden während der Demo nicht an den Regler gegeben
 # 2026-11-08 18:00 – Menü zeigt das verbundene Sendergerät
 # 2026-11-08 17:15 – Bildschirmknüppel bewegen sich mit den Senderknüppeln
 # 2026-11-08 15:40 – Hinweis beim Verbinden: SF oben = scharf
@@ -38,6 +39,9 @@ signal reset_requested
 signal course_requested
 signal model_requested
 signal leaderboard_requested
+signal demo_requested
+## true, solange der Demo-Flug läuft: dann steuert der Autopilot, nicht die Knüppel
+var demo_active := false
 
 var fc: FlightController
 var ship: AirshipPhysics
@@ -155,6 +159,7 @@ func _ready() -> void:
 	_menu.pid_requested.connect(func(): pid_requested.emit())
 	_menu.ar_requested.connect(func(): ar_requested.emit())
 	_menu.reset_requested.connect(func(): reset_requested.emit())
+	_menu.demo_requested.connect(func(): demo_requested.emit())
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -231,7 +236,9 @@ func _on_arm_toggled(on: bool) -> void:
 func _process(dt: float) -> void:
 	# Knüppel → Flugcontroller
 	if fc:
-		if _joy and _joy.active():
+		if demo_active:
+			pass                                      # Demo-Flug: der Autopilot steuert
+		elif _joy and _joy.active():
 			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
 			stick_left.show_external(_joy.left)       # Bildschirmknüppel zeigen die Senderknüppel
 			stick_right.show_external(_joy.right)

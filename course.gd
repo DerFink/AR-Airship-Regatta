@@ -1,3 +1,4 @@
+# 2026-11-09 09:45 – Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke 25 m, halb durchsichtig mit 5-m-Raster, Luftschiff prallt ab
 # 2026-10-29 00:19 – course_key() für die Bestenliste
 # 2026-10-28 15:12 – Start in 1,5 m Höhe
 # 2026-10-28 09:02 – Startlage 1 m neben dem vorderen Pylon (Pilotenseite) statt genau davor
@@ -51,6 +52,11 @@ const MAX_DISTANCE := 50.0
 const PYLON_HEIGHT := 5.0
 const FIELD_MARGIN := 3.5        ## Rechteck reicht so weit vor/hinter die Pylone
 const FIELD_WIDTH := 20.0
+## Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke in 25 m Höhe
+const HALL_GAP := 10.0
+const HALL_HEIGHT := 25.0
+## Abprallen an Wänden und Decke (0 = kein Abprall, 1 = voll elastisch)
+const HALL_BOUNCE := 0.6
 const LINE_WIDTH := 0.10
 const START_BEHIND := 1.0        ## Bug steht so weit hinter der Linie des vorderen Pylons
 const START_BESIDE := 1.0        ## Abstand Hüllenseite ↔ vorderer Pylon (zur Pilotenseite hin)
@@ -140,6 +146,94 @@ func rebuild() -> void:
 		mi.material_override = lm
 		mi.position = st[0]
 		add_child(mi)
+	_build_hall(x0 - HALL_GAP, x1 + HALL_GAP, hw + HALL_GAP)
+
+
+# =============================================================================
+# Halle (09.11.2026): vier Wände und Decke als Orientierung und Begrenzung.
+# Die Flächen sind halb durchsichtig mit einem 5-m-Raster; das Luftschiff prallt
+# daran ab (Abprall-Material nur an Wänden/Decke, der Boden bleibt ohne Abprall).
+# =============================================================================
+func _build_hall(xa: float, xb: float, hz: float) -> void:
+	var hall := StaticBody3D.new()
+	hall.name = "Halle"
+	var pm := PhysicsMaterial.new()
+	pm.bounce = HALL_BOUNCE
+	pm.friction = 0.2
+	hall.physics_material_override = pm
+	add_child(hall)
+	var cx := (xa + xb) * 0.5
+	var lx := xb - xa
+	var lz := 2.0 * hz
+	var th := 1.0                                     # Wanddicke (nur Kollision)
+	var H := HALL_HEIGHT
+	# [Mitte, Größe] der Kollisionsquader: Wand vorn/hinten, links/rechts, Decke
+	var boxes := [
+		[Vector3(xa - th * 0.5, H * 0.5, 0), Vector3(th, H, lz + 2 * th)],
+		[Vector3(xb + th * 0.5, H * 0.5, 0), Vector3(th, H, lz + 2 * th)],
+		[Vector3(cx, H * 0.5, -hz - th * 0.5), Vector3(lx, H, th)],
+		[Vector3(cx, H * 0.5, hz + th * 0.5), Vector3(lx, H, th)],
+		[Vector3(cx, H + th * 0.5, 0), Vector3(lx + 2 * th, th, lz + 2 * th)],
+	]
+	for bx in boxes:
+		var cs := CollisionShape3D.new()
+		var sh := BoxShape3D.new()
+		sh.size = bx[1]
+		cs.shape = sh
+		cs.position = bx[0]
+		hall.add_child(cs)
+	# Sichtbare Flächen: hell, halb durchsichtig, nur innen sichtbar
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.85, 0.88, 0.92, 0.18)
+	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var faces := [
+		[Vector3(xa, H * 0.5, 0), Vector3(0.02, H, lz)],
+		[Vector3(xb, H * 0.5, 0), Vector3(0.02, H, lz)],
+		[Vector3(cx, H * 0.5, -hz), Vector3(lx, H, 0.02)],
+		[Vector3(cx, H * 0.5, hz), Vector3(lx, H, 0.02)],
+		[Vector3(cx, H, 0), Vector3(lx, 0.02, lz)],
+	]
+	for fc in faces:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = fc[1]
+		mi.mesh = bm
+		mi.material_override = wm
+		mi.position = fc[0]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	# 5-m-Raster als Linien (eine Linienmesh für alle Flächen)
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	var step := 5.0
+	var line := func(a: Vector3, b: Vector3): im.surface_add_vertex(a); im.surface_add_vertex(b)
+	var y := 0.0
+	while y <= H + 0.01:                              # waagrechte Linien an allen vier Wänden
+		line.call(Vector3(xa, y, -hz), Vector3(xa, y, hz)); line.call(Vector3(xb, y, -hz), Vector3(xb, y, hz))
+		line.call(Vector3(xa, y, -hz), Vector3(xb, y, -hz)); line.call(Vector3(xa, y, hz), Vector3(xb, y, hz))
+		y += step
+	var x := xa
+	while x <= xb + 0.01:                             # senkrechte Linien an den Längswänden + Decke quer
+		line.call(Vector3(x, 0, -hz), Vector3(x, H, -hz)); line.call(Vector3(x, 0, hz), Vector3(x, H, hz))
+		line.call(Vector3(x, H, -hz), Vector3(x, H, hz))
+		x += step
+	var z := -hz
+	while z <= hz + 0.01:                             # senkrechte Linien an den Stirnwänden + Decke längs
+		line.call(Vector3(xa, 0, z), Vector3(xa, H, z)); line.call(Vector3(xb, 0, z), Vector3(xb, H, z))
+		line.call(Vector3(xa, H, z), Vector3(xb, H, z))
+		z += step
+	im.surface_end()
+	var lmi := MeshInstance3D.new()
+	lmi.mesh = im
+	var lmat := StandardMaterial3D.new()
+	lmat.albedo_color = Color(0.95, 0.97, 1.0, 0.55)
+	lmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lmi.material_override = lmat
+	lmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(lmi)
 
 
 ## Startlage des Schiffs: Bug 1 m hinter der Linie des vorderen Pylons,

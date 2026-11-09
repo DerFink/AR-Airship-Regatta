@@ -1,3 +1,4 @@
+# 2026-11-09 10:00 – Demo-Flug (DemoPilot) verdrahtet; Zurücksetzen beendet die Demo
 # 2026-11-08 17:40 – Bestenliste mit dem Sender: SH bestätigt/schließt das Fenster, rechter Knüppel wählt
 # 2026-11-07 21:10 – Menü der Flugansicht verdrahtet (Modell wählen, Bestenliste, Angaben Modell/Strecke)
 # 2026-10-29 03:38 – reset_all_settings(): Flugcontroller, Strecke, Startposition
@@ -47,6 +48,7 @@ var builder: BuilderPanel
 var pid: PIDPanel
 var share: SharePanel
 var course: Course
+var demo: DemoPilot                  ## Demo-Flug (Autopilot)
 var course_panel: CoursePanel
 var leader_panel: LeaderboardPanel
 var ui_sounds: UISounds
@@ -213,6 +215,12 @@ func _build_ui() -> void:
 	# Menü in der Flugansicht: Modellwahl öffnet den Baukasten mit aufgeklappter Modellliste
 	hud.model_requested.connect(func(): _set_view(View.BUILD); builder.open_model_choice.call_deferred())
 	hud.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
+	# Demo-Flug: Autopilot fliegt Chewies schnellste gefundene Runde
+	demo = DemoPilot.new()
+	demo.ship = ship; demo.fc = fc; demo.course = course
+	add_child(demo)
+	demo.finished.connect(func(): hud.demo_active = false)
+	hud.demo_requested.connect(_start_demo)
 	hud.menu_info = func(): return {"model": ship.model_name, "course": course.title()}
 	course_panel.closed.connect(func(): _set_view(View.FLY))
 	course_panel.course_changed.connect(reset_ship)
@@ -241,7 +249,23 @@ func _build_ui() -> void:
 
 ## Schiff an den Startpunkt zurück (Nase Richtung Pylon 2), Regler neu starten.
 ## Der Motor-Schalter bleibt, wie er ist – der Gasknüppel steht ja in der Mitte.
+## Demo-Flug starten: Chewie laden (die Demo ist auf ihn abgestimmt), an den
+## Start setzen und nach dem Zurücksetzen den Autopiloten übernehmen lassen.
+func _start_demo() -> void:
+	if ship.model_name != "Chewie":
+		AirshipPresets.chewie(ship)
+	reset_ship()
+	hud.demo_active = true
+	hud.show_notice("Demo: optimaler Flug mit im Simulator optimierten Reglerwerten – Zurücksetzen beendet", "info", 5.0)
+	await get_tree().create_timer(0.2).timeout
+	if hud.demo_active:
+		demo.start()
+
+
 func reset_ship() -> void:
+	if demo and demo.active:
+		demo.stop()                                   # Zurücksetzen beendet die Demo
+	hud.demo_active = false
 	ship.reset_to(course.start_transform(ship))
 	fc._reset_integrators()
 	course.reset_race()
@@ -252,6 +276,11 @@ func reset_ship() -> void:
 ## abfragen (Motoren aus, damit das Schiff nicht weiterfliegt).
 func _on_race_changed() -> void:
 	if course.race != Course.Race.DONE or view == View.LEADER:
+		return
+	if demo and demo.active:
+		# Demo im Ziel: Zeit zeigen, nichts in die Bestenliste
+		hud.show_notice("Demo im Ziel · %s (%s)" % [Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
+		demo.stop()
 		return
 	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
 		fc.armed = false
