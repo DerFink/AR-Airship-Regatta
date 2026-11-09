@@ -1,3 +1,4 @@
+# 2026-11-09 13:15 – Neue Bestrunde Mode 3 (mit Boden gerechnet, Sollhöhe 2,2 m); Demo wieder in Mode 3; rechnet vor dem Flugregler (vorher 1 Schritt Verzögerung → Höhe schaukelte sich auf)
 # 2026-11-09 12:45 – Demo fliegt in Mode 2 (die Werte stammen aus Mode 2 – Fehler im Optimierer), kein Bodenkontakt mehr; Höhenhaltung aus FLY (h_target/h_kp/h_kd)
 # 2026-11-09 10:20 – Reglerwerte aus FlightController.SIM_OPT (gleich wie die Reglerwahl „Sim-optimiert“)
 # 2026-11-09 10:00 – Erstversion: Demo-Flug – der Autopilot aus der Rennoptimierung (tools/race_opt.gd) fliegt Chewies schnellste gefundene Runde (3 Runden ≈ 11,5 s) mit den im Simulator optimierten Reglerwerten
@@ -14,13 +15,17 @@
 class_name DemoPilot
 extends Node
 
+func _init() -> void:
+	process_physics_priority = -100    # vor dem Flugregler rechnen: Knüppel im selben Physikschritt (wie in der Optimierung)
+
 signal finished
 
-## Beste gefundene Flugweise (Suche vom 08.11.2026, Mittel aus 3 Flügen mit Böen 11,5 s)
-const FLY := {"R1": 2.102, "R2": 2.445, "L": 3.867, "k": 2.673, "kff": 0.06,
-	"t_str": 0.866, "cut_before": 2.853, "t_cut": 0.862, "t_arc": 1.0,
-	"dip_len": 0.863, "t_dip": 0.788, "boost_start": 0.703,
-	"h_target": 1.5, "h_kp": 0.8, "h_kd": 0.6}
+## Beste gefundene Flugweise in Mode 3 (Suche vom 09.11.2026 mit Boden: Hülle nie
+## tiefer als 0,3 m; Mittel aus 3 Flügen mit Böen 10,44 s, Hülle min. 0,77 m über Boden)
+const FLY := {"R1": 2.004, "R2": 2.031, "L": 3.578, "k": 2.683, "kff": 0.084,
+	"t_str": 1.0, "cut_before": 3.0, "t_cut": 1.0, "t_arc": 1.0,
+	"dip_len": 2.329, "t_dip": 0.991, "boost_start": 0.883,
+	"h_target": 2.187, "h_kp": 1.248, "h_kd": 0.956}
 const STEP := 0.1                 ## Punktabstand der Sollbahn (m)
 
 var ship: AirshipPhysics
@@ -48,7 +53,7 @@ func start() -> void:
 			_saved_general[key] = fc.get(key)
 	_saved_mode = int(fc.mode)
 	fc.apply_overrides(FlightController.SIM_OPT)    # im Simulator optimierte Reglerwerte
-	fc.mode = FlightController.Mode.MODE2            # in diesem Modus wurde diese Flugweise tatsächlich optimiert
+	fc.mode = FlightController.Mode.MODE3            # in diesem Modus wurde optimiert
 	fc.armed = true
 	active = true
 

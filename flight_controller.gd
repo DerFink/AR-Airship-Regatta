@@ -1,3 +1,4 @@
+# 2026-11-09 13:00 – SIM_OPT: neue Werte aus der Optimierung in echtem Mode 3 mit Boden
 # 2026-11-09 10:20 – Reglerwahl „Teensy“ / „Sim-optimiert“ (preset, SIM_OPT, apply_preset); Wahl wird gespeichert
 # 2026-11-08 20:00 – Gierschwenk ab 22 % Gas mit (Grenze/Gas)² zurückgenommen (Wenderadius ≤ 2 m, kein Umkippen bei Vollgas); Mode 3: Vorlauf-Grenze nur bei bewegtem Höhenknüppel
 # 2026-11-08 16:20 – Expo auf dem Seitenknüppel (yaw_expo 0,3, im PID-Menü unter Mischer einstellbar)
@@ -222,11 +223,11 @@ const MIX_PARAMS := [
 ## Reglerwahl: "teensy" = Werte aus der .ino (Werkseinstellung + Modell-Vorgaben),
 ## "sim" = dieselben Werte, darüber die in der Rennoptimierung gefundenen (SIM_OPT).
 var preset := "teensy"
-## Im Simulator optimierte Reglerwerte (Rennoptimierung 08.11.2026, Chewie Mode 3).
-## Schlüssel "achse.wert" = PID-Parameter, sonst allgemeine Einstellung.
-const SIM_OPT := {"yaw.Kp_yaw_m3": 0.192, "yaw.Kd_yaw_m3": 0.335, "yaw.yaw_loop_motor_m3": 0.753,
-	"yaw.yaw_loop_tail_m3": 0.501, "pitch.Kp": 0.3, "pitch.Kd": 0.202, "roll.Kp": 0.308,
-	"roll.Kd": 0.18, "yaw_swivel_full_lever": 0.315}
+## Im Simulator optimierte Reglerwerte (Rennoptimierung 09.11.2026, Chewie Mode 3,
+## mit Boden gerechnet). Schlüssel "achse.wert" = PID-Parameter, sonst allgemeine Einstellung.
+const SIM_OPT := {"pitch.Kp": 1.179, "pitch.Kd": 0.405, "roll.Kp": 0.355, "roll.Kd": 0.125,
+	"yaw_swivel_full_lever": 0.246, "yaw.Kp_yaw_m3": 0.852, "yaw.Kd_yaw_m3": 0.292,
+	"yaw.yaw_loop_motor_m3": 1.184, "yaw.yaw_loop_tail_m3": 0.205}
 const PRESET_NAMES := {"teensy": "Teensy", "sim": "Sim-optimiert"}
 
 ## Werkseinstellungen (beim Erzeugen gemerkt, vor dem Laden gespeicherter Werte)

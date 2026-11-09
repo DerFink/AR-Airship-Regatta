@@ -1,3 +1,5 @@
+# 2026-11-09 13:20 – Knüppel-Verzögerung "lag" (Physikschritte) für robuste Ergebnisse
+# 2026-11-09 13:10 – Ausgabe h_rms (Höhenschwankung um die Sollhöhe)
 # 2026-11-09 12:30 – FEHLER BEHOBEN: "mode" ist jetzt die Modusnummer wie am Sender (1 = Direkt, 2 = Mode 2, 3 = Mode 3). Vorher wurde sie direkt als enum genommen: "mode":3 war ungültig und flog wie Mode 2, "mode":2 war Mode 3
 # 2026-11-09 12:10 – Boden wie in der Flugszene (Kontakt = Fehlflug), Höhenhaltung je Kandidat (h_target/h_kp/h_kd), Ausgabe Mindesthöhe und Bodenkontakte
 # 2026-11-08 22:40 – Tangentiale Sollbahn (path \"tan\"), Krümmungs-Vorsteuerung (kff), Reglerwerte je Kandidat (fc), Böen (noise_seed), Maße Bahnabweichung/Rollen
@@ -380,10 +382,20 @@ func _step(r: Dictionary, dt: float) -> void:
 	var yb := (s.global_transform * Vector3(0, 0, zc + (hl.length_m * 0.5 - rad))).y
 	var clear := minf(ya, yb) - rad
 	r.h_min = minf(r.get("h_min", 99.0), clear)
+	r.hdev2 = r.get("hdev2", 0.0) + pow(h - float(c.get("h_target", H_TARGET)), 2) * dt   # Höhenschwankung
 	if clear < CLEARANCE_MIN and r.fail == "":
 		r.done = true; r.fail = "Boden t=%.2f" % r.t
 		return
-	fc.set_sticks(Vector2(0, thr), Vector2(yaw, pitch_stick))
+	# Verzögerung der Knüppel um "lag" Physikschritte (Funkstrecke/Sender, Robustheit)
+	var lag := int(c.get("lag", 0))
+	if lag > 0:
+		if not r.has("q"): r.q = []
+		r.q.append([Vector2(0, thr), Vector2(yaw, pitch_stick)])
+		var e: Array = r.q[0] if r.q.size() > lag else [Vector2.ZERO, Vector2.ZERO]
+		if r.q.size() > lag: r.q.pop_front()
+		fc.set_sticks(e[0], e[1])
+	else:
+		fc.set_sticks(Vector2(0, thr), Vector2(yaw, pitch_stick))
 	# Rundenwertung mit der echten Streckenlogik (Bug-Position)
 	var nose: Vector3 = s.global_transform * Vector3(0, 0, -s.hull.cb_from_nose) - r.off
 	var course: Course = r.course
@@ -416,6 +428,7 @@ func _finish() -> void:
 			"mass_g": snappedf(r.s.structure_mass_kg * 1000.0, 0.1), "rest_g": snappedf(r.s.rest_mass_kg * 1000.0, 0.1),
 			"overweight": r.s.overweight, "motor_x": r.s.motors[0].hull_x,
 			"dev_rms": snappedf(sqrt(r.get("dev2", 0.0) / maxf(r.t, 0.01)), 0.001), "roll_max": snappedf(r.get("roll_max", 0.0), 0.1),
+			"h_rms": snappedf(sqrt(r.get("hdev2", 0.0) / maxf(r.t, 0.01)), 0.001),
 			"clear_min": snappedf(r.get("h_min", 99.0), 0.01)})
 	var fa := FileAccess.open(OS.get_environment("RACE_OUT") if OS.has_environment("RACE_OUT") else "user://race_out.json", FileAccess.WRITE)
 	fa.store_string(JSON.stringify(out))
