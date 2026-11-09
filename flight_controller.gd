@@ -1,3 +1,4 @@
+# 2026-11-09 16:00 – SIM_OPT neu für Mode 3 mit Gier-PID
 # 2026-11-09 15:20 – Mode 3: Gier als vollständiger PID-Drehratenregler (Kp/Ki/Kd_yaw_m3, immer aktiv, Sollrate 0 bei Knüppel Mitte ⇒ hält die Richtung; ersetzt Einblenden und Gierdämpfer); Höhenknüppel loslassen ⇒ Sollwinkel sofort 0 (wie Mode 2); Einstellungen Version 11
 # 2026-11-09 14:35 – Nick-Schutz (Mode 2/3): geht die Lage über maxPitch hinaus, wird die Knüppel-Vorsteuerung in diese Richtung über pitch_protect_band_deg (10°) ausgeblendet – vorher stellte sich bei gehaltenem Höhenknüppel ≈ 60° Nick ein (Flossen überzogen, „steuerlos“); Gas bleibt unberührt
 # 2026-11-09 14:00 – SIM_OPT: robuste Werte (Böen, Knüppelverzögerung, Boden)
@@ -240,11 +241,13 @@ const MIX_PARAMS := [
 ## Reglerwahl: "teensy" = Werte aus der .ino (Werkseinstellung + Modell-Vorgaben),
 ## "sim" = dieselben Werte, darüber die in der Rennoptimierung gefundenen (SIM_OPT).
 var preset := "teensy"
-## Im Simulator optimierte Reglerwerte (Rennoptimierung 09.11.2026, Chewie Mode 3, mit Boden,
-## Böen und 0–2 Schritten Knüppelverzögerung). Schlüssel "achse.wert" = PID-Parameter,
+## Im Simulator optimierte Reglerwerte (Rennoptimierung 09.11.2026 nachmittags, Chewie Mode 3 mit
+## Gier-PID; mit Boden, Böen und 0–2 Schritten Knüppelverzögerung). Die maximale Gierrate
+## gehört nicht dazu – sie bleibt Sache des Piloten. Schlüssel "achse.wert" = PID-Parameter,
 ## sonst allgemeine Einstellung.
-const SIM_OPT := {"pitch.Kp": 1.5, "pitch.Kd": 0.27, "roll.Kp": 0.572, "roll.Kd": 0.108,
-	"yaw_swivel_full_lever": 0.318}
+const SIM_OPT := {"pitch.Kp": 1.455, "pitch.Kd": 0.271, "roll.Kp": 0.808, "roll.Kd": 0.12,
+	"yaw_swivel_full_lever": 0.378, "yaw.Kp_yaw_m3": 0.975, "yaw.Ki_yaw_m3": 0.416,
+	"yaw.Kd_yaw_m3": 0.016, "yaw.yaw_loop_motor_m3": 0.668, "yaw.yaw_loop_tail_m3": 0.201}
 const PRESET_NAMES := {"teensy": "Teensy", "sim": "Sim-optimiert"}
 
 ## Werkseinstellungen (beim Erzeugen gemerkt, vor dem Laden gespeicherter Werte)

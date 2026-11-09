@@ -1,3 +1,4 @@
+# 2026-11-09 16:00 – Neue Bestrunde für Mode 3 mit Gier-PID (10,4 s), Demo-Sollrate 237 °/s
 # 2026-11-09 14:00 – Robuste Bestrunde Mode 3 (Böen und Knüppelverzögerung mitgerechnet)
 # 2026-11-09 13:15 – Neue Bestrunde Mode 3 (mit Boden gerechnet, Sollhöhe 2,2 m); Demo wieder in Mode 3; rechnet vor dem Flugregler (vorher 1 Schritt Verzögerung → Höhe schaukelte sich auf)
 # 2026-11-09 12:45 – Demo fliegt in Mode 2 (die Werte stammen aus Mode 2 – Fehler im Optimierer), kein Bodenkontakt mehr; Höhenhaltung aus FLY (h_target/h_kp/h_kd)
@@ -21,13 +22,16 @@ func _init() -> void:
 
 signal finished
 
-## Beste gefundene Flugweise in Mode 3 (Suche vom 09.11.2026: mit Boden, je Satz 4 Flüge –
-## ohne/mit Böen, 0–2 Schritte Knüppelverzögerung; Mittel 10,56 s, Hülle min. 0,75 m
-## über Boden, Höhenschwankung ±0,23 m)
-const FLY := {"R1": 2.24, "R2": 2.137, "L": 3.819, "k": 2.522, "kff": 0.087,
-	"t_str": 0.998, "cut_before": 2.795, "t_cut": 0.976, "t_arc": 1.0,
-	"dip_len": 2.783, "t_dip": 0.978, "boost_start": 0.836,
-	"h_target": 1.777, "h_kp": 1.087, "h_kd": 0.839}
+## Beste gefundene Flugweise in Mode 3 mit Gier-PID (Suche vom 09.11.2026 nachmittags: mit
+## Boden, je Satz 4 Flüge – ohne/mit Böen, 0–2 Schritte Knüppelverzögerung; Mittel 10,42 s,
+## Hülle min. 1,12 m über Boden, Höhenschwankung ±0,10 m)
+const FLY := {"R1": 1.945, "R2": 2.076, "L": 3.855, "k": 2.522, "kff": 0.247,
+	"t_str": 0.999, "cut_before": 2.669, "t_cut": 0.833, "t_arc": 1.0,
+	"dip_len": 2.595, "t_dip": 0.997, "boost_start": 0.743,
+	"h_target": 1.759, "h_kp": 1.11, "h_kd": 0.82}
+## Zusätzlich nur für die Demo: Sollrate bei vollem Seitenknüppel (die Demo fliegt fast
+## immer Vollgas, da erreicht Chewie ≈ 235 °/s)
+const DEMO_FC := {"yaw.yaw_rate_max": 236.6}
 const STEP := 0.1                 ## Punktabstand der Sollbahn (m)
 
 var ship: AirshipPhysics
@@ -55,6 +59,7 @@ func start() -> void:
 			_saved_general[key] = fc.get(key)
 	_saved_mode = int(fc.mode)
 	fc.apply_overrides(FlightController.SIM_OPT)    # im Simulator optimierte Reglerwerte
+	fc.apply_overrides(DEMO_FC)                     # Demo-Zusatz (wird mit params wiederhergestellt)
 	fc.mode = FlightController.Mode.MODE3            # in diesem Modus wurde optimiert
 	fc.armed = true
 	active = true
