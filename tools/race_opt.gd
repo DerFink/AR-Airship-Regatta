@@ -1,3 +1,5 @@
+# 2026-11-09 12:30 – FEHLER BEHOBEN: "mode" ist jetzt die Modusnummer wie am Sender (1 = Direkt, 2 = Mode 2, 3 = Mode 3). Vorher wurde sie direkt als enum genommen: "mode":3 war ungültig und flog wie Mode 2, "mode":2 war Mode 3
+# 2026-11-09 12:10 – Boden wie in der Flugszene (Kontakt = Fehlflug), Höhenhaltung je Kandidat (h_target/h_kp/h_kd), Ausgabe Mindesthöhe und Bodenkontakte
 # 2026-11-08 22:40 – Tangentiale Sollbahn (path \"tan\"), Krümmungs-Vorsteuerung (kff), Reglerwerte je Kandidat (fc), Böen (noise_seed), Maße Bahnabweichung/Rollen
 # 2026-11-08 22:20 – Gasprofil je Kurve: vor der Kurve weg, im Bogen viel, danach kurz zurück, dann Gerade (t_cut/t_arc/t_dip/t_str)
 # 2026-11-08 22:10 – Vollgas-Stoß nach dem Bogen und am Start (boost, boost_start); Ein-/Ausgabedatei über RACE_IN/RACE_OUT
@@ -31,6 +33,8 @@ extends SceneTree
 const SPACING := 400.0
 const T_MAX := 150.0              ## Abbruch nach 150 s Flugzeit
 const H_TARGET := 1.5
+## Mindestabstand der Hüllenunterkante zum Boden (m); darunter = Bodenberührung
+const CLEARANCE_MIN := 0.3
 
 var runs: Array = []
 var f := 0
@@ -276,7 +280,9 @@ func _step(r: Dictionary, dt: float) -> void:
 	var c: Dictionary = r.c
 	if f == 1:
 		fc.apply_model_gains(s.fc_gains)
-		fc.mode = 0 if bool(c.get("model_opts", {}).get("no_fc", false)) else int(c.get("mode", 2))
+		# Modusnummer wie am Sender: 1 = Direkt, 2 = Mode 2, 3 = Mode 3
+		var md := {1: FlightController.Mode.DIRECT, 2: FlightController.Mode.MODE2, 3: FlightController.Mode.MODE3}
+		fc.mode = FlightController.Mode.DIRECT if bool(c.get("model_opts", {}).get("no_fc", false)) else md[int(c.get("mode", 2))]
 		fc.armed = true
 		# Reglerwerte überschreiben: {"yaw.Kp_yaw_m3": 0.5, "pitch.Kp": 0.7, "yaw_swivel_full_lever": 0.3}
 		var fo: Dictionary = c.get("fc", {})
@@ -362,7 +368,21 @@ func _step(r: Dictionary, dt: float) -> void:
 	# Höhe halten (Nickknüppel: −y = Nase hoch)
 	var h: float = p3.y
 	var vz := s.linear_velocity.y
-	var pitch_stick := clampf(-(0.8 * (H_TARGET - h) - 0.6 * vz), -1.0, 1.0)
+	var pitch_stick := clampf(-(float(c.get("h_kp", 0.8)) * (float(c.get("h_target", H_TARGET)) - h)
+		- float(c.get("h_kd", 0.6)) * vz), -1.0, 1.0)
+	# Bodenabstand: tiefster Punkt der Hülle (Kapsel wie die Kollisionsform in
+	# airship_visual.gd). Unter CLEARANCE_MIN gilt der Flug als Bodenberührung –
+	# der Rand deckt untere Flossen und Motoren ab, die unter die Hülle ragen.
+	var hl: GertlerHull = s.hull
+	var rad := hl.diameter_m * 0.5
+	var zc := hl.length_m * 0.5 - hl.cb_from_nose
+	var ya := (s.global_transform * Vector3(0, 0, zc - (hl.length_m * 0.5 - rad))).y
+	var yb := (s.global_transform * Vector3(0, 0, zc + (hl.length_m * 0.5 - rad))).y
+	var clear := minf(ya, yb) - rad
+	r.h_min = minf(r.get("h_min", 99.0), clear)
+	if clear < CLEARANCE_MIN and r.fail == "":
+		r.done = true; r.fail = "Boden t=%.2f" % r.t
+		return
 	fc.set_sticks(Vector2(0, thr), Vector2(yaw, pitch_stick))
 	# Rundenwertung mit der echten Streckenlogik (Bug-Position)
 	var nose: Vector3 = s.global_transform * Vector3(0, 0, -s.hull.cb_from_nose) - r.off
@@ -375,7 +395,7 @@ func _step(r: Dictionary, dt: float) -> void:
 		r.done = true
 	elif r.t > T_MAX:
 		r.done = true; r.fail = "Zeit"
-	elif absf(h - H_TARGET) > 6.0 or absf(p.y) > 15.0 or p.x < -10.0 or p.x > dist + 10.0:
+	elif absf(h - float(c.get("h_target", H_TARGET))) > 6.0 or absf(p.y) > 15.0 or p.x < -10.0 or p.x > dist + 10.0:
 		r.done = true; r.fail = "Bahn verlassen t=%.1f h=%.1f x=%.1f z=%.1f" % [r.t, h, p.x, p.y]
 
 
@@ -395,7 +415,8 @@ func _finish() -> void:
 			"tau": snappedf(pow(vref, 1.0 / 3.0), 0.0001), "score": snappedf(total * pow(vref, 1.0 / 3.0), 0.01) if total > 0 else -1.0,
 			"mass_g": snappedf(r.s.structure_mass_kg * 1000.0, 0.1), "rest_g": snappedf(r.s.rest_mass_kg * 1000.0, 0.1),
 			"overweight": r.s.overweight, "motor_x": r.s.motors[0].hull_x,
-			"dev_rms": snappedf(sqrt(r.get("dev2", 0.0) / maxf(r.t, 0.01)), 0.001), "roll_max": snappedf(r.get("roll_max", 0.0), 0.1)})
+			"dev_rms": snappedf(sqrt(r.get("dev2", 0.0) / maxf(r.t, 0.01)), 0.001), "roll_max": snappedf(r.get("roll_max", 0.0), 0.1),
+			"clear_min": snappedf(r.get("h_min", 99.0), 0.01)})
 	var fa := FileAccess.open(OS.get_environment("RACE_OUT") if OS.has_environment("RACE_OUT") else "user://race_out.json", FileAccess.WRITE)
 	fa.store_string(JSON.stringify(out))
 	fa.close()

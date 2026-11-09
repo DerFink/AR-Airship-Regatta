@@ -1,3 +1,4 @@
+# 2026-11-09 12:45 – Demo fliegt in Mode 2 (die Werte stammen aus Mode 2 – Fehler im Optimierer), kein Bodenkontakt mehr; Höhenhaltung aus FLY (h_target/h_kp/h_kd)
 # 2026-11-09 10:20 – Reglerwerte aus FlightController.SIM_OPT (gleich wie die Reglerwahl „Sim-optimiert“)
 # 2026-11-09 10:00 – Erstversion: Demo-Flug – der Autopilot aus der Rennoptimierung (tools/race_opt.gd) fliegt Chewies schnellste gefundene Runde (3 Runden ≈ 11,5 s) mit den im Simulator optimierten Reglerwerten
 # =============================================================================
@@ -18,8 +19,8 @@ signal finished
 ## Beste gefundene Flugweise (Suche vom 08.11.2026, Mittel aus 3 Flügen mit Böen 11,5 s)
 const FLY := {"R1": 2.102, "R2": 2.445, "L": 3.867, "k": 2.673, "kff": 0.06,
 	"t_str": 0.866, "cut_before": 2.853, "t_cut": 0.862, "t_arc": 1.0,
-	"dip_len": 0.863, "t_dip": 0.788, "boost_start": 0.703}
-const H_TARGET := 1.5
+	"dip_len": 0.863, "t_dip": 0.788, "boost_start": 0.703,
+	"h_target": 1.5, "h_kp": 0.8, "h_kd": 0.6}
 const STEP := 0.1                 ## Punktabstand der Sollbahn (m)
 
 var ship: AirshipPhysics
@@ -41,10 +42,13 @@ func start() -> void:
 	_idx = 0
 	_t = 0.0
 	_saved_params = fc.params.duplicate(true)
-	_saved_general = {"yaw_swivel_full_lever": fc.yaw_swivel_full_lever}   # einziger allgemeiner Wert in SIM_OPT
+	_saved_general = {}
+	for key in FlightController.SIM_OPT:            # allgemeine Werte (ohne „achse.“) merken
+		if not "." in str(key):
+			_saved_general[key] = fc.get(key)
 	_saved_mode = int(fc.mode)
 	fc.apply_overrides(FlightController.SIM_OPT)    # im Simulator optimierte Reglerwerte
-	fc.mode = FlightController.Mode.MODE3
+	fc.mode = FlightController.Mode.MODE2            # in diesem Modus wurde diese Flugweise tatsächlich optimiert
 	fc.armed = true
 	active = true
 
@@ -96,8 +100,9 @@ func _physics_process(dt: float) -> void:
 	elif pt[2] <= FLY.cut_before: thr = FLY.t_cut
 	elif pt[3] <= FLY.dip_len: thr = FLY.t_dip
 	if _t < FLY.boost_start: thr = 1.0
-	# Höhe halten (Nickknüppel nach hinten = Nase hoch = negatives y)
-	var pitch_stick := clampf(-(0.8 * (H_TARGET - p3.y) - 0.6 * ship.linear_velocity.y), -1.0, 1.0)
+	# Höhe halten (Nickknüppel nach hinten = Nase hoch = negatives y):
+	# Sollhöhe h_target, Verstärkung auf Höhenfehler h_kp und Steigrate h_kd
+	var pitch_stick := clampf(-(FLY.h_kp * (FLY.h_target - p3.y) - FLY.h_kd * ship.linear_velocity.y), -1.0, 1.0)
 	fc.set_sticks(Vector2(0, thr), Vector2(clampf(yaw_cmd, -1.0, 1.0), pitch_stick))
 
 
