@@ -1,4 +1,4 @@
-# 2026-11-09 16:00 – Neue Bestrunde für Mode 3 mit Gier-PID (10,4 s), Demo-Sollrate 237 °/s
+# 2026-11-09 16:35 – Demo fliegt mit den echten Reglerwerten (Teensy-Werkseinstellung); Flugweise wird dafür noch neu optimiert
 # 2026-11-09 14:00 – Robuste Bestrunde Mode 3 (Böen und Knüppelverzögerung mitgerechnet)
 # 2026-11-09 13:15 – Neue Bestrunde Mode 3 (mit Boden gerechnet, Sollhöhe 2,2 m); Demo wieder in Mode 3; rechnet vor dem Flugregler (vorher 1 Schritt Verzögerung → Höhe schaukelte sich auf)
 # 2026-11-09 12:45 – Demo fliegt in Mode 2 (die Werte stammen aus Mode 2 – Fehler im Optimierer), kein Bodenkontakt mehr; Höhenhaltung aus FLY (h_target/h_kp/h_kd)
@@ -52,14 +52,19 @@ func start() -> void:
 	_path = _make_path(course.distance())
 	_idx = 0
 	_t = 0.0
+	# Eigene Einstellungen des Piloten merken (werden nach der Demo zurückgesetzt)
 	_saved_params = fc.params.duplicate(true)
 	_saved_general = {}
-	for key in FlightController.SIM_OPT:            # allgemeine Werte (ohne „achse.“) merken
-		if not "." in str(key):
-			_saved_general[key] = fc.get(key)
+	for key in FlightController.GENERAL_KEYS:
+		_saved_general[key] = fc.get(key)
 	_saved_mode = int(fc.mode)
-	fc.apply_overrides(FlightController.SIM_OPT)    # im Simulator optimierte Reglerwerte
-	fc.apply_overrides(DEMO_FC)                     # Demo-Zusatz (wird mit params wiederhergestellt)
+	# Demo fliegt mit den echten Reglerwerten (Teensy-Werkseinstellung, Wunsch Nutzer
+	# 09.11.2026) – unabhängig davon, was gerade eingestellt ist
+	fc.params = fc._factory.params.duplicate(true)
+	for key in fc._factory.general:
+		if key != "stick_mode":
+			fc.set(key, fc._factory.general[key])
+	fc.apply_overrides(DEMO_FC)
 	fc.mode = FlightController.Mode.MODE3            # in diesem Modus wurde optimiert
 	fc.armed = true
 	active = true
