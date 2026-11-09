@@ -1,3 +1,4 @@
+# 2026-11-09 10:20 – Neben dem Modusschalter: Reglerwahl „Teensy | Sim-optimiert“ und Knopf „Demo“ (während der Demo „Demo stoppen“)
 # 2026-11-09 10:00 – Demo-Flug: Menüeintrag, Knüppel werden während der Demo nicht an den Regler gegeben
 # 2026-11-08 18:00 – Menü zeigt das verbundene Sendergerät
 # 2026-11-08 17:15 – Bildschirmknüppel bewegen sich mit den Senderknüppeln
@@ -40,6 +41,8 @@ signal course_requested
 signal model_requested
 signal leaderboard_requested
 signal demo_requested
+## Reglerwahl: "teensy" oder "sim" (main.gd setzt die Werte)
+signal preset_requested(name: String)
 ## true, solange der Demo-Flug läuft: dann steuert der Autopilot, nicht die Knüppel
 var demo_active := false
 
@@ -55,6 +58,8 @@ var _laps: Label                          ## Rundenzeiten unter der Telemetrie
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
+var _preset_btns := {}                    ## "teensy"/"sim" → Button
+var _btn_demo: Button
 var _banner: PanelContainer
 var _banner_timer := 0.0
 var _tl: HBoxContainer
@@ -103,6 +108,29 @@ func _ready() -> void:
 				show_notice(FlightController.MODE_HINTS[md], "info", 3.0))
 		_mode_box.add_child(b)
 		_mode_btns[md] = b
+
+	# --- Gleich daneben: Reglerwahl und Demo-Knopf (alle Knöpfe in einer Reihe) ---
+	var gap := Control.new()                   # kleiner Abstand zwischen den Gruppen
+	gap.custom_minimum_size.x = UITheme.space("md")
+	_mode_box.add_child(gap)
+	var pgrp := UITheme.make_toggle_group()
+	for key in ["teensy", "sim"]:
+		var pb := UITheme.make_pill(FlightController.PRESET_NAMES[key], true)
+		pb.toggle_mode = true
+		pb.button_group = pgrp
+		pb.pressed.connect(func(): preset_requested.emit(key))
+		_mode_box.add_child(pb)
+		_preset_btns[key] = pb
+	var gap2 := Control.new()
+	gap2.custom_minimum_size.x = UITheme.space("md")
+	_mode_box.add_child(gap2)
+	_btn_demo = UITheme.make_pill("Demo", true)
+	_btn_demo.pressed.connect(func():
+		if demo_active:
+			reset_requested.emit()               # Demo stoppen = Zurücksetzen
+		else:
+			demo_requested.emit())
+	_mode_box.add_child(_btn_demo)
 
 	# --- Oben rechts: nur „Armed“ und „Menü“ (Armen bleibt immer direkt erreichbar) ---
 	_tr = UITheme.make_hbox("xs")
@@ -252,6 +280,13 @@ func _process(dt: float) -> void:
 			var on: bool = int(fc.mode) == int(mm)
 			if _mode_btns[mm].button_pressed != on:
 				_mode_btns[mm].set_pressed_no_signal(on)
+		for key in _preset_btns:                     # Reglerwahl nachziehen
+			var pon: bool = fc.preset == key
+			if _preset_btns[key].button_pressed != pon:
+				_preset_btns[key].set_pressed_no_signal(pon)
+	var dtxt := "Demo stoppen" if demo_active else "Demo"
+	if _btn_demo.text != dtxt:
+		_btn_demo.text = dtxt
 	if ship:
 		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")
 		_pill_alpha.text = "α %d°" % roundi(ship.alpha_deg)

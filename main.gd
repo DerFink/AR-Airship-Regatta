@@ -1,3 +1,4 @@
+# 2026-11-09 10:20 – Reglerwahl Teensy/Sim-optimiert aus der Flugansicht; Modellwechsel behält „Sim-optimiert“
 # 2026-11-09 10:00 – Demo-Flug (DemoPilot) verdrahtet; Zurücksetzen beendet die Demo
 # 2026-11-08 17:40 – Bestenliste mit dem Sender: SH bestätigt/schließt das Fenster, rechter Knüppel wählt
 # 2026-11-07 21:10 – Menü der Flugansicht verdrahtet (Modell wählen, Bestenliste, Angaben Modell/Strecke)
@@ -230,7 +231,16 @@ func _build_ui() -> void:
 	leader_panel.stick_source = func(): return hud._joy.right.x if hud._joy and hud._joy.active() else 0.0
 	course.race_changed.connect(_on_race_changed)
 	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
-	ship.model_applied.connect(func(): fc.apply_model_gains(ship.fc_gains))
+	ship.model_applied.connect(func():
+		fc.apply_model_gains(ship.fc_gains)
+		if fc.preset == "sim":                       # Reglerwahl „Sim-optimiert“ bleibt bestehen
+			fc.apply_overrides(fc.SIM_OPT)
+			fc.save_settings())
+	# Knöpfe „Teensy“ / „Sim-optimiert“ in der Flugansicht
+	hud.preset_requested.connect(func(name: String):
+		fc.apply_preset(name, ship.fc_gains)
+		pid._sync()                                  # PID-Menü zeigt die neuen Werte
+		hud.show_notice("Regler: %s" % FlightController.PRESET_NAMES[fc.preset], "info", 2.5))
 	# Erster Start (oder Einstellungen aus älterer Version): PID-Vorgaben des
 	# Startmodells übernehmen; danach bleiben die eigenen Werte erhalten.
 	if fc.settings_outdated:

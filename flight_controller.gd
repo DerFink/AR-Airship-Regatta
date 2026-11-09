@@ -1,3 +1,4 @@
+# 2026-11-09 10:20 – Reglerwahl „Teensy“ / „Sim-optimiert“ (preset, SIM_OPT, apply_preset); Wahl wird gespeichert
 # 2026-11-08 20:00 – Gierschwenk ab 22 % Gas mit (Grenze/Gas)² zurückgenommen (Wenderadius ≤ 2 m, kein Umkippen bei Vollgas); Mode 3: Vorlauf-Grenze nur bei bewegtem Höhenknüppel
 # 2026-11-08 16:20 – Expo auf dem Seitenknüppel (yaw_expo 0,3, im PID-Menü unter Mischer einstellbar)
 # 2026-11-08 15:25 – Mode 3: sanfter Gierdämpfer bei Knüppel Mitte (Kd_yaw_m3 0,4 – bei 60 % Schub blieben mit 0,2 noch ±23 °/s Pendeln; blendet aus, wenn der Drehratenregler einblendet)
@@ -218,6 +219,16 @@ const MIX_PARAMS := [
 ]
 
 
+## Reglerwahl: "teensy" = Werte aus der .ino (Werkseinstellung + Modell-Vorgaben),
+## "sim" = dieselben Werte, darüber die in der Rennoptimierung gefundenen (SIM_OPT).
+var preset := "teensy"
+## Im Simulator optimierte Reglerwerte (Rennoptimierung 08.11.2026, Chewie Mode 3).
+## Schlüssel "achse.wert" = PID-Parameter, sonst allgemeine Einstellung.
+const SIM_OPT := {"yaw.Kp_yaw_m3": 0.192, "yaw.Kd_yaw_m3": 0.335, "yaw.yaw_loop_motor_m3": 0.753,
+	"yaw.yaw_loop_tail_m3": 0.501, "pitch.Kp": 0.3, "pitch.Kd": 0.202, "roll.Kp": 0.308,
+	"roll.Kd": 0.18, "yaw_swivel_full_lever": 0.315}
+const PRESET_NAMES := {"teensy": "Teensy", "sim": "Sim-optimiert"}
+
 ## Werkseinstellungen (beim Erzeugen gemerkt, vor dem Laden gespeicherter Werte)
 var _factory := {}
 
@@ -237,10 +248,41 @@ func reset_to_defaults(model_gains: Dictionary) -> void:
 	params = _factory.params.duplicate(true)
 	for k in _factory.general:
 		set(k, _factory.general[k])
+	preset = "teensy"                          # Werkseinstellung = Teensy-Werte
 	mode = Mode.MODE2
 	_reset_integrators()
 	apply_model_gains(model_gains)     # speichert auch
 	save_settings()
+
+
+## Reglerwahl umschalten: Werkseinstellung + Modell-Vorgaben, bei "sim" zusätzlich
+## SIM_OPT darüber. Modus und Armed bleiben, wie sie sind. Wird gespeichert.
+## Hinweis: eigene Änderungen aus dem PID-Menü werden dabei überschrieben.
+func apply_preset(name: String, model_gains: Dictionary) -> void:
+	if _factory.is_empty():
+		return
+	preset = name if PRESET_NAMES.has(name) else "teensy"
+	params = _factory.params.duplicate(true)
+	for k in _factory.general:
+		if k != "stick_mode":                 # Knüppelbelegung gehört dem Piloten
+			set(k, _factory.general[k])
+	apply_model_gains(model_gains)
+	if preset == "sim":
+		apply_overrides(SIM_OPT)
+	_reset_integrators()
+	save_settings()
+
+
+## Einzelwerte setzen ("achse.wert" oder allgemeine Einstellung) – ohne Speichern.
+## Wird auch vom Demo-Flug benutzt.
+func apply_overrides(values: Dictionary) -> void:
+	for key in values:
+		var parts := str(key).split(".")
+		if parts.size() == 2:
+			var ax: int = {"roll": Axis.ROLL, "pitch": Axis.PITCH, "yaw": Axis.YAW}[parts[0]]
+			params[ax][parts[1]] = float(values[key])
+		else:
+			set(str(key), float(values[key]))
 
 
 # =============================================================================
@@ -569,6 +611,7 @@ func save_settings() -> void:
 			cfg.set_value(AXIS_KEYS[a], term, params[a][term])
 	for k in GENERAL_KEYS:
 		cfg.set_value("general", k, get(k))
+	cfg.set_value("general", "preset", preset)
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -585,3 +628,4 @@ func load_settings() -> void:
 			params[a][term] = cfg.get_value(AXIS_KEYS[a], term, params[a][term])
 	for k in GENERAL_KEYS:
 		set(k, cfg.get_value("general", k, get(k)))
+	preset = str(cfg.get_value("general", "preset", "teensy"))

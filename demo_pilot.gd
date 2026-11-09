@@ -1,3 +1,4 @@
+# 2026-11-09 10:20 – Reglerwerte aus FlightController.SIM_OPT (gleich wie die Reglerwahl „Sim-optimiert“)
 # 2026-11-09 10:00 – Erstversion: Demo-Flug – der Autopilot aus der Rennoptimierung (tools/race_opt.gd) fliegt Chewies schnellste gefundene Runde (3 Runden ≈ 11,5 s) mit den im Simulator optimierten Reglerwerten
 # =============================================================================
 # DemoPilot.gd
@@ -18,10 +19,6 @@ signal finished
 const FLY := {"R1": 2.102, "R2": 2.445, "L": 3.867, "k": 2.673, "kff": 0.06,
 	"t_str": 0.866, "cut_before": 2.853, "t_cut": 0.862, "t_arc": 1.0,
 	"dip_len": 0.863, "t_dip": 0.788, "boost_start": 0.703}
-## Dazu gefundene Reglerwerte (Mode 3); alles andere wie im Teensy-Code
-const FC := {"yaw.Kp_yaw_m3": 0.192, "yaw.Kd_yaw_m3": 0.335, "yaw.yaw_loop_motor_m3": 0.753,
-	"yaw.yaw_loop_tail_m3": 0.501, "pitch.Kp": 0.3, "pitch.Kd": 0.202, "roll.Kp": 0.308,
-	"roll.Kd": 0.18, "yaw_swivel_full_lever": 0.315}
 const H_TARGET := 1.5
 const STEP := 0.1                 ## Punktabstand der Sollbahn (m)
 
@@ -44,16 +41,9 @@ func start() -> void:
 	_idx = 0
 	_t = 0.0
 	_saved_params = fc.params.duplicate(true)
-	_saved_general = {"yaw_swivel_full_lever": fc.yaw_swivel_full_lever}
+	_saved_general = {"yaw_swivel_full_lever": fc.yaw_swivel_full_lever}   # einziger allgemeiner Wert in SIM_OPT
 	_saved_mode = int(fc.mode)
-	for key in FC:
-		var parts := str(key).split(".")
-		if parts.size() == 2:
-			var ax: int = {"roll": FlightController.Axis.ROLL, "pitch": FlightController.Axis.PITCH,
-				"yaw": FlightController.Axis.YAW}[parts[0]]
-			fc.params[ax][parts[1]] = float(FC[key])
-		else:
-			fc.set(str(key), float(FC[key]))
+	fc.apply_overrides(FlightController.SIM_OPT)    # im Simulator optimierte Reglerwerte
 	fc.mode = FlightController.Mode.MODE3
 	fc.armed = true
 	active = true
