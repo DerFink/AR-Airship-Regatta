@@ -1,3 +1,4 @@
+# 2026-11-09 14:55 – Schneller Klang als Rückmeldung beim Gasgeben: keine Zusatzglättung mehr (nur noch der Motor-Hochlauf), Nachführung in jedem Bild (am PC oft 120–144/s statt 60/s)
 # 2026-11-09 14:20 – Weichere Übergänge: Drehzahl zweistufig geglättet (je 50 ms, wie Propeller- und Reglerträgheit) und im festen Physiktakt nachgeführt (unabhängig von der Bildrate) – Tonhöhe ändert sich je Schritt nur noch wenig statt in Sprüngen
 # 2026-11-09 14:00 – Feiner: 44,1 kHz statt 22 kHz; Rauschen als eigene, 4 s lange Schleife (vorher wiederholte sich das Rauschen mit der 1-s-Tonschleife – bei hoher Drehzahl mehrmals pro Sekunde hörbar als grobes Muster)
 # 2026-11-09 13:45 – Klang nicht mehr Abtastwert für Abtastwert im Skript erzeugt (im Browser abgehackt und verzögert), sondern beim Start einmal als Schleife berechnet; im Flug nur noch Tonhöhe und Lautstärke nachgeführt. Rückwärtslauf als zweite Schleife (mehr Rauschen, Flattern), weich überblendet
@@ -36,7 +37,7 @@ const LOOP_FRAMES := 44100          ## 1 s Tonschleife (Ton ist periodisch, Wied
 const NOISE_FRAMES := 176400        ## 4 s Rauschschleife (Wiederholung nicht als Muster hörbar)
 const F_REF := 200.0                ## Blattfolge-Ton der Schleife (Hz)
 const POLE_PAIRS := 7.0             ## typischer Außenläufer (14 Pole)
-const RPM_TAU := 0.05               ## Trägheit je Glättungsstufe (s); zwei Stufen hintereinander
+const RPM_TAU := 0.005              ## nur gegen Knacksen (5 ms); die Trägheit kommt vom Motor-Hochlauf selbst
 
 ## Fertige Schleifen je Blattzahl und Richtung zwischenspeichern (alle Motoren teilen sie)
 static var _cache := {}
@@ -45,7 +46,6 @@ var motor: VectorMotor
 var _rev_player: AudioStreamPlayer3D   ## zweite Tonschleife für den Rückwärtslauf
 var _noise_player: AudioStreamPlayer3D ## Luftrauschen (eigene, lange Schleife)
 var _rpm := 0.0                        ## geglättete Drehzahl (vermeidet Sprünge)
-var _rpm1 := 0.0                       ## erste Glättungsstufe
 var _rev_mix := 0.0                    ## 0 = vorwärts, 1 = rückwärts (weich überblendet)
 var _gain_fwd := 1.0                   ## gleicht die Normierung der Schleifen aus (gleiche Lautstärke wie vorher)
 var _gain_rev := 1.0
@@ -89,16 +89,16 @@ func _ready() -> void:
 	_noise_player.play(randf() * 3.5)               # versetzt starten: die Motoren rauschen nicht gleich
 
 
-## Jeder Physikschritt (fest 60/s): Tonhöhe und Lautstärke an die Drehzahl anpassen.
-func _physics_process(dt: float) -> void:
+## Jedes Bild (so oft wie möglich): Tonhöhe und Lautstärke an die Drehzahl anpassen.
+func _process(dt: float) -> void:
 	if motor == null:
 		return
 	# Drehzahl weich nachführen (Propeller hat Trägheit)
-	# Zwei Glättungsstufen hintereinander: die Tonhöhe gleitet ohne Knick an
-	# und aus, jeder Physikschritt ändert sie nur wenig (keine hörbaren Stufen)
+	# Klang = Rückmeldung für den Piloten: Drehzahl ohne spürbare Verzögerung
+	# übernehmen (nur 5 ms gegen Knacksen). Die echte Trägheit steckt schon im
+	# Motor-Hochlauf (spool_time_s, Chewie 30 ms).
 	var k := 1.0 - exp(-dt / RPM_TAU)
-	_rpm1 += (motor.rpm() - _rpm1) * k
-	_rpm += (_rpm1 - _rpm) * k
+	_rpm += (motor.rpm() - _rpm) * k
 	_rev_mix = move_toward(_rev_mix, 1.0 if motor.is_reversing() else 0.0, dt * 8.0)
 	if _rpm < 30.0:
 		volume_db = -80.0                       # Stillstand = Stille
