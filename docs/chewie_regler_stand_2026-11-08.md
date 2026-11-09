@@ -1,3 +1,4 @@
+<!-- 2026-11-09 14:45 – Punkt 5 Nick-Schutz ergänzt -->
 <!-- 2026-11-08 20:30 – Erstversion: Stand Regler und Simulator-Modell von Chewie als Prompt -->
 # Chewie – Stand Regler und Simulator-Modell (08.11.2026)
 
@@ -73,6 +74,18 @@ Physik-Annahmen, die nötig waren, damit der Simulator wie der echte Chewie flie
    (schwächer als der Nick-Dämpfer). Blendet aus, wenn der Drehratenregler einblendet.
 4. **Expo auf dem Seitenknüppel:** `(1 − e)·x + e·x³`, e = 0,3 (oder im Sender einstellen,
    dann hier 0).
+
+5. **Nick-Schutz (Mode 2/3, Sicherheit):** Die Knüppel-Vorsteuerung (stick_pitch_tail/motor ·
+   Sollwinkel + gain · 0,01 · Kp · Sollwinkel) gibt einen festen Ausschlag, die Stabilisierung
+   zieht nur Richtung 0°. Bei gehaltenem Höhenknüppel stellte sich dadurch ≈ 60° Nick ein
+   (Flossen überzogen, Schub zeigt nach oben/unten → „steuerlos“).
+   Abhilfe: `over = |pitch_IMU| − maxPitch`; wenn `over > 0` und Knüppel in dieselbe Richtung,
+   Vorsteuerung (pitch_des und pitch_PID_sp) mit `k = constrain(1 − over / 10, 0, 1)` multiplizieren.
+   Gegenrichtung wirkt voll, Gas unberührt.
+   Simulator, Knüppel 1,5 s voll, Mode 3: max. Nick vorher 60–63°, jetzt 35° (100 % Gas),
+   36° (60 %), 44° (30 %); Mode 2: 37° / 41° / 49°.
+   Am echten Chewie zusätzlich prüfen: Lageschätzung (Madgwick) bei starker Beschleunigung
+   und in Kurven, Messbereich des Kreisels (±250 °/s?).
 
 ## 4. Offene Punkte
 

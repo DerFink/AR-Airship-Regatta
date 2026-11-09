@@ -1,3 +1,4 @@
+# 2026-11-09 14:35 – Nick-Schutz (Mode 2/3): geht die Lage über maxPitch hinaus, wird die Knüppel-Vorsteuerung in diese Richtung über pitch_protect_band_deg (10°) ausgeblendet – vorher stellte sich bei gehaltenem Höhenknüppel ≈ 60° Nick ein (Flossen überzogen, „steuerlos“); Gas bleibt unberührt
 # 2026-11-09 14:00 – SIM_OPT: robuste Werte (Böen, Knüppelverzögerung, Boden)
 # 2026-11-09 13:00 – SIM_OPT: neue Werte aus der Optimierung in echtem Mode 3 mit Boden
 # 2026-11-09 10:20 – Reglerwahl „Teensy“ / „Sim-optimiert“ (preset, SIM_OPT, apply_preset); Wahl wird gespeichert
@@ -193,6 +194,10 @@ var motor_roll_gain := 1.0         ## motor_roll_gain: Servoweg Motorschwenker j
 var motor_roll_sign := -1.0        ## MOTOR_ROLL_SIGN: −1 = Rollen rechts-hoch → Schwenker wie Gier links
 var stick_pitch_motor := 0.02      ## Vorsteuerung Nick Motorschwenker (Mode 2/3)
 var stick_pitch_tail := 0.015      ## Vorsteuerung Nick Leitwerke (Mode 2/3)
+## Nick-Schutz (nicht im Teensy-Code, 09.11.2026): ab maxPitch wird die
+## Knüppel-Vorsteuerung in Richtung der Lage über diese Spanne (Grad) auf 0
+## ausgeblendet. 0 = aus (verhält sich wie der Teensy-Code).
+var pitch_protect_band_deg := 10.0
 var mode1_stick_pitch_motor := 0.02
 var mode1_stick_yaw_motor := 0.004
 var mode1_stick_pitch_tail := 0.02
@@ -218,6 +223,7 @@ const MIX_PARAMS := [
 	["motor_roll_gain", "motor_roll_gain", 0.0, 3.0, 0.05, "%.2f"],
 	["stick_pitch_tail", "stick_pitch_tail", 0.0, 0.05, 0.0005, "%.4f"],
 	["stick_pitch_motor", "stick_pitch_motor", 0.0, 0.05, 0.0005, "%.4f"],
+	["pitch_protect_band_deg", "Nick-Schutz ab maxPitch (°, 0 = aus)", 0.0, 30.0, 1.0, "%.0f"],
 ]
 
 
@@ -405,6 +411,19 @@ func _physics_process(dt: float) -> void:
 	var yl_t: float = Y.yaw_loop_tail_m3 * yaw_rate_pid
 	var roll_gain: float = tail_pitch_gain * ROLL_AUTH_FACTOR * R.roll_vs_pitch
 	var pitch_stab := pitch_pid - pitch_pid_sp                           # Regleranteil ohne Knüppel
+	# Nick-Schutz (09.11.2026): Die Vorsteuerung gibt einen festen Ausschlag je
+	# Sollwinkel, die Stabilisierung zieht nur Richtung 0°. Bei gehaltenem Knüppel
+	# hielten sich beide erst bei ≈ 60° Nick die Waage – Flossen überzogen, Schub
+	# zeigt nach oben/unten, das Schiff wirkt steuerlos. Deshalb: liegt die Lage
+	# über maxPitch und zeigt der Knüppel in dieselbe Richtung, wird die
+	# Vorsteuerung über pitch_protect_band_deg linear auf 0 zurückgenommen.
+	# In die Gegenrichtung wirkt der Knüppel immer voll; das Gas bleibt unberührt.
+	var over := absf(pitch_imu) - pitch_max_deg
+	if pitch_protect_band_deg > 0.0 and over > 0.0 and signf(pitch_imu) == signf(pitch_des):
+		var k_ff := clampf(1.0 - over / pitch_protect_band_deg, 0.0, 1.0)
+		pitch_des *= k_ff
+		pitch_pid_sp *= k_ff
+		# pitch_stab (oben berechnet) bleibt: er enthält keinen Knüppelanteil
 	var motor_pitch_stick := stick_pitch_motor * pitch_des + motor_pitch_gain * pitch_pid_sp
 	var motor_pitch_stab := motor_pitch_gain * pitch_stab
 	var tail_pitch_stick := stick_pitch_tail * pitch_des + tail_pitch_gain * pitch_pid_sp
@@ -605,7 +624,8 @@ func apply_model_gains(gains: Dictionary) -> void:
 const GENERAL_KEYS := ["stick_mode", "pitch_max_deg", "pitch_rate_dps", "pitch_return_dps", "pitch_lead_deg",
 	"servo_throw_m1", "servo_throw_m23", "tail_pitch_gain", "motor_pitch_gain", "motor_roll_gain", "motor_roll_sign",
 	"stick_pitch_motor", "stick_pitch_tail", "mode1_stick_pitch_motor", "mode1_stick_yaw_motor",
-	"mode1_stick_pitch_tail", "mode1_stick_yaw_tail", "mode1_roll_tail", "mode1_roll_motor", "yaw_expo", "yaw_swivel_full_lever"]
+	"mode1_stick_pitch_tail", "mode1_stick_yaw_tail", "mode1_roll_tail", "mode1_roll_motor", "yaw_expo", "yaw_swivel_full_lever",
+	"pitch_protect_band_deg"]
 
 func save_settings() -> void:
 	var cfg := ConfigFile.new()

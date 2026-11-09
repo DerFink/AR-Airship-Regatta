@@ -1,4 +1,4 @@
-# 2026-11-09 14:25 – Version 0.11.9
+# 2026-11-09 14:45 – Version 0.12.0
 # 2026-11-07 21:10 – Erstversion: Versionsnummer und Build-Nummer der App (der GitHub-Build überschreibt diese Datei vor dem Export)
 # =============================================================================
 # BuildInfo.gd
@@ -11,7 +11,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "0.11.9"
+const VERSION := "0.12.0"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)
