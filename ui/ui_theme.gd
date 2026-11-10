@@ -1,3 +1,5 @@
+# 2026-11-10 22:50 – Ersatzschrift über FontVariation (Kopie der Standardschrift erzeugte Punkte im Text)
+# 2026-11-10 20:15 – Schrift: Standardschrift mit chinesischer Ersatzschrift (Noto Sans CJK TC, Teilmenge) für die Sprachwahl
 # 2026-10-29 00:19 – Größere Knöpfe (PillButton: Schrift 19, Mindesthöhe 52); Reiter-Schrift größer
 # 2026-10-27 15:10 – Größere Bedienelemente fürs Handy: dicke Slider-Spur, großer Griff, −/+-Knöpfe an jedem Regler; neue Bausteine make_stepper() und make_choice_row(); größere Schrift und Seitenleiste
 # 2026-10-27 12:25 – make_banner(width): feste Textbreite, damit der Zeilenumbruch nicht jedes Wort einzeln umbricht
@@ -121,6 +123,16 @@ static func build_theme() -> Theme:
 		return _theme
 	var t := Theme.new()
 	t.default_font_size = font_size("body")
+	# Standardschrift + Ersatzschrift für Chinesisch (nur die verwendeten Zeichen,
+	# erzeugt mit tools/make_cjk_font.py) – sonst erscheinen Kästchen
+	var cjk = load("res://fonts/cjk_tc_subset.otf")
+	if cjk:
+		# FontVariation statt Kopie der Standardschrift: eine Kopie teilt sich den
+		# Glyphen-Zwischenspeicher mit dem Original → Bildfehler (Punkte im Text)
+		var base := FontVariation.new()
+		base.base_font = ThemeDB.fallback_font
+		base.fallbacks = [cjk]
+		t.default_font = base
 
 	# Texte
 	for type in ["Label", "Button", "CheckBox", "OptionButton", "LineEdit", "ItemList"]:

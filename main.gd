@@ -1,3 +1,4 @@
+# 2026-11-10 22:00 – Neue Ansichten: Startseite (erste Ansicht), „Modell & Bau“ (ModelHub), „Grundlagen des Simulators“ (AboutPanel); Sprache (I18n) beim Start; Autopilot (live, aktuelles Modell/Regler) statt Demo; Kamera-Perspektiven Pilot am Start / Hinterher / Hinterher + Lage; AR-Knopf und Bestenlisten-Menü entfernt
 # 2026-11-10 17:00 – Propellerklang: PropSynth (gleitende Tonhöhe) statt PropSound-Schleife; Rückfall auf die Schleife macht PropSynth selbst
 # 2026-11-10 14:10 – Boden 3 × 3 km (Wiese mit 500 m Pylonabstand); Akku-Modell (4S 300 mAh), wird bei „Zurücksetzen“ voll geladen; Location aus der Flugansicht
 # 2026-11-09 10:20 – Reglerwahl Teensy/Sim-optimiert aus der Flugansicht; Modellwechsel behält „Sim-optimiert“
@@ -26,11 +27,11 @@
 #   Welt ─ Himmel, Licht, Boden, Pylone
 #   Luftschiff (AirshipPhysics) ─ AirshipVisual, FlightController, PropSynth je Motor (Rückfall PropSound)
 #   PerformanceWatchdog, ARToggle, UISounds
-#   CanvasLayer ─ UI-Wurzel (Theme) ─ FlightHUD | BuilderPanel | PIDPanel | SharePanel
+#   CanvasLayer ─ UI-Wurzel (Theme) ─ StartScreen | FlightHUD | ModelHub | AboutPanel | BuilderPanel | PIDPanel | SharePanel
 # =============================================================================
 extends Node3D
 
-enum View { FLY, BUILD, PID, SHARE, COURSE, LEADER }
+enum View { FLY, BUILD, PID, SHARE, COURSE, LEADER, START, HUB, ABOUT }
 
 # --- Strecke und Pilot (Meter) ------------------------------------------------
 # Draufsicht: vorderer Pylon bei x = 0, hinterer Pylon bei x = Abstand (Course).
@@ -51,12 +52,16 @@ var builder: BuilderPanel
 var pid: PIDPanel
 var share: SharePanel
 var course: Course
-var demo: DemoPilot                  ## Demo-Flug (Autopilot)
+var autopilot: Autopilot             ## Autopilot (fliegt live die aktuelle Strecke)
+var start_screen: StartScreen
+var hub: ModelHub
+var about: AboutPanel
 var battery: Battery                 ## Akku-Modell (Spannung, Ladezustand, Schubabfall)
 var course_panel: CoursePanel
 var leader_panel: LeaderboardPanel
 var ui_sounds: UISounds
 var view := View.FLY
+var _pid_back := View.FLY           ## wohin „Fertig“ im Regler-Menü zurückführt
 var _world_env: WorldEnvironment
 var _scenery: Node3D
 var _prop_sounds: Array[PropSynth] = []
@@ -69,10 +74,11 @@ var _touches := {}               ## aktive Finger: Index → Position
 
 
 func _ready() -> void:
+	I18n.setup()                             # gespeicherte Sprache laden (vor dem Aufbau der Oberfläche)
 	_build_world()
-	_build_ship()
+	_build_ship()                            # Modelldaten sind geladen, bevor das Menü erscheint
 	_build_ui()
-	_set_view(View.FLY)
+	_set_view(View.START)
 
 
 # =============================================================================
@@ -198,11 +204,6 @@ func _build_ui() -> void:
 	hud.course = course
 	hud.battery = battery
 	root.add_child(hud)
-	# Location aus der Flugansicht: Strecke umbauen, Schiff an den Start
-	hud.location_requested.connect(func(i: int):
-		course.set_location(i)
-		reset_ship()
-		hud.show_notice("Location: %s · Pylonabstand %d m" % [Course.LOCATION_NAMES[i], roundi(course.distance())], "info", 2.5))
 	builder = BuilderPanel.new()
 	builder.setup(ship, visual)
 	root.add_child(builder)
@@ -218,27 +219,49 @@ func _build_ui() -> void:
 	leader_panel = LeaderboardPanel.new()
 	leader_panel.setup(course, ship)
 	root.add_child(leader_panel)
+	# Startseite, Modell & Bau, Grundlagen
+	hub = ModelHub.new()
+	hub.setup(ship, course)
+	root.add_child(hub)
+	about = AboutPanel.new()
+	root.add_child(about)
+	start_screen = StartScreen.new()
+	start_screen.info_source = func():
+		var joy := ""
+		if hud._joy and hud._joy.active():
+			joy = Input.get_joy_name(hud._joy.device)
+		return {"model": ship.model_name, "location": tr(Course.LOCATION_NAMES[course.location]), "joy": joy}
+	start_screen.preview_source = func(): return ShipPreview.texture(ship, 900)
+	root.add_child(start_screen)
+	start_screen.fly_requested.connect(func(): _set_view(View.FLY))
+	start_screen.build_requested.connect(func(): _set_view(View.HUB))
+	start_screen.about_requested.connect(func(): _set_view(View.ABOUT))
+	start_screen.calibrate_requested.connect(func(): _set_view(View.FLY); hud.open_calibration())
+	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
+	start_screen.settings_requested.connect(func(): _pid_back = View.START; _set_view(View.PID))
+	about.closed.connect(func(): _set_view(View.START))
+	hub.closed.connect(func(): _set_view(View.FLY))
+	hub.home_requested.connect(func(): _set_view(View.START))
+	hub.fly_requested.connect(func(): reset_ship(); _set_view(View.FLY))
+	hub.edit_requested.connect(func(): _set_view(View.BUILD))
+	hub.export_requested.connect(func(): _set_view(View.SHARE))
+	hub.location_changed.connect(reset_ship)
+	hud.hub_requested.connect(func(): _set_view(View.HUB))
+	hud.autopilot_requested.connect(_toggle_autopilot)
 
-	hud.builder_requested.connect(func(): _set_view(View.BUILD))
-	hud.pid_requested.connect(func(): _set_view(View.PID))
-	hud.ar_requested.connect(ar.toggle)
 	hud.reset_requested.connect(func():
 		# Schalter SH / Zurücksetzen: im Bestenlisten-Fenster bestätigt bzw. schließt er es
 		if view == View.LEADER:
 			leader_panel.confirm_by_switch()
 		else:
 			reset_ship())
-	hud.course_requested.connect(func(): _set_view(View.COURSE))
-	# Menü in der Flugansicht: Modellwahl öffnet den Baukasten mit aufgeklappter Modellliste
-	hud.model_requested.connect(func(): _set_view(View.BUILD); builder.open_model_choice.call_deferred())
-	hud.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
-	# Demo-Flug: Autopilot fliegt Chewies schnellste gefundene Runde
-	demo = DemoPilot.new()
-	demo.ship = ship; demo.fc = fc; demo.course = course
-	add_child(demo)
-	demo.finished.connect(func(): hud.demo_active = false)
-	hud.demo_requested.connect(_start_demo)
-	hud.menu_info = func(): return {"model": ship.model_name, "course": course.title()}
+	# Autopilot: fliegt live die aktuelle Strecke (aktuelles Modell, aktuelle Reglerwerte)
+	autopilot = Autopilot.new()
+	autopilot.ship = ship; autopilot.fc = fc; autopilot.course = course; autopilot.battery = battery
+	add_child(autopilot)
+	autopilot.finished.connect(func(): hud.autopilot_active = false)
+	autopilot.failed.connect(func(reason: String):
+		hud.show_notice("%s: %s (%s)" % [tr("Autopilot"), tr(reason), course.race_text()], "warning", 6.0))
 	course_panel.closed.connect(func(): _set_view(View.FLY))
 	course_panel.course_changed.connect(reset_ship)
 	course_panel.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
@@ -252,46 +275,42 @@ func _build_ui() -> void:
 		if fc.preset == "sim":                       # Reglerwahl „Sim-optimiert“ bleibt bestehen
 			fc.apply_overrides(fc.SIM_OPT)
 			fc.save_settings())
-	# Knöpfe „Teensy“ / „Sim-optimiert“ in der Flugansicht
-	hud.preset_requested.connect(func(name: String):
-		fc.apply_preset(name, ship.fc_gains)
-		pid._sync()                                  # PID-Menü zeigt die neuen Werte
-		hud.show_notice("Regler: %s" % FlightController.PRESET_NAMES[fc.preset], "info", 2.5))
 	# Erster Start (oder Einstellungen aus älterer Version): PID-Vorgaben des
 	# Startmodells übernehmen; danach bleiben die eigenen Werte erhalten.
 	if fc.settings_outdated:
 		fc.apply_model_gains(ship.fc_gains)
-	builder.closed.connect(func(): _set_view(View.FLY))
+	builder.closed.connect(func(): _set_view(View.HUB))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
 	builder.view_reset_requested.connect(reset_view)
 	builder.ui_action.connect(ui_sounds.chime)
 	share.ui_action.connect(ui_sounds.chime)
 	share.closed.connect(func(): _set_view(View.BUILD))
-	pid.closed.connect(func(): _set_view(View.FLY))
+	pid.closed.connect(func(): _set_view(_pid_back); _pid_back = View.FLY)
 	pid.reset_all_requested.connect(reset_all_settings)
 	watchdog.notice.connect(func(t): hud.show_notice(t, "warning"))
-	ar.ar_state_changed.connect(func(on, msg): hud.set_ar_active(on); hud.show_notice(msg, "info", 2.0))
+	ar.ar_state_changed.connect(func(_on, msg): hud.show_notice(msg, "info", 2.0))
+
+
+## Autopilot an/aus. An: Schiff an den Start (voller Akku), dann übernimmt der
+## Autopilot mit dem aktuellen Modell und den aktuellen Reglerwerten.
+func _toggle_autopilot() -> void:
+	if autopilot.active or hud.autopilot_active:
+		reset_ship()                                  # Stoppen = Zurücksetzen
+		return
+	reset_ship()
+	hud.autopilot_active = true
+	hud.show_notice(tr("Autopilot") + " – " + tr("Zurücksetzen") + " = Stopp", "info", 4.0)
+	await get_tree().create_timer(0.2).timeout
+	if hud.autopilot_active:
+		autopilot.start()
 
 
 ## Schiff an den Startpunkt zurück (Nase Richtung Pylon 2), Regler neu starten.
 ## Der Motor-Schalter bleibt, wie er ist – der Gasknüppel steht ja in der Mitte.
-## Demo-Flug starten: Chewie laden (die Demo ist auf ihn abgestimmt), an den
-## Start setzen und nach dem Zurücksetzen den Autopiloten übernehmen lassen.
-func _start_demo() -> void:
-	if ship.model_name != "Chewie":
-		AirshipPresets.chewie(ship)
-	reset_ship()
-	hud.demo_active = true
-	hud.show_notice("Demo: optimaler Flug mit im Simulator optimierten Reglerwerten – Zurücksetzen beendet", "info", 5.0)
-	await get_tree().create_timer(0.2).timeout
-	if hud.demo_active:
-		demo.start()
-
-
 func reset_ship() -> void:
-	if demo and demo.active:
-		demo.stop()                                   # Zurücksetzen beendet die Demo
-	hud.demo_active = false
+	if autopilot and autopilot.active:
+		autopilot.stop()                              # Zurücksetzen beendet den Autopiloten
+	hud.autopilot_active = false
 	ship.reset_to(course.start_transform(ship))
 	fc._reset_integrators()
 	course.reset_race()
@@ -305,10 +324,10 @@ func reset_ship() -> void:
 func _on_race_changed() -> void:
 	if course.race != Course.Race.DONE or view == View.LEADER:
 		return
-	if demo and demo.active:
-		# Demo im Ziel: Zeit zeigen, nichts in die Bestenliste
-		hud.show_notice("Demo im Ziel · %s (%s)" % [Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
-		demo.stop()
+	if autopilot and autopilot.active:
+		# Autopilot im Ziel: Zeit zeigen, nichts in die Bestenliste
+		hud.show_notice("%s · %s (%s)" % [tr("Autopilot"), Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
+		autopilot.stop()
 		return
 	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
 		fc.armed = false
@@ -393,6 +412,13 @@ func _set_view(v: View) -> void:
 	share.visible = v == View.SHARE
 	course_panel.visible = v == View.COURSE
 	leader_panel.visible = v == View.LEADER
+	start_screen.visible = v == View.START
+	hub.visible = v == View.HUB
+	about.visible = v == View.ABOUT
+	if v != View.FLY and autopilot and autopilot.active:
+		reset_ship()                                  # Ansicht verlassen beendet den Autopiloten
+	if v == View.START or v == View.HUB or v == View.ABOUT:
+		fc.armed = false                              # außerhalb der Flugansicht: Motoren aus
 	# Baukasten/Teilen: Motoren aus, Schiff festhalten, ruhiger Klangteppich.
 	# Flug/PID: kein Klangteppich – zu hören sind nur die Motoren.
 	var workshop := v == View.BUILD or v == View.SHARE
@@ -415,6 +441,27 @@ func _process(dt: float) -> void:
 		var dist := L * 1.45 * _orbit_zoom
 		var off := Vector3(0, 0, dist).rotated(Vector3.RIGHT, -_orbit_pitch).rotated(Vector3.UP, _orbit_yaw)
 		camera.global_position = camera.global_position.lerp(p + off, clampf(dt * 10.0, 0.0, 1.0))
+	elif hud.perspective == 1 or hud.perspective == 2:
+		# Hinterher: Kamera hinter und etwas über dem Schiff
+		var b := ship.global_transform.basis
+		if hud.perspective == 1:
+			# Horizont bleibt waagrecht: nur die Kursrichtung des Schiffs zählt
+			var fwd := -b.z
+			fwd.y = 0.0
+			if fwd.length() < 0.1:
+				fwd = Vector3.FORWARD
+			fwd = fwd.normalized()
+			var want := p - fwd * L * 1.5 + Vector3.UP * L * 0.35
+			camera.global_position = camera.global_position.lerp(want, clampf(dt * 6.0, 0.0, 1.0))
+			if camera.global_position.distance_to(p) > 0.01:
+				camera.look_at(p + Vector3.UP * L * 0.1, Vector3.UP)
+		else:
+			# Hinterher + Lage: Kamera fest am Schiff, rollt und nickt mit
+			var want := ship.global_transform * Vector3(0, L * 0.35, L * 1.5)
+			camera.global_position = camera.global_position.lerp(want, clampf(dt * 8.0, 0.0, 1.0))
+			var target := Transform3D(Basis(), camera.global_position).looking_at(p + b.y * L * 0.1, b.y)
+			camera.global_basis = camera.global_basis.slerp(target.basis.orthonormalized(), clampf(dt * 8.0, 0.0, 1.0)).orthonormalized()
+		return
 	else:
 		# Flug: fester Pilotenstandort, Blick folgt dem Schiff (fester Bildwinkel)
 		camera.global_position = camera.global_position.lerp(PILOT_EYE, a)

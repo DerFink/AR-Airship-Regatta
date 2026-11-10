@@ -1,3 +1,4 @@
+# 2026-11-10 20:30 – META: Autor, Team und Kurzbeschreibung je Modell (für Modell & Bau)
 # 2026-11-08 20:30 – Chewie: Gesamtmasse 260 g (≈ 1 % schwerer als der Auftrieb)
 # 2026-11-08 19:30 – Chewie-/Albacore-Motoren: Hochlaufzeit 30 ms wie bei Quadcopter-Motoren (vorher 80 ms)
 # 2026-11-08 16:20 – Albacore standardmäßig ohne Turm und mit Chewies Bugmotoren (gemeinsame Funktion chewie_motor_pair)
@@ -35,6 +36,20 @@ extends RefCounted
 ## Einträge für das Auswahlmenü: eingebaute Presets, danach die
 ## Modellsammlung des Admins und die eigenen gespeicherten Modelle.
 ## Jeder Eintrag: {name, build} – build(ship) baut das Modell auf.
+## Angaben zu den eingebauten Modellen für die Auswahl in „Modell & Bau“.
+const META := {
+	"Chewie": {"author": "Erich Fink", "team": "aerarium e.V.",
+		"desc": "Rennluftschiff für die Halle: 0,25 m³ Helium, 260 g, drei Pendelflossen in λ-Anordnung und zwei entlang der Hülle schwenkbare Motoren. Wendet unter 2 m Radius."},
+	"Albacore Standard": {"author": "Simulator-Team", "team": "RC Airship Regatta",
+		"desc": "Standardhülle nach dem U-Boot USS Albacore (Gertler-Form), Kreuzleitwerk, Antrieb wie Chewie. Gutmütiges Lernmodell."},
+}
+
+
+## Angaben (Autor, Team, Beschreibung) zu einem Modellnamen; unbekannt → leer.
+static func meta(name: String) -> Dictionary:
+	return META.get(name, {"author": "", "team": "", "desc": ""})
+
+
 static func list() -> Array[Dictionary]:
 	var out: Array[Dictionary] = [
 		{"name": "Albacore Standard", "build": albacore_default},

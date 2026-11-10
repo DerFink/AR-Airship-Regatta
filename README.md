@@ -1,4 +1,4 @@
-# AR-Airship Regatta
+# RC Airship Regatta
 
 Open-Source-Simulator für DIY-Rennluftschiffe (Godot 4, Android/iOS/Desktop).
 Baukasten mit Gertler-Hüllengenerator, 6-DOF-Physik mit Munk-Moment und
@@ -32,7 +32,7 @@ Export aus Godot als Xcode-Projekt, dann auf einem Mac in Xcode signieren (Apple
 ## Bedienung
 - Linker Knüppel hoch/runter: **Gas** – Mitte = Stopp, unten = Rückwärtsschub (wenn im Baukasten erlaubt)
 - Rechter Knüppel: hoch/runter **Nick**, links/rechts **Gier**
-- Oben rechts: Zurücksetzen · Arm-Schalter (Disarmed/Armed) · Bau · PID · AR
+- Oben: Modi · Autopilot · Perspektive · Zurücksetzen · Arm-Schalter (Disarmed/Armed) · Menü (→ Modell & Bau)
 
 ## Modelle teilen
 Baukasten → **Teilen** → *Kopieren*: Der String (`LTA1:Name:…:Prüfsumme`) enthält das komplette Modell.

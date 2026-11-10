@@ -1,3 +1,4 @@
+# 2026-11-10 21:45 – Neue Knopfreihe oben (alles in einer Reihe): Modi · Autopilot · Perspektive (Pilot am Start → Hinterher → Hinterher + Lage) · Zurücksetzen · Armed · Menü; „Menü“ öffnet direkt „Modell & Bau“; Reglerwahl, Location- und Demo-Knöpfe sowie das alte Menü entfernt; Kalibrierfenster per open_calibration()
 # 2026-11-10 14:20 – Knöpfe „Halle | Wiese“ (Location) in der Knopfreihe; Akku-Anzeige links unter den Rundenzeiten (Spannung, Ladezustand, Strom, Restzeit)
 # 2026-11-09 14:20 – Fenster „Sender kalibrieren“ (aus dem Menü); solange offen: Motoren aus, Knüppel wirken nicht
 # 2026-11-09 10:20 – Neben dem Modusschalter: Reglerwahl „Teensy | Sim-optimiert“ und Knopf „Demo“ (während der Demo „Demo stoppen“)
@@ -25,7 +26,8 @@
 # -----------------------------------------------------------------------------
 # Oberfläche während des Fliegens (Querformat):
 #
-#   ┌ 12,4 km/h │ α 6° │ Runde │ Direkt│Mode 2│Mode 3      Armed │ ☰ Menü ┐
+#   ┌ Direkt│Mode 2│Mode 3 · Autopilot · Perspektive · Zurücksetzen · Armed · Menü ┐
+#   │ 12,4 km/h │ α 6° │ Runde   (Telemetrie, rückt nach oben links, wenn Platz)  │
 #   │                                                                   │
 #   │  ( Gas )               [Hinweis-Banner]              ( Nick·Gier )│
 #   └───────────────────────────────────────────────────────────────────┘
@@ -35,20 +37,15 @@
 class_name FlightHUD
 extends Control
 
-signal builder_requested
-signal pid_requested
-signal ar_requested
 signal reset_requested
-signal course_requested
-signal model_requested
-signal leaderboard_requested
-signal demo_requested
-## Location gewählt: 0 = Halle, 1 = Wiese (main.gd baut die Strecke um)
-signal location_requested(index: int)
-## Reglerwahl: "teensy" oder "sim" (main.gd setzt die Werte)
-signal preset_requested(name: String)
-## true, solange der Demo-Flug läuft: dann steuert der Autopilot, nicht die Knüppel
-var demo_active := false
+signal hub_requested               ## „Menü“ → Modell & Bau
+signal autopilot_requested         ## Autopilot an/aus
+signal perspective_changed(index: int)
+## Autopilot fliegt gerade (Knöpfe zeigen „Autopilot stoppen“, Knüppel ruhen)
+var autopilot_active := false
+## Kamera: 0 = Pilot am Start, 1 = Hinterher, 2 = Hinterher + Lage
+var perspective := 0
+const PERSPECTIVES := ["Pilot am Start", "Hinterher", "Hinterher + Lage"]
 
 var fc: FlightController
 var ship: AirshipPhysics
@@ -62,10 +59,9 @@ var _laps: Label                          ## Rundenzeiten unter der Telemetrie
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
-var _preset_btns := {}                    ## "teensy"/"sim" → Button
-var _btn_demo: Button
+var _btn_auto: Button                     ## Autopilot
+var _btn_persp: Button                    ## Perspektive (ein Knopf, wechselt reihum)
 var _calib: CalibrationPanel              ## Fenster „Sender kalibrieren“
-var _loc_btns: Array = []                 ## Knöpfe „Halle“, „Wiese“
 ## Von main.gd gesetzt: Strecke (für die Location-Anzeige) und Akku-Modell
 var course: Course
 var battery: Battery
@@ -78,7 +74,6 @@ var _banner: PanelContainer
 var _banner_timer := 0.0
 var _tl: HBoxContainer
 var _tr: HBoxContainer
-var _menu: MainMenu                       ## Menü (Modell, Bau, Strecke, …, Version)
 var _joy: JoystickInput                   ## Sender per USB (Taranis); steuert statt der Bildschirmknüppel
 var _ar_on := false                       ## AR an? (für die Anzeige im Menü)
 ## Liefert {"model": Name, "course": Titel} fürs Menü (setzt main.gd)
@@ -123,42 +118,23 @@ func _ready() -> void:
 		_mode_box.add_child(b)
 		_mode_btns[md] = b
 
-	# --- Gleich daneben: Reglerwahl und Demo-Knopf (alle Knöpfe in einer Reihe) ---
+	# --- Gleich daneben: Autopilot und Perspektive (alle Knöpfe in einer Reihe) ---
 	var gap := Control.new()                   # kleiner Abstand zwischen den Gruppen
 	gap.custom_minimum_size.x = UITheme.space("md")
 	_mode_box.add_child(gap)
-	var pgrp := UITheme.make_toggle_group()
-	for key in ["teensy", "sim"]:
-		var pb := UITheme.make_pill(FlightController.PRESET_NAMES[key], true)
-		pb.toggle_mode = true
-		pb.button_group = pgrp
-		pb.pressed.connect(func(): preset_requested.emit(key))
-		_mode_box.add_child(pb)
-		_preset_btns[key] = pb
+	_btn_auto = UITheme.make_pill("Autopilot", true)
+	_btn_auto.pressed.connect(func(): autopilot_requested.emit())
+	_mode_box.add_child(_btn_auto)
+	_btn_persp = UITheme.make_pill("", true)
+	_btn_persp.pressed.connect(func():
+		perspective = (perspective + 1) % PERSPECTIVES.size()
+		_btn_persp.text = "%s: %s" % [tr("Perspektive"), tr(PERSPECTIVES[perspective])]
+		perspective_changed.emit(perspective))
+	_btn_persp.text = "%s: %s" % [tr("Perspektive"), tr(PERSPECTIVES[perspective])]
+	_mode_box.add_child(_btn_persp)
 	var gap2 := Control.new()
 	gap2.custom_minimum_size.x = UITheme.space("md")
 	_mode_box.add_child(gap2)
-	_btn_demo = UITheme.make_pill("Demo", true)
-	_btn_demo.pressed.connect(func():
-		if demo_active:
-			reset_requested.emit()               # Demo stoppen = Zurücksetzen
-		else:
-			demo_requested.emit())
-	_mode_box.add_child(_btn_demo)
-
-	# --- Location: Halle oder Wiese (gleich daneben) ---
-	var gap3 := Control.new()
-	gap3.custom_minimum_size.x = UITheme.space("md")
-	_mode_box.add_child(gap3)
-	var lgrp := UITheme.make_toggle_group()
-	for li in Course.LOCATION_NAMES.size():
-		var lb := UITheme.make_pill(Course.LOCATION_NAMES[li], true)
-		lb.toggle_mode = true
-		lb.button_group = lgrp
-		var idx := li
-		lb.pressed.connect(func(): location_requested.emit(idx))
-		_mode_box.add_child(lb)
-		_loc_btns.append(lb)
 
 	# --- Akku-Anzeige (links unter den Rundenzeiten) ---
 	_batt_box = PanelContainer.new()
@@ -181,19 +157,18 @@ func _ready() -> void:
 		bv.add_child(c)
 	add_child(_batt_box)
 
-	# --- Oben rechts: nur „Armed“ und „Menü“ (Armen bleibt immer direkt erreichbar) ---
+	# --- Rechts in derselben Reihe: Zurücksetzen, Armed, Menü (→ Modell & Bau) ---
 	_tr = UITheme.make_hbox("xs")
-	var tr := _tr
-	add_child(tr)
+	var tr_box := _tr
+	_mode_box.add_child(tr_box)
 	_btn_arm = UITheme.make_pill("Disarmed", true)
 	_btn_arm.toggle_mode = true
 	_btn_arm.toggled.connect(_on_arm_toggled)
-	var b_menu := UITheme.make_pill("Menü", true)   # ohne Symbol: die Standardschrift hat kein ☰
-	b_menu.pressed.connect(func(): _menu.show_menu())
-	# „Zurücksetzen“ wieder direkt erreichbar (Wunsch Nutzer) – auch weiter im Menü
+	var b_menu := UITheme.make_pill("Menü", true)
+	b_menu.pressed.connect(func(): hub_requested.emit())
 	var b_reset := UITheme.make_pill("Zurücksetzen", true)
 	b_reset.pressed.connect(func(): reset_requested.emit())
-	for b in [b_reset, _btn_arm, b_menu]: tr.add_child(b)
+	for b in [b_reset, _btn_arm, b_menu]: tr_box.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
@@ -209,7 +184,7 @@ func _ready() -> void:
 	# --- Sender per USB (Taranis/EdgeTX als Joystick) -------------------------
 	_joy = JoystickInput.new()
 	add_child(_joy)
-	_joy.connected.connect(func(n): show_notice("Sender verbunden: %s – SF oben = scharf, SC = Modus" % n, "info", 4.0))
+	_joy.connected.connect(func(n): show_notice(tr("Sender verbunden") + ": %s – SF = Armed, SC = Mode" % n, "info", 4.0))
 	_joy.disconnected.connect(func():
 		if fc: fc.armed = false                     # Failsafe: Sender weg → Motoren aus
 		show_notice("Sender getrennt – Motoren aus", "warning", 4.0))
@@ -221,29 +196,10 @@ func _ready() -> void:
 			fc.mode = m
 			show_notice(FlightController.MODE_HINTS[m], "info", 3.0))
 
-	# --- Menü (über allem; Einträge melden sich als Signale der Flugansicht) ---
-	_menu = MainMenu.new()
-	add_child(_menu)
-	_menu.info_source = func():
-		var d: Dictionary = menu_info.call() if menu_info.is_valid() else {}
-		d["ar"] = _ar_on
-		d["joy"] = Input.get_joy_name(_joy.device) if _joy and _joy.active() else ""
-		return d
-	_menu.model_requested.connect(func(): model_requested.emit())
-	_menu.builder_requested.connect(func(): builder_requested.emit())
-	_menu.course_requested.connect(func(): course_requested.emit())
-	_menu.leaderboard_requested.connect(func(): leaderboard_requested.emit())
-	_menu.pid_requested.connect(func(): pid_requested.emit())
-	_menu.ar_requested.connect(func(): ar_requested.emit())
-	_menu.reset_requested.connect(func(): reset_requested.emit())
-	_menu.demo_requested.connect(func(): demo_requested.emit())
-	# Fenster „Sender kalibrieren“ (über allem)
+	# Fenster „Sender kalibrieren“ (über allem; geöffnet von der Startseite)
 	_calib = CalibrationPanel.new()
 	_calib.joy = _joy
 	add_child(_calib)
-	_menu.calibrate_requested.connect(func():
-		if fc: fc.armed = false                     # Motoren aus, bevor geknüppelt wird
-		_calib.show_panel())
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -257,30 +213,32 @@ func _ready() -> void:
 func _layout() -> void:
 	var m := float(UITheme.space("lg"))
 	var sz := size
+	# Knopfreihe oben rechtsbündig (bei schmalen Bildschirmen so weit links wie nötig)
+	_mode_box.size = _mode_box.get_combined_minimum_size()
+	_mode_box.position = Vector2(maxf(m, sz.x - _mode_box.size.x - m), m)
+	# Telemetrie links daneben, wenn Platz ist – sonst in die zweite Reihe
 	_tl.size = _tl.get_combined_minimum_size()
-	_tl.position = Vector2(m, m)
-	_tr.size = _tr.get_combined_minimum_size()
-	_tr.position = Vector2(sz.x - _tr.size.x - m, m)
+	if _mode_box.position.x - m >= _tl.size.x + m:
+		_tl.position = Vector2(m, m)
+	else:
+		_tl.position = Vector2(m, _mode_box.position.y + _mode_box.size.y + m * 0.5)
 	_laps.size = _laps.get_combined_minimum_size()
 	_laps.position = Vector2(m, _tl.position.y + _tl.size.y + m * 0.5)
 	_batt_box.size = _batt_box.get_combined_minimum_size()
 	_batt_box.position = Vector2(m, _laps.position.y + _laps.size.y + m * 0.5)
-	# Schalter mittig zwischen Telemetrie und Menüs
-	_mode_box.size = _mode_box.get_combined_minimum_size()
-	var free0 := _tl.position.x + _tl.size.x + m
-	var free1 := _tr.position.x - m
-	if free1 - free0 >= _mode_box.size.x:
-		_mode_box.position = Vector2((free0 + free1 - _mode_box.size.x) * 0.5, m)
-	else:
-		# zu schmal (Handy): Schalter in die zweite Reihe unter die Menüknöpfe
-		_mode_box.position = Vector2(sz.x - _mode_box.size.x - m, _tr.position.y + _tr.size.y + m * 0.5)
-	for s in [stick_left, stick_right]:
-		s.size = s.custom_minimum_size
+	for st in [stick_left, stick_right]:
+		st.size = st.custom_minimum_size
 	var sy := sz.y - stick_left.size.y - m
 	stick_left.position = Vector2(m * 3.0, sy)
 	stick_right.position = Vector2(sz.x - stick_right.size.x - m * 3.0, sy)
 	_banner.size = _banner.get_combined_minimum_size()
 	_banner.position = Vector2((sz.x - _banner.size.x) * 0.5, sz.y - _banner.size.y - m * 2.0)
+
+
+## Fenster „Sender kalibrieren“ öffnen (Motoren aus, bevor geknüppelt wird).
+func open_calibration() -> void:
+	if fc: fc.armed = false
+	_calib.show_panel()
 
 
 ## Knüppel-Beschriftung nach aktuellem Stick-Mode (Gier immer rechts).
@@ -310,7 +268,7 @@ func _update_battery() -> void:
 	var rest_txt := "–" if rest == INF or rest > 5999.0 else "%d:%02d min" % [int(rest) / 60, int(rest) % 60]
 	_batt_bottom.text = ("%d %% · %.1f A · Rest ≈ %s" % [roundi(pct), battery.current, rest_txt]).replace(".", ",")
 	if battery.soc <= 0.0:
-		_batt_bottom.text = "Akku leer"
+		_batt_bottom.text = tr("Akku leer")
 
 
 ## Kurzer Hinweis, verschwindet nach `seconds` von selbst.
@@ -328,14 +286,10 @@ func set_race_text(text: String, laps := "") -> void:
 		_laps.text = laps
 
 
-func set_ar_active(active: bool) -> void:
-	_ar_on = active
-
-
 func _on_arm_toggled(on: bool) -> void:
 	if fc:
 		fc.armed = on
-	_btn_arm.text = "Armed" if on else "Disarmed"
+	_btn_arm.text = tr("Armed") if on else tr("Disarmed")
 
 
 func _process(dt: float) -> void:
@@ -344,8 +298,8 @@ func _process(dt: float) -> void:
 		if _calib and _calib.visible:
 			fc.armed = false                          # Kalibrieren: Motoren aus, Knüppel wirken nicht
 			fc.set_sticks(Vector2.ZERO, Vector2.ZERO)
-		elif demo_active:
-			pass                                      # Demo-Flug: der Autopilot steuert
+		elif autopilot_active:
+			pass                                      # Autopilot steuert über die Knüppel
 		elif _joy and _joy.active():
 			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
 			stick_left.show_external(_joy.left)       # Bildschirmknüppel zeigen die Senderknüppel
@@ -355,25 +309,18 @@ func _process(dt: float) -> void:
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
-			_btn_arm.text = "Armed" if fc.armed else "Disarmed"
+			_btn_arm.text = tr("Armed") if fc.armed else tr("Disarmed")
 		for mm in _mode_btns:                         # Stellung nachziehen (auch nach PID-Menü)
 			var on: bool = int(fc.mode) == int(mm)
 			if _mode_btns[mm].button_pressed != on:
 				_mode_btns[mm].set_pressed_no_signal(on)
-		for key in _preset_btns:                     # Reglerwahl nachziehen
-			var pon: bool = fc.preset == key
-			if _preset_btns[key].button_pressed != pon:
-				_preset_btns[key].set_pressed_no_signal(pon)
-	# Location-Knöpfe nachziehen
-	if course:
-		for li in _loc_btns.size():
-			var lon: bool = course.location == li
-			if _loc_btns[li].button_pressed != lon:
-				_loc_btns[li].set_pressed_no_signal(lon)
 	_update_battery()
-	var dtxt := "Demo stoppen" if demo_active else "Demo"
-	if _btn_demo.text != dtxt:
-		_btn_demo.text = dtxt
+	var atxt := tr("Autopilot stoppen") if autopilot_active else tr("Autopilot")
+	if _btn_auto.text != atxt:
+		_btn_auto.text = atxt
+	var ptxt := "%s: %s" % [tr("Perspektive"), tr(PERSPECTIVES[perspective])]
+	if _btn_persp.text != ptxt:                       # auch nach Sprachwechsel
+		_btn_persp.text = ptxt
 	if ship:
 		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")
 		_pill_alpha.text = "α %d°" % roundi(ship.alpha_deg)
