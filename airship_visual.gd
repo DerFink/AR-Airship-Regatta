@@ -1,3 +1,5 @@
+# 2026-11-11 03:10 – Warnfarbe der Flossen (Validator) nur im Baukasten, im Flug echte Leitwerksfarbe
+# 2026-11-11 01:00 – Material aus der Gestaltung (Silberfolie glänzend, Weiß matt, Goldfolie, Farbe; Leitwerk Weiß/Carbon/Folie/Farbe); Flossenwurzel reicht bis in die Hülle (keine Lücke an der gewölbten Hülle); Propellerkreis aus dem Propellerdurchmesser; Nutzlast als Block; local_aabb() für das Boxmaß
 # 2026-10-27 23:49 – Turm als stromlinienförmiger Körper (NACA-Grundriss) in Hüllenfarbe
 # 2026-10-27 16:07 – Restmasse (Block am Hüllenboden) und Schwerpunkt (rote Kugel) im Baukasten sichtbar
 # 2026-10-27 15:09 – Flossen als Trapez mit Zuspitzung (Pfeilung) statt Quader
@@ -30,6 +32,8 @@ var _mass_node := MeshInstance3D.new()   ## Restmasse unten an der Hülle (nur i
 var _cg_node := MeshInstance3D.new()     ## Gesamtschwerpunkt (nur im Baukasten)
 var _workshop := false
 var _sail_mat := StandardMaterial3D.new() ## Turm in Hüllenfarbe
+var _hull_mat := StandardMaterial3D.new()
+var _payload_node := MeshInstance3D.new() ## Nutzlast (Block außen an der Hülle)
 
 
 func _ready() -> void:
@@ -38,6 +42,10 @@ func _ready() -> void:
 	add_child(_canvas)
 	add_child(_mass_node)
 	add_child(_cg_node)
+	add_child(_payload_node)
+	var plm := StandardMaterial3D.new()
+	plm.albedo_color = Color("e0a43a")
+	_payload_node.material_override = plm
 	# Restmasse: halbtransparenter Block (türkis), Schwerpunkt: rote Kugel,
 	# die durch die Hülle hindurch sichtbar bleibt
 	var bm := StandardMaterial3D.new()
@@ -72,11 +80,10 @@ func rebuild() -> void:
 	var h := ship.hull
 	# --- Hülle --------------------------------------------------------------
 	_hull_mesh.mesh = h.build_mesh(64, 32)
-	var hm := StandardMaterial3D.new()
+	var hm := _hull_mat
 	hm.albedo_color = Color.WHITE                 # Farbe kommt aus der Gestaltungs-Textur
 	hm.albedo_texture = _canvas.get_texture()
 	hm.texture_repeat = true                      # Naht unten: v < 0 wiederholt sich
-	hm.roughness = 0.6
 	_hull_mesh.material_override = hm
 	_hook_livery()
 	_repaint()
@@ -91,6 +98,17 @@ func rebuild() -> void:
 	_mass_node.mesh = box
 	_mass_node.position = ship.bottom_mass_pos - Vector3(0, 0.5 * k, 0)
 	_cg_node.position = ship.cg_offset
+	# Nutzlast: Würfel (Dichte ≈ 1 g/cm³), Innenseite liegt an der Hülle an
+	_payload_node.visible = ship.payload_mass_kg > 0.0005
+	if _payload_node.visible:
+		var e := pow(ship.payload_mass_kg / 1000.0, 1.0 / 3.0)
+		var pb := BoxMesh.new()
+		pb.size = Vector3(e, e, e)
+		_payload_node.mesh = pb
+		var pa := deg_to_rad(ship.payload_angle_deg)
+		var out := Vector3(sin(pa), cos(pa), 0.0)
+		_payload_node.position = ship.payload_pos + out * 0.5 * e
+		_payload_node.basis = Basis(Vector3(0, 0, 1), -pa)
 
 	# --- Kollision: Kapsel entlang der Längsachse ---------------------------
 	var cap := CapsuleShape3D.new()
@@ -111,6 +129,9 @@ func rebuild() -> void:
 		var d := s.outward_dir()
 		var root := s.position - d * 0.4 * span               # Flossenwurzel an der Hülle
 		pivot.position = root
+		# Wurzel bis zur Längsachse verlängern: die Hülle wird zum Heck dünner,
+		# sonst stünde die Hinterkante der Flosse frei über der Hülle (Lücke)
+		var inset := ship.hull.radius_at(s.hull_x)
 		# Lokale Achsen der Flosse: Y = abstehend, Z = Längsachse, X = Flächennormale
 		# (rechtshändig: X = Y × Z)
 		pivot.basis = Basis(d.cross(Vector3(0, 0, 1)), d, Vector3(0, 0, 1)).orthonormalized()
@@ -120,7 +141,7 @@ func rebuild() -> void:
 			mi.mesh = _sail_mesh(span, chord)
 			mi.material_override = _sail_mat
 		else:
-			mi.mesh = _fin_mesh(span, chord, s.taper)
+			mi.mesh = _fin_mesh(span, chord, s.taper, inset)
 			mi.material_override = _fin_mat
 		pivot.add_child(mi)
 		pivot.set_meta("surface", s)
@@ -145,7 +166,8 @@ func rebuild() -> void:
 		g.add_child(body)
 		var prop := MeshInstance3D.new()
 		var disc := CylinderMesh.new()
-		disc.top_radius = 0.07; disc.bottom_radius = 0.07; disc.height = 0.004
+		var pr := m.prop_diameter_in * 0.0254 * 0.5          # Propellerkreis aus den Modelldaten
+		disc.top_radius = pr; disc.bottom_radius = pr; disc.height = 0.004
 		prop.mesh = disc
 		prop.rotation = Vector3(PI * 0.5, 0, 0)
 		prop.position = Vector3(0, 0, -0.05)
@@ -158,9 +180,31 @@ func rebuild() -> void:
 		_motor_nodes.append(g)
 
 
+## Umhüllender Quader aller sichtbaren Teile im Körpersystem des Schiffs
+## (Hülle, Flossen, Motoren mit Propellerkreis, Restmasse, Nutzlast) – das
+## „Boxmaß“, mit dem vor dem Rennen gemessen wird.
+func local_aabb() -> AABB:
+	var nodes: Array[Node3D] = [_hull_mesh, _mass_node]
+	if _payload_node.visible: nodes.append(_payload_node)
+	nodes.append_array(_fin_nodes)
+	nodes.append_array(_motor_nodes)
+	var box := AABB()
+	var first := true
+	var inv := ship.global_transform.affine_inverse()
+	for n in nodes:
+		for mi in ([n] + n.find_children("*", "MeshInstance3D", true, false)):
+			if not (mi is MeshInstance3D) or (mi as MeshInstance3D).mesh == null: continue
+			var t: Transform3D = inv * (mi as MeshInstance3D).global_transform
+			var a: AABB = t * (mi as MeshInstance3D).mesh.get_aabb()
+			if first: box = a; first = false
+			else: box = box.merge(a)
+	return box
+
+
 ## Restmasse und Schwerpunkt nur im Baukasten zeigen (im Flug unsichtbar).
 func set_workshop(on: bool) -> void:
 	_workshop = on
+	set_validation_level(_valid_level)            # Warnfarbe nur im Baukasten
 	_mass_node.visible = on
 	_cg_node.visible = on
 
@@ -208,12 +252,12 @@ func _sail_mesh(height: float, chord: float) -> ArrayMesh:
 ## Flache Flosse als Trapez (zweiseitig gerendert): Wurzeltiefe c_r an der
 ## Hülle, Endtiefe c_t = Zuspitzung · c_r außen, Hinterkante gerade.
 ## Lokal: Y = Spannweite (abstehend), Z = Längsachse (+Z = hinten).
-func _fin_mesh(span: float, mean_chord: float, taper: float) -> ArrayMesh:
+func _fin_mesh(span: float, mean_chord: float, taper: float, inset := 0.0) -> ArrayMesh:
 	var c_r := 2.0 * mean_chord / (1.0 + taper)
 	var c_t := c_r * taper
 	var te := c_r * 0.5                                   # Hinterkante (gerade)
-	var p0 := Vector3(0, 0, te - c_r)                     # Wurzel vorn
-	var p1 := Vector3(0, 0, te)                           # Wurzel hinten
+	var p0 := Vector3(0, -inset, te - c_r)                # Wurzel vorn (steckt bis zur Achse in der Hülle)
+	var p1 := Vector3(0, -inset, te)                      # Wurzel hinten
 	var p2 := Vector3(0, span, te)                        # Spitze hinten
 	var p3 := Vector3(0, span, te - c_t)                  # Spitze vorn
 	var st := SurfaceTool.new()
@@ -241,6 +285,16 @@ func _repaint() -> void:
 	if _livery == null:
 		_livery = Livery.new()
 	_canvas.repaint(_livery, ship.hull.length_to_diameter)
+	# Glanz der Hülle und des Leitwerks je Material
+	var g := Livery.gloss(_livery.material)
+	_hull_mat.metallic = g.x
+	_hull_mat.roughness = g.y
+	_hull_mat.metallic_specular = 0.7
+	var fg := Livery.gloss(_livery.fin_material)
+	fin_color = _livery.fin_base_color()
+	_fin_mat.albedo_color = fin_color
+	_fin_mat.metallic = fg.x
+	_fin_mat.roughness = fg.y
 	_sail_mat.albedo_color = _livery.hull_color          # Turm in Hüllenfarbe
 	_sail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_sail_mat.roughness = 0.6
@@ -249,7 +303,12 @@ func _repaint() -> void:
 # =============================================================================
 # Einfärbung nach Validator (Baukasten): ok = Akzentfarbe, sonst Warnfarbe
 # =============================================================================
+var _valid_level := 0
 func set_validation_level(level: int) -> void:
+	_valid_level = level
+	if not _workshop:
+		_fin_mat.albedo_color = fin_color          # im Flug immer die echte Leitwerksfarbe
+		return
 	match level:
 		TailValidator.Level.OK: _fin_mat.albedo_color = fin_color
 		TailValidator.Level.MARGINAL: _fin_mat.albedo_color = UITheme.color("warning")

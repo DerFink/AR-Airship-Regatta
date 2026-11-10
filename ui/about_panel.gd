@@ -1,3 +1,5 @@
+# 2026-11-11 01:30 – Quelle Johannes Eissing (Gertler Shape Generator)
+# 2026-11-11 00:20 – Formeln ohne Zeichen, die die Handy-Schrift nicht hat (ₐ → _a, ω̇ → dω/dt)
 # 2026-11-10 21:10 – Erstversion: „Grundlagen des Simulators“ mit Reitern Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz (Texte Deutsch und Englisch; andere Sprachen zeigen den englischen Text)
 # =============================================================================
 # AboutPanel.gd
@@ -92,21 +94,21 @@ const TEXT_DE := [
 """[b]Bewegungsgleichungen (6 Freiheitsgrade)[/b]
 Das Luftschiff ist ein starrer Körper mit 3 Verschiebungen und 3 Drehungen. Gerechnet wird im Körpersystem (Ursprung im Auftriebszentrum, Nase nach vorn) mit 60 Schritten pro Sekunde:
 
-[code](m + Mₐ)·a = F + Mₐ·(ω × v) − ω × (Mₐ·v)
-(I + Iₐ)·ω̇ = T − ω × ((I + Iₐ)·ω) − v × (Mₐ·v)[/code]
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
 
 m, I: Masse und Trägheit des Schiffs (Hülle, Traggas, Motoren, Akku, Flossen)
-Mₐ, Iₐ: virtuelle Massen und Trägheiten der mitbewegten Luft
+M_a, I_a: virtuelle Massen und Trägheiten der mitbewegten Luft
 F, T: Kräfte und Momente aus Gewicht, Auftrieb, Rumpf, Flossen und Motoren
 
 [b]Virtuelle Massen[/b]
 Ein Luftschiff ist fast so leicht wie die Luft, die es verdrängt. Beim Beschleunigen muss es diese Luft mit anschieben – und zwar quer viel mehr als längs. Der Simulator nutzt dafür die Lamb-Faktoren des Rotationsellipsoids (ATTAS-Ansatz):
-[code]längs: k₁·ρ·V      quer: k₂·ρ·V      Drehung: k'·I_Luft[/code]
-Bei L/D = 6 ist k₁ ≈ 0,05 und k₂ ≈ 0,92: quer schiebt das Schiff fast eine zweite Luftfüllung mit.
+[code]längs: k1·ρ·V      quer: k2·ρ·V      Drehung: k'·I_Luft[/code]
+Bei L/D = 6 ist k1 ≈ 0,05 und k2 ≈ 0,92: quer schiebt das Schiff fast eine zweite Luftfüllung mit.
 
 [b]Munk-Moment[/b]
-Aus den ungleichen virtuellen Massen folgt direkt der letzte Term der zweiten Gleichung, [code]−v × (Mₐ·v)[/code]. Bei Schräganströmung unter dem Winkel α gilt näherungsweise
-[code]M_Munk = ½·ρ·v²·V·(k₂ − k₁)·sin 2α[/code]
+Aus den ungleichen virtuellen Massen folgt direkt der letzte Term der zweiten Gleichung, [code]−v × (M_a·v)[/code]. Bei Schräganströmung unter dem Winkel α gilt näherungsweise
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 Dieses Moment dreht die Nase weiter aus dem Wind – der Rumpf allein ist instabil. Weil die Grenzschicht am Heck einen Teil davon aufhebt, rechnet der Simulator mit 60 % des theoretischen Werts.
 
 [b]Flossen und Ruder[/b]
@@ -120,7 +122,7 @@ Jeder Motor erzeugt Schub entlang seiner Achse, die Schwenkmotoren drehen diese 
 Restmasse (Akku, Ballast) wird so bemessen und gelegt, dass das Schiff leicht schwerer als Luft ist und waagrecht hängt. Liegt der Schwerpunkt unter dem Auftriebszentrum, richtet ein Pendelmoment das Schiff auf.""",
 # --- Luftschiff-Modell ---
 """[b]Hülle nach Gertler[/b]
-Die Form der Hülle stammt aus der DTMB-Serie 58 (Gertler, 1950). Ein Polynom 6. Grades beschreibt den Radius über der Länge; die Parameter sind Länge/Durchmesser (L/D), Lage des dicksten Querschnitts, Nasen- und Heckradius und Völligkeit. Aus der Form folgen Volumen, Oberfläche, Auftriebszentrum und die virtuellen Massen.
+Die Form der Hülle stammt aus der DTMB-Serie 58 (Gertler, 1950), umgesetzt nach dem Gertler Shape Generator von Johannes Eissing. Ein Polynom 6. Grades beschreibt den Radius über der Länge; die Parameter sind Länge/Durchmesser (L/D), Lage des dicksten Querschnitts, Nasen- und Heckradius und Völligkeit. Aus der Form folgen Volumen, Oberfläche, Auftriebszentrum und die virtuellen Massen.
 
 [b]Standardmodelle[/b]
 [b]Chewie[/b] – das echte Rennluftschiff: L/D 6, Lambda-Leitwerk aus drei leichten Pendelflossen (±50°), zwei schwenkbare Motoren seitlich unten, Teensy-Flugcontroller.
@@ -159,13 +161,13 @@ Standard: LiPo 4S, 300 mAh (Chewie).
 [b]Spannung unter Last[/b]
 Die Leerlaufspannung E hängt vom Ladezustand ab (typische LiPo-Kurve je Zelle). Mit dem Innenwiderstand R und der Motorleistung P gilt
 [code]V = E − I·R,   I = P(V) / V[/code]
-und daraus [code]a·V² + V − E = 0[/code] mit [code]a = R·P₀ / V₀³[/code].
+und daraus [code]a·V² + V − E = 0[/code] mit [code]a = R·P0 / V0³[/code].
 
 [b]Leistung[/b]
 [code]P_Motor ≈ 25 W · (Schub in N)^1,5[/code]   plus 2 W für Elektronik und Servos. Die Werte sind Annahmen und können durch Messungen ersetzt werden.
 
 [b]Rückwirkung auf den Flug[/b]
-Sinkt die Spannung, drehen die Motoren langsamer: [code]Schub ∝ (V/V₀)²[/code]. Ist der Akku leer, gibt es keinen Schub mehr.
+Sinkt die Spannung, drehen die Motoren langsamer: [code]Schub ∝ (V/V0)²[/code]. Ist der Akku leer, gibt es keinen Schub mehr.
 
 Grobe Flugzeiten (Chewie geradeaus): 30 % Gas ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, Vollgas ≈ 34 s. „Zurücksetzen“ lädt den Akku wieder voll.""",
 # --- Über / Lizenz ---
@@ -180,6 +182,7 @@ Godot Engine: MIT-Lizenz. Schrift für Chinesisch: Noto Sans CJK (SIL Open Font 
 
 [b]Quellen[/b]
 Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – Hüllenform nach Gertler (DTMB Series 58)
 Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
 Lamb, H.: Hydrodynamics
 dRehmFlight (Nicholas Rehm) – Grundlage des Teensy-Flugcontrollers
@@ -193,21 +196,21 @@ const TEXT_EN := [
 """[b]Equations of motion (6 degrees of freedom)[/b]
 The airship is a rigid body with 3 translations and 3 rotations. The simulator works in body axes (origin at the centre of buoyancy, nose forward) at 60 steps per second:
 
-[code](m + Mₐ)·a = F + Mₐ·(ω × v) − ω × (Mₐ·v)
-(I + Iₐ)·ω̇ = T − ω × ((I + Iₐ)·ω) − v × (Mₐ·v)[/code]
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
 
 m, I: mass and inertia of the ship (envelope, lifting gas, motors, battery, fins)
-Mₐ, Iₐ: added (virtual) masses and inertias of the air moved along
+M_a, I_a: added (virtual) masses and inertias of the air moved along
 F, T: forces and moments from weight, buoyancy, hull, fins and motors
 
 [b]Added masses[/b]
 An airship is almost as light as the air it displaces. When it accelerates it has to push that air along – much more sideways than lengthwise. The simulator uses Lamb's coefficients for the prolate ellipsoid (ATTAS approach):
-[code]axial: k₁·ρ·V      lateral: k₂·ρ·V      rotation: k'·I_air[/code]
-At L/D = 6, k₁ ≈ 0.05 and k₂ ≈ 0.92: sideways the ship drags almost a second load of air.
+[code]axial: k1·ρ·V      lateral: k2·ρ·V      rotation: k'·I_air[/code]
+At L/D = 6, k1 ≈ 0.05 and k2 ≈ 0.92: sideways the ship drags almost a second load of air.
 
 [b]Munk moment[/b]
-The unequal added masses directly produce the last term of the second equation, [code]−v × (Mₐ·v)[/code]. At an angle of attack α, approximately
-[code]M_Munk = ½·ρ·v²·V·(k₂ − k₁)·sin 2α[/code]
+The unequal added masses directly produce the last term of the second equation, [code]−v × (M_a·v)[/code]. At an angle of attack α, approximately
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 This moment turns the nose further out of the wind – the bare hull is unstable. Because the boundary layer at the tail cancels part of it, the simulator uses 60 % of the theoretical value.
 
 [b]Fins and rudders[/b]
@@ -221,7 +224,7 @@ Each motor pushes along its axis; swivelling motors rotate that axis. Thrust dro
 The remaining mass (battery, ballast) is sized and placed so that the ship is slightly heavier than air and hangs level. With the centre of gravity below the centre of buoyancy, a pendulum moment rights the ship.""",
 # --- Airship model ---
 """[b]Gertler hull[/b]
-The envelope shape comes from the DTMB Series 58 (Gertler, 1950). A 6th-order polynomial gives the radius along the length; parameters are length/diameter (L/D), position of maximum diameter, nose and tail radius and prismatic coefficient. Volume, surface, centre of buoyancy and added masses follow from the shape.
+The envelope shape comes from the DTMB Series 58 (Gertler, 1950), implemented after Johannes Eissing's Gertler Shape Generator. A 6th-order polynomial gives the radius along the length; parameters are length/diameter (L/D), position of maximum diameter, nose and tail radius and prismatic coefficient. Volume, surface, centre of buoyancy and added masses follow from the shape.
 
 [b]Standard models[/b]
 [b]Chewie[/b] – the real racing airship: L/D 6, lambda tail of three light all-moving fins (±50°), two swivelling motors low on the sides, Teensy flight controller.
@@ -260,13 +263,13 @@ Default: LiPo 4S, 300 mAh (Chewie).
 [b]Voltage under load[/b]
 The open-circuit voltage E depends on the state of charge (typical LiPo curve per cell). With internal resistance R and motor power P:
 [code]V = E − I·R,   I = P(V) / V[/code]
-hence [code]a·V² + V − E = 0[/code] with [code]a = R·P₀ / V₀³[/code].
+hence [code]a·V² + V − E = 0[/code] with [code]a = R·P0 / V0³[/code].
 
 [b]Power[/b]
 [code]P_motor ≈ 25 W · (thrust in N)^1.5[/code]   plus 2 W for electronics and servos. These are assumptions and can be replaced by measurements.
 
 [b]Effect on flight[/b]
-As voltage drops, the motors spin slower: [code]thrust ∝ (V/V₀)²[/code]. An empty battery gives no thrust.
+As voltage drops, the motors spin slower: [code]thrust ∝ (V/V0)²[/code]. An empty battery gives no thrust.
 
 Rough flight times (Chewie straight ahead): 30 % throttle ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, full ≈ 34 s. “Reset” recharges the battery.""",
 # --- About / license ---
@@ -281,6 +284,7 @@ Godot Engine: MIT License. Chinese font: Noto Sans CJK (SIL Open Font License).
 
 [b]References[/b]
 Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – hull shapes after Gertler (DTMB Series 58)
 Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
 Lamb, H.: Hydrodynamics
 dRehmFlight (Nicholas Rehm) – basis of the Teensy flight controller

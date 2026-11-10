@@ -1,3 +1,4 @@
+# 2026-11-11 01:40 – „Sender kalibrieren“ wandert nach „Modell & Bau“
 # 2026-11-10 22:35 – Angaben auch beim ersten Anzeigen füllen
 # 2026-11-10 20:20 – Erstversion: Startseite nach freigegebenem Entwurf – Titel „RC Airship Regatta“, Knöpfe Fliegen / Modell & Bau / Über den Simulator / Buy me a beer, oben rechts Senderstatus und Sprachwahl mit Flaggen, unten Version, Update-Suche, Sender kalibrieren, Einstellungen; im Hintergrund das aktuelle Luftschiff vor dem Horizont der Hallen-Wandbilder
 # =============================================================================
@@ -146,13 +147,9 @@ func _ready() -> void:
 	_updater.status.connect(func(text: String, _done: bool): _status.text = text)
 	_foot_r = UITheme.make_hbox("sm")
 	add_child(_foot_r)
-	var b_cal := UITheme.make_button("Sender kalibrieren")
-	b_cal.flat = true
-	b_cal.pressed.connect(func(): calibrate_requested.emit())
 	var b_set := UITheme.make_button("Einstellungen")
 	b_set.flat = true
 	b_set.pressed.connect(func(): settings_requested.emit())
-	_foot_r.add_child(b_cal)
 	_foot_r.add_child(b_set)
 
 	resized.connect(_layout)
@@ -183,7 +180,7 @@ func _refresh() -> void:
 	_joy_chip.text = ("● " + tr("Sender verbunden")) if joy != "" else tr("Kein Sender")
 	_joy_chip.tooltip_text = joy
 	_lang_btn.icon = I18n.flag(I18n.current, 30)
-	_lang_btn.text = I18n.LANG_NAMES[I18n.current] + " ▾"
+	_lang_btn.text = I18n.LANG_NAMES[I18n.current] + " ▼"
 	if preview_source.is_valid():
 		_ship.texture = preview_source.call()
 	_layout.call_deferred()

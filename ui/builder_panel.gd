@@ -1,3 +1,5 @@
+# 2026-11-11 01:35 – Reiter Hülle · Leitwerk · Antrieb · Flight Controller · Optik; Flight Controller: Teensy an/aus und Regler (PID) einstellen; Optik: Material und Farbe von Hülle und Leitwerk getrennt
+# 2026-11-11 00:40 – Turm entfernt (als Canard bauen); Schwere in % des Auftriebs (0 % = aerostatisch ausgeglichen); Nutzlast (Masse, Lage, Winkel); Antrieb: Teensy (+10 g) und Akku (Zellen, Kapazität, Masse); Motorpaare bleiben symmetrisch zur Längsachse; Paar wird gemeinsam entfernt
 # 2026-11-07 21:40 – Achsneigung der Schwenkmotoren −60…60° (negativ = Schub schwenkt radial wie bei Chewie)
 # 2026-11-07 21:10 – open_model_choice(): Modellliste aufklappen (Menüpunkt „Modell wählen“)
 # 2026-10-28 00:15 – Modellwahl meldet model_applied (PID-Vorgaben übernehmen)
@@ -30,6 +32,7 @@ extends Control
 signal closed
 signal share_requested
 signal view_reset_requested
+signal pid_requested              ## Regler (PID) einstellen – aus dem Reiter Flight Controller
 ## Für ruhige Töne: "add", "select", "remove", "ok", "warn"
 signal ui_action(kind: String)
 
@@ -51,7 +54,8 @@ var _hint: Label
 var _view_btn: Button
 var _preview: TailPreview
 var _hull_rows := {}
-var _sail_check: CheckBox         ## Turm an/aus
+var _teensy_check: CheckBox       ## Teensy-Flugcontroller eingebaut
+var _cells_row: Control           ## Akku-Zellen (Stepper)
 var _ballast_auto: CheckBox        ## Restmasse automatisch austrimmen
 var _mass_info: Label              ## Anzeige Akku + Ballast / Übergewicht
 var _last_level := -1
@@ -73,11 +77,13 @@ func _ready() -> void:
 	_left = UITheme.make_panel(UITheme.size("panel_side_width"))
 	add_child(_left)
 	var tabs := TabContainer.new()
+	tabs.add_theme_font_size_override("font_size", 15)          # fünf Reiter passen nebeneinander
 	_left.add_child(tabs)
 	tabs.add_child(_scroll_page("Hülle", _build_hull_page))
 	tabs.add_child(_scroll_page("Leitwerk", _build_tail_page))
 	tabs.add_child(_scroll_page("Antrieb", _build_drive_page))
-	tabs.add_child(_scroll_page("Gestaltung", _build_look_page))
+	tabs.add_child(_scroll_page("Flight Controller", _build_fc_page))
+	tabs.add_child(_scroll_page("Optik", _build_look_page))
 	tabs.current_tab = 1
 	tabs.tab_changed.connect(func(_i): ui_action.emit("select"))
 
@@ -121,7 +127,7 @@ func _ready() -> void:
 	_preview.custom_minimum_size = Vector2(120, 120)
 	_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_preview)
-	_banner = UITheme.make_banner(520)
+	_banner = UITheme.make_banner(420)
 	add_child(_banner)
 
 	# Dateiauswahl für das Logo (nutzt den Systemdialog, wo verfügbar)
@@ -150,15 +156,28 @@ func _layout() -> void:
 	_right.position = Vector2(size.x - _right.size.x - m, m)
 	var cx0 := _left.position.x + _left.size.x + m        # freie Mitte links
 	var cx1 := _right.position.x - m                       # freie Mitte rechts
-	_hint.size = _hint.get_combined_minimum_size()
-	_hint.position = Vector2(cx0, m)
 	_view_btn.size = _view_btn.get_combined_minimum_size()
 	_view_btn.position = Vector2(cx1 - _view_btn.size.x, m)
+	_hint.size = _hint.get_combined_minimum_size()
+	_hint.position = Vector2(cx0, m + _view_btn.size.y + 4.0)      # unter dem Knopf (schmale Mitte)
 	_preview.size = _preview.custom_minimum_size
 	_preview.position = Vector2(cx0, size.y - _preview.size.y - m)
 	_banner.size = _banner.get_combined_minimum_size()
-	_banner.position = Vector2(clampf((cx0 + cx1 - _banner.size.x) * 0.5, cx0 + _preview.size.x + m, cx1 - _banner.size.x),
-		size.y - _banner.size.y - m)
+	var bx0 := cx0 + _preview.size.x + m
+	if cx1 - bx0 >= _banner.size.x:
+		# unten neben der Heckansicht
+		_banner.position = Vector2(clampf((cx0 + cx1 - _banner.size.x) * 0.5, bx0, cx1 - _banner.size.x), size.y - _banner.size.y - m)
+	else:
+		# zu schmal: über der Heckansicht, mittig in der freien Fläche
+		_banner.position = Vector2(maxf(cx0, (cx0 + cx1 - _banner.size.x) * 0.5), size.y - _preview.size.y - _banner.size.y - 2.0 * m)
+
+
+## Freie Mitte zwischen linker und rechter Spalte (für das Zentrieren des
+## Luftschiffs in der 3D-Ansicht): x = linker Rand, y = rechter Rand.
+func free_span() -> Vector2:
+	if _left == null or _right == null:
+		return Vector2(0, size.x)
+	return Vector2(_left.position.x + _left.size.x, _right.position.x)
 
 
 func _on_visibility() -> void:
@@ -195,22 +214,6 @@ func _build_hull_page(col: VBoxContainer) -> void:
 	for k in ["vol", "ld", "m", "cp"]:
 		col.add_child(_hull_rows[k])
 
-	# --- Turm an der Unterseite (U-Boot-Turm kopfüber, feste Flosse) -------
-	col.add_child(UITheme.make_title("Turm"))
-	_sail_check = CheckBox.new()
-	_sail_check.text = "Turm an der Unterseite"
-	_sail_check.button_pressed = ship.sail_enabled
-	_sail_check.toggled.connect(func(on): ship.sail_enabled = on; _changed())
-	col.add_child(_sail_check)
-	_hull_rows.sx = UITheme.make_slider_row("Turm Lage (0 Nase · 1 Heck)", 0.05, 0.95, 0.01, ship.sail_x,
-		func(v): ship.sail_x = v; _changed(), "%.2f")
-	_hull_rows.sl = UITheme.make_slider_row("Turm Länge (Anteil Rumpflänge)", 0.02, 0.40, 0.005, ship.sail_length_frac,
-		func(v): ship.sail_length_frac = v; _changed(), "%.3f")
-	_hull_rows.sh = UITheme.make_slider_row("Turm Höhe (Anteil Durchmesser)", 0.05, 1.0, 0.01, ship.sail_height_frac,
-		func(v): ship.sail_height_frac = v; _changed(), "%.2f")
-	for k in ["sx", "sl", "sh"]:
-		col.add_child(_hull_rows[k])
-
 	# --- Massen: Hülle, Elektronik und die unten angeklebte Restmasse ------
 	# Motormassen stehen im Reiter Antrieb (je Motorgondel mit Servo).
 	col.add_child(UITheme.make_title("Massen"))
@@ -220,6 +223,10 @@ func _build_hull_page(col: VBoxContainer) -> void:
 		func(v): ship.electronics_mass_kg = v / 1000.0; _changed(), "%d g")
 	col.add_child(_hull_rows.hm)
 	col.add_child(_hull_rows.el)
+	# Schwere: um wie viel % das Schiff schwerer ist als sein Auftrieb (0 % = schwebt genau)
+	_hull_rows.tw = UITheme.make_slider_row("Schwere (0 % = aerostatisch ausgeglichen)", 0.0, 10.0, 0.1, _heaviness_pct(),
+		func(v): ship.trim_heaviness_n = v / 100.0 * _buoyancy_n(); _changed(), "%.1f %%")
+	col.add_child(_hull_rows.tw)
 	_mass_info = UITheme.make_label("", "MutedLabel")
 	_mass_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_mass_info)
@@ -232,6 +239,17 @@ func _build_hull_page(col: VBoxContainer) -> void:
 	_hull_rows.bx = UITheme.make_slider_row("Lage der Restmasse (0 Nase · 1 Heck)", 0.05, 0.95, 0.01, ship.ballast_x,
 		_on_ballast_x, "%.2f")
 	col.add_child(_hull_rows.bx)
+
+	# --- Nutzlast: frei platzierbare Masse außen an der Hülle ----------------
+	col.add_child(UITheme.make_title("Nutzlast"))
+	_hull_rows.pl = UITheme.make_slider_row("Masse", 0.0, 500.0, 1.0, ship.payload_mass_kg * 1000.0,
+		func(v): ship.payload_mass_kg = v / 1000.0; _changed(), "%d g")
+	_hull_rows.px = UITheme.make_slider_row("Lage (0 Nase · 1 Heck)", 0.0, 1.0, 0.01, ship.payload_x,
+		func(v): ship.payload_x = v; _changed(), "%.2f")
+	_hull_rows.pa = UITheme.make_slider_row("Winkel (0° oben · 180° unten)", 0.0, 359.0, 1.0, ship.payload_angle_deg,
+		func(v): ship.payload_angle_deg = v; _changed(), "%d°")
+	for k in ["pl", "px", "pa"]:
+		col.add_child(_hull_rows[k])
 
 
 ## Modellliste aufklappen (Menüpunkt „Modell wählen“ in der Flugansicht).
@@ -397,6 +415,17 @@ func _edit_canard(i: int) -> void:
 # Reiter „Antrieb“ – Motorpaare
 # =============================================================================
 func _build_drive_page(col: VBoxContainer) -> void:
+	# --- Akku (Teil der Restmasse unten an der Hülle) ---
+	col.add_child(UITheme.make_title("Akku"))
+	_cells_row = UITheme.make_stepper("Zellen (S)", 1, 12, ship.battery_cells,
+		func(v): ship.battery_cells = int(v); _changed(), LABEL_W)
+	col.add_child(_cells_row)
+	_hull_rows.bmah = UITheme.make_slider_row("Kapazität", 100.0, 5000.0, 10.0, ship.battery_mah,
+		func(v): ship.battery_mah = v; _changed(), "%d mAh")
+	_hull_rows.bm = UITheme.make_slider_row("Masse", 1.0, 1000.0, 1.0, ship.battery_mass_kg * 1000.0,
+		func(v): ship.battery_mass_kg = v / 1000.0; _changed(), "%d g")
+	col.add_child(_hull_rows.bmah)
+	col.add_child(_hull_rows.bm)
 	col.add_child(UITheme.make_title("Motoren"))
 	var add := UITheme.make_button("+ Motorpaar")
 	add.pressed.connect(_add_motor_pair)
@@ -408,6 +437,25 @@ func _build_drive_page(col: VBoxContainer) -> void:
 	col.add_child(_parts_list)
 	_editor_box = UITheme.make_vbox("sm")
 	col.add_child(_editor_box)
+
+
+# =============================================================================
+# Reiter „Flight Controller“
+# =============================================================================
+func _build_fc_page(col: VBoxContainer) -> void:
+	col.add_child(UITheme.make_title("Flight Controller"))
+	_teensy_check = CheckBox.new()
+	_teensy_check.text = "Teensy-Flugcontroller (+10 g)"
+	_teensy_check.button_pressed = ship.fc_teensy
+	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _changed())
+	col.add_child(_teensy_check)
+	var note := UITheme.make_label("Ohne Flugcontroller gibt es nur „Direkt“: Knüppel gehen ohne Regler auf Ruder und Schwenker. Das Gas bleibt immer beim Piloten.", "MutedLabel")
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(note)
+	col.add_child(UITheme.make_title("Regler (PID)"))
+	var b := UITheme.make_button("Regler einstellen")
+	b.pressed.connect(func(): ui_action.emit("select"); pid_requested.emit())
+	col.add_child(b)
 
 
 func _add_motor_pair() -> void:
@@ -445,11 +493,23 @@ func _on_part_selected(i: int) -> void:
 	var mo: VectorMotor = ship.motors[i]
 	var pair := _pair_of(mo)
 	_editor_box.add_child(UITheme.make_title(mo.display_name))
-	_editor_box.add_child(UITheme.make_label("Lage (nur dieser Motor)", "MutedLabel"))
+	# Lage: Paare bleiben immer spiegelbildlich zur Längsachse (Partner: gleiche
+	# Längslage, Winkel 360° − Winkel). Einzelmotoren sitzen oben oder unten.
+	_editor_box.add_child(UITheme.make_label("Lage (Paar spiegelbildlich)" if pair.size() > 1 else "Lage", "MutedLabel"))
 	_editor_box.add_child(UITheme.make_slider_row("Position", 0.0, 1.0, 0.01, mo.hull_x,
-		func(v): mo.hull_x = v; _changed(), "%.2f"))
-	_editor_box.add_child(UITheme.make_slider_row("Winkel", 0.0, 359.0, 1.0, mo.hull_angle_deg,
-		func(v): mo.hull_angle_deg = v; _changed(), "%d°"))
+		func(v):
+			for m in pair: m.hull_x = v
+			_changed(), "%.2f"))
+	if pair.size() > 1:
+		_editor_box.add_child(UITheme.make_slider_row("Winkel", 0.0, 359.0, 1.0, mo.hull_angle_deg,
+			func(v):
+				mo.hull_angle_deg = v
+				for m in pair:
+					if m != mo: m.hull_angle_deg = fposmod(360.0 - v, 360.0)
+				_changed(), "%d°"))
+	else:
+		_editor_box.add_child(UITheme.make_choice_row(["oben", "unten"], 0 if absf(mo.hull_angle_deg) < 90.0 or mo.hull_angle_deg > 270.0 else 1,
+			func(k): mo.hull_angle_deg = 0.0 if k == 0 else 180.0; _changed()))
 	_editor_box.add_child(UITheme.make_label(
 		"Für das Paar (%d Motoren)" % pair.size() if pair.size() > 1 else "Antrieb", "MutedLabel"))
 	var set_all := func(prop: String, v, relayout: bool):
@@ -483,9 +543,9 @@ func _on_part_selected(i: int) -> void:
 	_editor_box.add_child(UITheme.make_label("Drehrichtung (nur dieser Motor)", "MutedLabel"))
 	_editor_box.add_child(UITheme.make_choice_row(["CW", "CCW"], 0 if mo.spin_dir > 0 else 1,
 		func(k): mo.spin_dir = 1 if k == 0 else -1))
-	var del := UITheme.make_button("Motor entfernen")
+	var del := UITheme.make_button("Motorpaar entfernen" if pair.size() > 1 else "Motor entfernen")
 	del.pressed.connect(func():
-		ship.motors.remove_at(i)
+		for m in pair: ship.motors.erase(m)
 		_clear_editor()
 		_changed()
 		ui_action.emit("remove"))
@@ -493,7 +553,7 @@ func _on_part_selected(i: int) -> void:
 
 
 # =============================================================================
-# Reiter „Gestaltung“
+# Reiter „Optik“
 # =============================================================================
 const HULL_SWATCHES := ["dfe5ea", "e5534b", "3d8bfd", "2b2f36", "e0a43a", "3fb27f"]
 const TEXT_SWATCHES := ["1b2128", "ffffff", "e5534b", "3d8bfd"]
@@ -506,8 +566,18 @@ func _build_look_page(col: VBoxContainer) -> void:
 func _fill_look_page() -> void:
 	for c in _look_box.get_children(): c.queue_free()
 	var l := ship.livery
-	_look_box.add_child(UITheme.make_title("Hüllenfarbe"))
-	_look_box.add_child(_swatch_row(HULL_SWATCHES, l.hull_color, func(c): l.hull_color = c))
+	# Hülle: Material, bei „Farbe“ zusätzlich die Farbe
+	_look_box.add_child(UITheme.make_title("Hülle"))
+	_look_box.add_child(_choice_grid(Livery.HULL_MATERIAL_NAMES, maxi(Livery.HULL_MATERIALS.find(l.material), 0),
+		func(k): l.material = Livery.HULL_MATERIALS[k]; _fill_look_page.call_deferred()))
+	if l.material == "farbe":
+		_look_box.add_child(_swatch_row(HULL_SWATCHES, l.hull_color, func(c): l.hull_color = c))
+	# Leitwerk: eigenes Material und eigene Farbe
+	_look_box.add_child(UITheme.make_title("Leitwerk"))
+	_look_box.add_child(_choice_grid(Livery.FIN_MATERIAL_NAMES, maxi(Livery.FIN_MATERIALS.find(l.fin_material), 0),
+		func(k): l.fin_material = Livery.FIN_MATERIALS[k]; _fill_look_page.call_deferred()))
+	if l.fin_material == "farbe":
+		_look_box.add_child(_swatch_row(HULL_SWATCHES, l.fin_color, func(c): l.fin_color = c))
 
 	_look_box.add_child(UITheme.make_title("Schriftzug"))
 	var te := LineEdit.new()
@@ -554,6 +624,25 @@ func _fill_look_page() -> void:
 
 
 ## Farbfelder + freie Farbwahl; on_pick(Color) beim Antippen.
+## Auswahl in zwei Spalten (passt in die schmale Seitenleiste). on_pick(index).
+func _choice_grid(labels: Array, selected: int, on_pick: Callable) -> GridContainer:
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", UITheme.space("xs"))
+	g.add_theme_constant_override("v_separation", UITheme.space("xs"))
+	var grp := UITheme.make_toggle_group()
+	for i in labels.size():
+		var b := UITheme.make_pill(labels[i], true)
+		b.toggle_mode = true
+		b.button_group = grp
+		b.button_pressed = i == selected
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var idx := i
+		b.pressed.connect(func(): on_pick.call(idx))
+		g.add_child(b)
+	return g
+
+
 func _swatch_row(hexes: Array, current: Color, on_pick: Callable) -> HBoxContainer:
 	var row := UITheme.make_hbox("xs")
 	var d := float(UITheme.size("control_height"))
@@ -597,7 +686,7 @@ func _refresh() -> void:
 	var sel := _parts_list.get_selected_items()
 	_parts_list.clear()
 	for mo in ship.motors:
-		_parts_list.add_item("%s  ·  %.1f N%s" % [mo.display_name, mo.max_thrust_n, "  ↺" if mo.reverse_allowed else ""])
+		_parts_list.add_item("%s  ·  %.1f N%s" % [mo.display_name, mo.max_thrust_n, "  ⇄" if mo.reverse_allowed else ""])
 	if sel.size() > 0 and sel[0] < _parts_list.item_count:
 		_parts_list.select(sel[0])
 	var csel := _canard_list.get_selected_items()
@@ -609,9 +698,9 @@ func _refresh() -> void:
 
 	var r := TailValidator.validate(ship.hull, ship.surfaces, ship.cg_offset)
 	var h := ship.hull
-	_stats.text = "%s\n%.2f × %.2f m\nV_T Nick %.2f\nV_T Gier %.2f\nStab. Nick %.2f\nStab. Gier %.2f\nMasse %.0f g" % [
+	_stats.text = "%s\n%.2f × %.2f m\nV_T Nick %.2f\nV_T Gier %.2f\nStab. Nick %.2f\nStab. Gier %.2f\nMasse %.0f g (ohne Helium)" % [
 		ship.model_name, h.length_m, h.diameter_m, r.vt_pitch, r.vt_yaw, r.ratio_pitch, r.ratio_yaw,
-		ship.total_mass * 1000.0]
+		ship.structure_mass_kg * 1000.0]
 	_update_mass_info()
 	var level := "success"
 	if r.level == TailValidator.Level.UNSTABLE: level = "danger"
@@ -634,11 +723,13 @@ func _changed() -> void:
 func _sync_from_ship() -> void:
 	var vals := {"vol": ship.hull.volume_m3, "ld": ship.hull.length_to_diameter,
 		"m": ship.hull.m, "cp": ship.hull.cp, "hm": ship.hull_mass_kg * 1000.0,
-		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x,
-		"sx": ship.sail_x, "sl": ship.sail_length_frac, "sh": ship.sail_height_frac}
+		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x, "tw": _heaviness_pct(),
+		"pl": ship.payload_mass_kg * 1000.0, "px": ship.payload_x, "pa": ship.payload_angle_deg,
+		"bmah": ship.battery_mah, "bm": ship.battery_mass_kg * 1000.0}
 	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hm": "%d g", "el": "%d g", "bx": "%.2f",
-		"sx": "%.2f", "sl": "%.3f", "sh": "%.2f"}
-	_sail_check.set_pressed_no_signal(ship.sail_enabled)
+		"tw": "%.1f %%", "pl": "%d g", "px": "%.2f", "pa": "%d°", "bmah": "%d mAh", "bm": "%d g"}
+	_teensy_check.set_pressed_no_signal(ship.fc_teensy)
+	(_cells_row.get_meta("out") as Label).text = str(ship.battery_cells)
 	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)
 	for k in vals:
 		(_hull_rows[k].get_meta("slider") as HSlider).set_value_no_signal(vals[k])
@@ -648,6 +739,16 @@ func _sync_from_ship() -> void:
 	_fill_tail_page()
 	_fill_look_page()
 	_refresh()
+
+
+## Auftrieb der Hülle in N (ρ_Luft · V · g) – Bezug für die Schwere in %.
+func _buoyancy_n() -> float:
+	return ship.air_density * ship.hull.volume_m3 * ship.gravity_mps2
+
+
+## Aktuelle Schwere in % des Auftriebs.
+func _heaviness_pct() -> float:
+	return ship.trim_heaviness_n / maxf(_buoyancy_n(), 1e-6) * 100.0
 
 
 ## Regler „Lage der Restmasse“: Wert übernehmen, Automatik abschalten.
@@ -669,9 +770,13 @@ func _update_mass_info() -> void:
 		_mass_info.text = "Zu schwer: Hülle, Motoren und Elektronik wiegen mehr, als der Auftrieb trägt."
 		_mass_info.add_theme_color_override("font_color", UITheme.color("danger"))
 	else:
-		_mass_info.text = "Akku + Ballast: %d g (aus dem Auftrieb) · klebt unten an der Hülle\nSchwerpunkt %d cm unter der Achse" % [
-			roundi(ship.rest_mass_kg * 1000.0), roundi(-cg.y * 100.0)]
+		_mass_info.text = "Akku %d g + Ballast %d g (aus dem Auftrieb) · unten an der Hülle\nSchwerpunkt %d cm unter der Achse · Gesamt %d g ohne Helium" % [
+			roundi(ship.battery_mass_kg * 1000.0), roundi(maxf(ship.ballast_kg, 0.0) * 1000.0), roundi(-cg.y * 100.0), roundi(ship.structure_mass_kg * 1000.0)]
 		_mass_info.remove_theme_color_override("font_color")
+		if ship.ballast_kg < 0.0:
+			_mass_info.text = "Akku zu schwer: %d g mehr, als der Auftrieb trägt (Rest nur %d g)." % [
+				roundi(-ship.ballast_kg * 1000.0), roundi(ship.rest_mass_kg * 1000.0)]
+			_mass_info.add_theme_color_override("font_color", UITheme.color("danger"))
 	var bx: HSlider = _hull_rows.bx.get_meta("slider")
 	bx.set_value_no_signal(ship.ballast_x)
 	(_hull_rows.bx.get_meta("out") as Label).text = "%.2f" % ship.ballast_x

@@ -1,3 +1,5 @@
+# 2026-11-11 02:55 – Ladeanzeige (Luftschiff fliegt die Acht) während des Aufbaus; Baukasten: Boxmaß-Ecke, Seitenansicht mittig zwischen den Spalten, Strecke ausgeblendet; Regler-Menü aus dem Baukasten
+# 2026-11-11 00:15 – Bestenliste aus „Modell & Bau“; Akku-Daten aus dem Modell
 # 2026-11-10 22:00 – Neue Ansichten: Startseite (erste Ansicht), „Modell & Bau“ (ModelHub), „Grundlagen des Simulators“ (AboutPanel); Sprache (I18n) beim Start; Autopilot (live, aktuelles Modell/Regler) statt Demo; Kamera-Perspektiven Pilot am Start / Hinterher / Hinterher + Lage; AR-Knopf und Bestenlisten-Menü entfernt
 # 2026-11-10 17:00 – Propellerklang: PropSynth (gleitende Tonhöhe) statt PropSound-Schleife; Rückfall auf die Schleife macht PropSynth selbst
 # 2026-11-10 14:10 – Boden 3 × 3 km (Wiese mit 500 m Pylonabstand); Akku-Modell (4S 300 mAh), wird bei „Zurücksetzen“ voll geladen; Location aus der Flugansicht
@@ -61,10 +63,14 @@ var course_panel: CoursePanel
 var leader_panel: LeaderboardPanel
 var ui_sounds: UISounds
 var view := View.FLY
+## Aufbau fertig (Welt, Schiff, Oberfläche) – vorher tun _process & Co. nichts
+var ready_done := false
+var _leader_back := View.FLY        ## wohin das Bestenlisten-Fenster zurückführt
 var _pid_back := View.FLY           ## wohin „Fertig“ im Regler-Menü zurückführt
 var _world_env: WorldEnvironment
 var _scenery: Node3D
 var _prop_sounds: Array[PropSynth] = []
+var gauge: BoxGauge                  ## Boxmaß-Ecke im Baukasten
 
 # --- Baukasten-Ansicht: Modell drehen und zoomen ----------------------------
 var _orbit_yaw := 0.0            ## Drehung um die Hochachse (rad), 0 = von der Seite
@@ -75,10 +81,23 @@ var _touches := {}               ## aktive Finger: Index → Position
 
 func _ready() -> void:
 	I18n.setup()                             # gespeicherte Sprache laden (vor dem Aufbau der Oberfläche)
+	# Ladeanzeige (Luftschiff fliegt die Acht) zuerst – zwischen den Bauschritten
+	# wird je ein Bild gezeichnet, damit sie sich bewegt
+	var load_layer := CanvasLayer.new()
+	load_layer.layer = 100
+	add_child(load_layer)
+	var loader := LoadingOverlay.new()
+	load_layer.add_child(loader)
+	await get_tree().process_frame
+	await get_tree().process_frame
 	_build_world()
+	await get_tree().process_frame
 	_build_ship()                            # Modelldaten sind geladen, bevor das Menü erscheint
+	await get_tree().process_frame
 	_build_ui()
 	_set_view(View.START)
+	ready_done = true
+	loader.finish()
 
 
 # =============================================================================
@@ -142,6 +161,11 @@ func _build_ship() -> void:
 	ship.add_child(fc)
 	add_child(ship)
 	ship.config_changed.connect(_rebuild_prop_sounds)
+	# Boxmaß-Ecke (nur im Baukasten sichtbar), folgt jeder Änderung am Modell
+	gauge = BoxGauge.new()
+	gauge.visible = false
+	ship.add_child(gauge)
+	ship.config_changed.connect(func(): _rebuild_gauge.call_deferred())
 	_rebuild_prop_sounds()
 
 	# Akku-Modell: rechnet vor dem Luftschiff und gibt den Schubfaktor an die Motoren
@@ -149,6 +173,11 @@ func _build_ship() -> void:
 	battery.name = "Battery"
 	battery.ship = ship
 	add_child(battery)
+	# Akku-Daten kommen aus dem Modell (Baukasten → Antrieb)
+	ship.config_changed.connect(func():
+		if battery.cells != ship.battery_cells or absf(battery.capacity_mah - ship.battery_mah) > 0.5:
+			battery.set_pack(ship.battery_cells, ship.battery_mah))
+	battery.set_pack(ship.battery_cells, ship.battery_mah)
 
 	watchdog = PerformanceWatchdog.new()
 	watchdog.airship = ship
@@ -236,7 +265,6 @@ func _build_ui() -> void:
 	start_screen.fly_requested.connect(func(): _set_view(View.FLY))
 	start_screen.build_requested.connect(func(): _set_view(View.HUB))
 	start_screen.about_requested.connect(func(): _set_view(View.ABOUT))
-	start_screen.calibrate_requested.connect(func(): _set_view(View.FLY); hud.open_calibration())
 	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
 	start_screen.settings_requested.connect(func(): _pid_back = View.START; _set_view(View.PID))
 	about.closed.connect(func(): _set_view(View.START))
@@ -246,6 +274,8 @@ func _build_ui() -> void:
 	hub.edit_requested.connect(func(): _set_view(View.BUILD))
 	hub.export_requested.connect(func(): _set_view(View.SHARE))
 	hub.location_changed.connect(reset_ship)
+	hub.calibrate_requested.connect(func(): _set_view(View.FLY); hud.open_calibration())
+	hub.leaderboard_requested.connect(func(): _leader_back = View.HUB; leader_panel.show_list(); _set_view(View.LEADER))
 	hud.hub_requested.connect(func(): _set_view(View.HUB))
 	hud.autopilot_requested.connect(_toggle_autopilot)
 
@@ -265,7 +295,7 @@ func _build_ui() -> void:
 	course_panel.closed.connect(func(): _set_view(View.FLY))
 	course_panel.course_changed.connect(reset_ship)
 	course_panel.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
-	leader_panel.closed.connect(func(): _set_view(View.FLY))
+	leader_panel.closed.connect(func(): _set_view(_leader_back); _leader_back = View.FLY)
 	# Auswahl Eintragen/Nicht eintragen mit dem rechten Senderknüppel (links/rechts)
 	leader_panel.stick_source = func(): return hud._joy.right.x if hud._joy and hud._joy.active() else 0.0
 	course.race_changed.connect(_on_race_changed)
@@ -281,6 +311,7 @@ func _build_ui() -> void:
 		fc.apply_model_gains(ship.fc_gains)
 	builder.closed.connect(func(): _set_view(View.HUB))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
+	builder.pid_requested.connect(func(): _pid_back = View.BUILD; _set_view(View.PID))
 	builder.view_reset_requested.connect(reset_view)
 	builder.ui_action.connect(ui_sounds.chime)
 	share.ui_action.connect(ui_sounds.chime)
@@ -339,6 +370,7 @@ func _on_race_changed() -> void:
 
 ## Rundenzählung: Bug-Position an die Strecke melden, Anzeige im HUD.
 func _physics_process(dt: float) -> void:
+	if not ready_done: return
 	if view == View.BUILD or view == View.SHARE:
 		return                                  # Schiff steht im Baukasten fest
 	var nose := ship.global_transform * Vector3(0, 0, -ship.hull.cb_from_nose)
@@ -359,10 +391,16 @@ func reset_all_settings() -> void:
 	hud.show_notice("Alle Einstellungen zurückgesetzt", "info", 2.0)
 
 
-## Baukasten-Ansicht auf Standard zurück (seitlich, leicht von oben).
+## Boxmaß-Ecke an den aktuellen Umriss des Schiffs anpassen.
+func _rebuild_gauge() -> void:
+	if gauge.visible:
+		gauge.rebuild(visual.local_aabb(), ship.cg_offset)
+
+
+## Baukasten-Ansicht auf Standard zurück (genau von der Seite, leicht von oben).
 func reset_view() -> void:
 	_orbit_yaw = 0.0
-	_orbit_pitch = 0.25
+	_orbit_pitch = 0.3
 	_orbit_zoom = 1.0
 
 
@@ -372,6 +410,7 @@ func reset_view() -> void:
 # Am PC: mit gedrückter Maus ziehen = drehen, Mausrad = zoomen.
 # =============================================================================
 func _unhandled_input(event: InputEvent) -> void:
+	if not ready_done: return
 	if view != View.BUILD:
 		_touches.clear()
 		return
@@ -425,6 +464,22 @@ func _set_view(v: View) -> void:
 	if workshop:
 		fc.armed = false
 	ship.freeze = workshop
+	if workshop:
+		# Baukasten: Schiff waagrecht an den Start (Seitenansicht), Boxmaß-Ecke zeigen
+		if not gauge.visible:
+			ship.global_transform = course.start_transform(ship)
+			ship.linear_velocity = Vector3.ZERO
+			ship.angular_velocity = Vector3.ZERO
+			_orbit_yaw = 0.0
+			_orbit_pitch = 0.3
+			_orbit_zoom = 1.0
+		_rebuild_gauge.call_deferred()
+	gauge.visible = workshop
+	# Werkstatt: Strecke und Halle ausblenden, nur das Schiff in der Messecke
+	course.visible = not workshop
+	_scenery.visible = not workshop
+	if not workshop:
+		camera.h_offset = 0.0
 	visual.set_workshop(workshop)          # Restmasse + Schwerpunkt nur im Baukasten zeigen
 	ui_sounds.set_pad(workshop)
 
@@ -433,14 +488,35 @@ func _set_view(v: View) -> void:
 # Kamera: hinter dem Schiff (Flug) oder seitlich (Baukasten)
 # =============================================================================
 func _process(dt: float) -> void:
+	if not ready_done: return
 	var p := ship.global_position
 	var L := ship.hull.length_m
 	var a := clampf(dt * 3.0, 0.0, 1.0)
 	if view == View.BUILD or view == View.SHARE:
-		# Baukasten: um das Modell kreisen (drehen/zoomen per Gesten)
-		var dist := L * 1.45 * _orbit_zoom
-		var off := Vector3(0, 0, dist).rotated(Vector3.RIGHT, -_orbit_pitch).rotated(Vector3.UP, _orbit_yaw)
+		# Baukasten: von der rechten Seite auf das Schiff in der Boxmaß-Ecke
+		# (drehen/zoomen per Gesten). Abstand so, dass Schiff + Maße in die
+		# freie Mitte zwischen den Spalten passen; h_offset schiebt das Bild,
+		# damit es genau mittig zwischen den Spalten steht.
+		var box := gauge.extent if gauge.extent.size.z > 0.01 else visual.local_aabb()   # Ecke samt Maßen
+		var c_local := box.get_center()
+		c_local.x = 0.0                                             # quer: auf die Schiffsmitte
+		p = ship.global_transform * c_local
+		var vp := camera.get_viewport().get_visible_rect().size
+		var span := builder.free_span() if view == View.BUILD else Vector2(0, builder.size.x)
+		var ui_w := maxf(builder.size.x, 1.0)
+		var ui_h := maxf(builder.size.y, 1.0)
+		var tan_h := tan(deg_to_rad(FOV) * 0.5)
+		var aspect := vp.x / maxf(vp.y, 1.0)
+		var free_frac := clampf((span.y - span.x) / ui_w, 0.2, 1.0)
+		var need_w := box.size.z * 1.2                              # Ecke mit allen Maßen + Rand
+		var need_h := box.size.y * 1.5
+		var dist := maxf(need_w / (2.0 * tan_h * aspect * free_frac), need_h / (2.0 * tan_h)) * _orbit_zoom
+		var off_l := Vector3(dist, 0, 0).rotated(Vector3(0, 0, 1), _orbit_pitch).rotated(Vector3.UP, _orbit_yaw)
+		var off := ship.global_basis * off_l
 		camera.global_position = camera.global_position.lerp(p + off, clampf(dt * 10.0, 0.0, 1.0))
+		# Bildmitte auf die Mitte der freien Fläche schieben
+		var shift_ui := (span.x + span.y) * 0.5 - ui_w * 0.5
+		camera.h_offset = -shift_ui / ui_h * 2.0 * dist * tan_h
 	elif hud.perspective == 1 or hud.perspective == 2:
 		# Hinterher: Kamera hinter und etwas über dem Schiff
 		var b := ship.global_transform.basis

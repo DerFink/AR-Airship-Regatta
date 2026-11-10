@@ -1,3 +1,4 @@
+# 2026-11-11 03:00 – wartet, bis main.gd fertig aufgebaut ist (Ladeanzeige)
 extends SceneTree
 # Leitwerk-Konfiguration: Anordnungen, Flossenwinkel, getrennte Flächen,
 # Chewie-λ, Rundreise im Modell-String, Baukasten-Bedienung (Anordnung wechseln,
@@ -17,6 +18,8 @@ func _initialize() -> void:
 	root.add_child(main)
 
 func _process(_d: float) -> bool:
+	if not is_instance_valid(main): return true                         # Szene abgebaut → Ende
+	if not main.ready_done: return false     # Ladeanzeige: Aufbau läuft noch
 	f += 1
 	if f == 5:
 		AirshipPresets.chewie(main.ship)

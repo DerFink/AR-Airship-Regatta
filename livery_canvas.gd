@@ -1,3 +1,4 @@
+# 2026-11-11 00:50 – Grundfarbe aus dem Hüllenmaterial (Livery.base_color)
 # 2026-10-27 11:08 – Erstversion: malt die Gestaltung (Farbe, Schriftzug, Logo, beidseitig) in eine Textur für die Hülle; Seitenverhältnis folgt L/D, damit nichts verzerrt
 # =============================================================================
 # LiveryCanvas.gd  (SubViewport, Kind von AirshipVisual)
@@ -35,7 +36,7 @@ func repaint(l: Livery, length_to_diameter: float) -> void:
 	var h := int(round(TEX_WIDTH * PI / length_to_diameter))
 	size = Vector2i(TEX_WIDTH, h)
 	_bg.size = Vector2(size)
-	_bg.color = l.hull_color
+	_bg.color = l.base_color()
 	for c in _root.get_children(): c.queue_free()
 
 	var px_per_d := float(TEX_WIDTH) / length_to_diameter      # Pixel je Durchmesser

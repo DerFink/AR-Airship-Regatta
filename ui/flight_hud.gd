@@ -1,3 +1,4 @@
+# 2026-11-11 00:00 – Knopf „Perspektive“ immer gleich beschriftet (gewählte Sicht kurz als Hinweis); ohne Teensy nur „Direkt“; Tastatursteuerung
 # 2026-11-10 21:45 – Neue Knopfreihe oben (alles in einer Reihe): Modi · Autopilot · Perspektive (Pilot am Start → Hinterher → Hinterher + Lage) · Zurücksetzen · Armed · Menü; „Menü“ öffnet direkt „Modell & Bau“; Reglerwahl, Location- und Demo-Knöpfe sowie das alte Menü entfernt; Kalibrierfenster per open_calibration()
 # 2026-11-10 14:20 – Knöpfe „Halle | Wiese“ (Location) in der Knopfreihe; Akku-Anzeige links unter den Rundenzeiten (Spannung, Ladezustand, Strom, Restzeit)
 # 2026-11-09 14:20 – Fenster „Sender kalibrieren“ (aus dem Menü); solange offen: Motoren aus, Knüppel wirken nicht
@@ -61,6 +62,13 @@ var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
 var _btn_auto: Button                     ## Autopilot
 var _btn_persp: Button                    ## Perspektive (ein Knopf, wechselt reihum)
+## Tastatur: W/S Gas (bleibt stehen, X = Gas Mitte), Pfeile Nick/Gier (federn
+## zurück), Leertaste Armed, R Zurücksetzen, 1/2/3 Modus, A Autopilot,
+## P Perspektive, M Menü
+var _kb_throttle := 0.0
+var _kb_pitch := 0.0
+var _kb_yaw := 0.0
+var _kb_used := false                     ## Tastatur hat zuletzt gesteuert
 var _calib: CalibrationPanel              ## Fenster „Sender kalibrieren“
 ## Von main.gd gesetzt: Strecke (für die Location-Anzeige) und Akku-Modell
 var course: Course
@@ -126,11 +134,11 @@ func _ready() -> void:
 	_btn_auto.pressed.connect(func(): autopilot_requested.emit())
 	_mode_box.add_child(_btn_auto)
 	_btn_persp = UITheme.make_pill("", true)
+	_btn_persp.text = "Perspektive"           # Text bleibt immer gleich (Wunsch Nutzer)
 	_btn_persp.pressed.connect(func():
 		perspective = (perspective + 1) % PERSPECTIVES.size()
-		_btn_persp.text = "%s: %s" % [tr("Perspektive"), tr(PERSPECTIVES[perspective])]
+		show_notice(PERSPECTIVES[perspective], "info", 1.5)    # kurz zeigen, welche Sicht jetzt gilt
 		perspective_changed.emit(perspective))
-	_btn_persp.text = "%s: %s" % [tr("Perspektive"), tr(PERSPECTIVES[perspective])]
 	_mode_box.add_child(_btn_persp)
 	var gap2 := Control.new()
 	gap2.custom_minimum_size.x = UITheme.space("md")
@@ -200,6 +208,12 @@ func _ready() -> void:
 	_calib = CalibrationPanel.new()
 	_calib.joy = _joy
 	add_child(_calib)
+	# Tastenkürzel grau auf den Knöpfen (nur wo es eine Tastatur gibt)
+	if has_keyboard():
+		for pair in [[_mode_btns[FlightController.Mode.DIRECT], "1"], [_mode_btns[FlightController.Mode.MODE2], "2"],
+				[_mode_btns[FlightController.Mode.MODE3], "3"], [_btn_auto, "A"], [_btn_persp, "P"],
+				[b_reset, "R"], [_btn_arm, "Space"], [b_menu, "M"]]:
+			_key_hint(pair[0], pair[1])
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -235,6 +249,33 @@ func _layout() -> void:
 	_banner.position = Vector2((sz.x - _banner.size.x) * 0.5, sz.y - _banner.size.y - m * 2.0)
 
 
+## Gibt es (vermutlich) eine Tastatur? Am PC und im Browser am PC ja,
+## auf Handy/Tablet (auch im Browser) nein.
+static func has_keyboard() -> bool:
+	return not (OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios"))
+
+
+## Tastenkürzel klein und grau rechts im Knopf; der Knopf wird dafür breiter.
+func _key_hint(b: Button, key: String) -> void:
+	var l := Label.new()
+	l.text = key
+	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72))
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	b.add_child(l)
+	var w := l.get_combined_minimum_size().x + 6.0
+	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled", "focus"]:
+		var sb := b.get_theme_stylebox(st)
+		if sb:
+			sb = sb.duplicate()
+			sb.content_margin_right = maxf(sb.content_margin_right, 0.0) + w
+			b.add_theme_stylebox_override(st, sb)
+	l.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	l.offset_left = -w - 2.0
+	l.offset_right = -6.0
+
+
 ## Fenster „Sender kalibrieren“ öffnen (Motoren aus, bevor geknüppelt wird).
 func open_calibration() -> void:
 	if fc: fc.armed = false
@@ -250,6 +291,11 @@ func _refresh_stick_captions() -> void:
 	var labels := fc.stick_labels()
 	stick_left.caption = labels[0]
 	stick_right.caption = labels[1]
+	if has_keyboard():                               # Tasten dazuschreiben
+		var kt := "W/S"
+		var kp := "↑↓ ←→"
+		stick_left.caption += "  (%s)" % (kp if fc.stick_mode == 1 else kt)
+		stick_right.caption += "  (%s)" % (kt + " ←→" if fc.stick_mode == 1 else kp)
 
 
 ## Akku-Anzeige: oben Zellen und Spannung, Balken = Ladezustand (grün → gelb →
@@ -286,6 +332,67 @@ func set_race_text(text: String, laps := "") -> void:
 		_laps.text = laps
 
 
+## Tastatursteuerung: liefert true, solange die Tastatur steuert.
+## Gas hält seine Stellung wie ein ratschender Gasknüppel, Nick und Gier laufen
+## beim Drücken in ≈ 0,25 s auf Vollausschlag und federn beim Loslassen zurück.
+func _keyboard(dt: float) -> bool:
+	var up := Input.is_physical_key_pressed(KEY_UP)
+	var dn := Input.is_physical_key_pressed(KEY_DOWN)
+	var lf := Input.is_physical_key_pressed(KEY_LEFT)
+	var rt := Input.is_physical_key_pressed(KEY_RIGHT)
+	var w := Input.is_physical_key_pressed(KEY_W)
+	var sk := Input.is_physical_key_pressed(KEY_S)
+	if Input.is_physical_key_pressed(KEY_X):
+		_kb_throttle = 0.0
+	if w: _kb_throttle = minf(_kb_throttle + 0.8 * dt, 1.0)
+	if sk: _kb_throttle = maxf(_kb_throttle - 0.8 * dt, -1.0)
+	var tp := (1.0 if up else 0.0) - (1.0 if dn else 0.0)      # Pfeil hoch = Knüppel vor = Nase runter
+	var ty := (1.0 if rt else 0.0) - (1.0 if lf else 0.0)
+	_kb_pitch = move_toward(_kb_pitch, tp, dt * 4.0)
+	_kb_yaw = move_toward(_kb_yaw, ty, dt * 4.0)
+	if up or dn or lf or rt or w or sk:
+		_kb_used = true
+	# Bildschirmknüppel angefasst → Tastatur gibt ab
+	for st in [stick_left, stick_right]:
+		if st._finger >= 0 or st._mouse_down:
+			_kb_used = false
+	if not _kb_used:
+		return false
+	var thr := Vector2(0, _kb_throttle)
+	var stk := Vector2(_kb_yaw, _kb_pitch)
+	var left := thr
+	var right := stk
+	if fc.stick_mode == 1:                           # Mode 1: Nick links, Gas rechts
+		left = Vector2(0, _kb_pitch); right = Vector2(_kb_yaw, _kb_throttle)
+	fc.set_sticks(left, right)
+	stick_left.show_external(left)
+	stick_right.show_external(right)
+	return true
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not visible or not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	match event.physical_keycode:
+		KEY_SPACE:
+			_btn_arm.button_pressed = not _btn_arm.button_pressed
+		KEY_R:
+			reset_requested.emit()
+		KEY_1, KEY_2, KEY_3:
+			var md: int = [FlightController.Mode.DIRECT, FlightController.Mode.MODE2, FlightController.Mode.MODE3][event.physical_keycode - KEY_1]
+			if not _mode_btns[md].disabled:
+				_mode_btns[md].emit_signal("pressed")
+		KEY_P:
+			_btn_persp.emit_signal("pressed")
+		KEY_A:
+			autopilot_requested.emit()
+		KEY_M:
+			hub_requested.emit()
+		_:
+			return
+	get_viewport().set_input_as_handled()
+
+
 func _on_arm_toggled(on: bool) -> void:
 	if fc:
 		fc.armed = on
@@ -300,6 +407,8 @@ func _process(dt: float) -> void:
 			fc.set_sticks(Vector2.ZERO, Vector2.ZERO)
 		elif autopilot_active:
 			pass                                      # Autopilot steuert über die Knüppel
+		elif _keyboard(dt):
+			pass                                      # Tastatur steuert (Bildschirmknüppel zeigen sie)
 		elif _joy and _joy.active():
 			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
 			stick_left.show_external(_joy.left)       # Bildschirmknüppel zeigen die Senderknüppel
@@ -310,17 +419,17 @@ func _process(dt: float) -> void:
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
 			_btn_arm.text = tr("Armed") if fc.armed else tr("Disarmed")
+		var teensy: bool = ship == null or ship.fc_teensy
 		for mm in _mode_btns:                         # Stellung nachziehen (auch nach PID-Menü)
-			var on: bool = int(fc.mode) == int(mm)
+			# ohne Teensy (Baukasten) nur „Direkt“: Mode 2/3 gesperrt
+			_mode_btns[mm].disabled = not teensy and int(mm) != int(FlightController.Mode.DIRECT)
+			var on: bool = (int(fc.mode) == int(mm)) if teensy else int(mm) == int(FlightController.Mode.DIRECT)
 			if _mode_btns[mm].button_pressed != on:
 				_mode_btns[mm].set_pressed_no_signal(on)
 	_update_battery()
 	var atxt := tr("Autopilot stoppen") if autopilot_active else tr("Autopilot")
 	if _btn_auto.text != atxt:
 		_btn_auto.text = atxt
-	var ptxt := "%s: %s" % [tr("Perspektive"), tr(PERSPECTIVES[perspective])]
-	if _btn_persp.text != ptxt:                       # auch nach Sprachwechsel
-		_btn_persp.text = ptxt
 	if ship:
 		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")
 		_pill_alpha.text = "α %d°" % roundi(ship.alpha_deg)

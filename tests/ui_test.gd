@@ -1,3 +1,4 @@
+# 2026-11-11 03:00 – wartet, bis main.gd fertig aufgebaut ist (Ladeanzeige)
 # 2026-11-10 14:35 – Strecke: Abstand jetzt per course.set_distance (Zahlenfeld statt Schieberegler)
 # 2026-11-07 23:30 – Reglerwert heißt jetzt wie im Teensy-Code (Kp)
 # 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
@@ -18,6 +19,8 @@ func _initialize() -> void:
 	root.add_child(main)
 
 func _process(_dt: float) -> bool:
+	if not is_instance_valid(main): return true                         # Szene abgebaut → Ende
+	if not main.ready_done: return false     # Ladeanzeige: Aufbau läuft noch
 	f += 1
 	match f:
 		5:

@@ -1,3 +1,5 @@
+# 2026-11-11 03:00 – wartet, bis main.gd fertig aufgebaut ist (Ladeanzeige)
+# 2026-11-11 01:50 – Baukasten mit Boxmaß-Ecke (Bild), Nutzlast, Akku, ohne Teensy nur Direkt
 # 2026-11-10 22:30 – Erstversion: neue Ansichten – Startseite, Modell & Bau, Grundlagen, Autopilot, Perspektiven, Sprachwechsel; speichert auf Wunsch Bildschirmfotos (Argument --shots=<Ordner>, braucht echte Grafik)
 extends SceneTree
 var main: Node
@@ -17,6 +19,8 @@ func _shot(name: String) -> void:
 	img.save_png(shots + "/" + name + ".png")
 
 func _process(_dt: float) -> bool:
+	if not is_instance_valid(main): return true                         # Szene abgebaut → Ende
+	if not main.ready_done: return false     # Ladeanzeige: Aufbau läuft noch
 	f += 1
 	if f == 20:
 		print("Startansicht: view=%d (6 = START), Start sichtbar=%s" % [main.view, main.start_screen.visible])
@@ -86,6 +90,31 @@ func _process(_dt: float) -> bool:
 		print("ZH: ", main.start_screen._btn_fly.text)
 		_shot("start_zh")
 		I18n.set_language("de", false)
+		main.hub.edit_requested.emit()
+	if f == 1260:
+		var box: AABB = main.visual.local_aabb()
+		print("Baukasten: view=%d, Boxmaß L %.2f B %.2f H %.2f m, Wände/Linien %d, h_offset %.2f" % [main.view, box.size.z, box.size.x, box.size.y, main.gauge.get_child_count(), main.camera.h_offset])
+		print("Massen: gesamt %.0f g ohne Helium, Akku %.0f g, Ballast %.0f g, Teensy %s" % [main.ship.structure_mass_kg * 1000, main.ship.battery_mass_kg * 1000, main.ship.ballast_kg * 1000, main.ship.fc_teensy])
+		_shot("builder")
+		main.ship.payload_mass_kg = 0.02
+		main.ship.payload_x = 0.2
+		main.ship.payload_angle_deg = 180
+		main.ship.livery.material = "gold"
+		main.ship.rebuild_mass_properties()
+	if f == 1280:
+		print("Nutzlast 20 g: Ballast %.0f g, Schwerpunkt z %.3f m" % [main.ship.ballast_kg * 1000, main.ship.cg_offset.z])
+		_shot("builder_payload")
+		var code := ModelCodec.encode(main.ship)
+		var d := ModelCodec.decode(code)
+		print("Codec: ok=%s, Nutzlast %.3f, Akku %dS %d mAh, Material %s" % [d.ok, d.data.mass.pl, d.data.mass.bs, d.data.mass.bmah, d.data.look.mat])
+		main.ship.fc_teensy = false
+		main.fc.mode = FlightController.Mode.MODE3
+		main.builder.closed.emit()
+	if f == 1290:
+		main.hub.closed.emit()
+	if f == 1296:
+		print("Ohne Teensy: Mode-3-Knopf gesperrt=%s, Direkt gedrückt=%s" % [main.hud._mode_btns[FlightController.Mode.MODE3].disabled, main.hud._mode_btns[FlightController.Mode.DIRECT].button_pressed])
+		AirshipPresets.chewie(main.ship)
 		print("ENDE")
 		return true
 	return false

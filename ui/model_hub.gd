@@ -1,3 +1,5 @@
+# 2026-11-11 01:40 – Knopf „Sender kalibrieren“ hier (statt Startseite)
+# 2026-11-11 00:10 – Location-Zeile „Halle FN · Pylonabstand …“; Knopf „Bestenliste“ (zeigen und zurücksetzen wie gehabt)
 # 2026-11-10 20:40 – Erstversion: „Modell & Bau“ nach freigegebenem Entwurf – links scrollbare Location-Liste mit Bildern und Pylonabstand (Zahlenfeld), Mitte scrollbare Modellliste mit Vorschau aus den Modelldaten und Karte „Eigenbau“, rechts Details (großes Bild, Autor, Team, Beschreibung, Kennwerte) mit Fliegen / Bearbeiten / Exportieren und Hinweis zum Einsenden an den Admin
 # =============================================================================
 # ModelHub.gd
@@ -21,6 +23,8 @@ signal fly_requested              ## Modell gewählt → fliegen
 signal edit_requested             ## Baukasten mit dem gewählten Modell öffnen
 signal export_requested           ## Teilen/Export-Fenster öffnen
 signal location_changed           ## Location oder Abstand geändert → Schiff an den Start
+signal calibrate_requested        ## Sender kalibrieren
+signal leaderboard_requested      ## Bestenliste der aktuellen Location/Strecke zeigen
 
 const CONTACT := "erich.fink ät aerarium.de"
 
@@ -59,6 +63,12 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 26)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
+	var b_cal := UITheme.make_button("Sender kalibrieren")
+	b_cal.pressed.connect(func(): calibrate_requested.emit())
+	head.add_child(b_cal)
+	var b_lead := UITheme.make_button("Bestenliste")
+	b_lead.pressed.connect(func(): leaderboard_requested.emit())
+	head.add_child(b_lead)
 	var b_home := UITheme.make_button("Startseite")
 	b_home.pressed.connect(func(): home_requested.emit())
 	var b_back := UITheme.make_button("Zurück zum Flug")
@@ -151,7 +161,9 @@ func _fill() -> void:
 	for c in _mod_list.get_children(): c.queue_free()
 	# Locations
 	for li in Course.LOCATION_NAMES.size():
-		var sub := "Windreiter-Halle · Wände und Decke" if li == 0 else "offen · keine Begrenzung"
+		# Pylonabstand der jeweiligen Location (Halle: Cup-Strecke bzw. eigener Abstand)
+		var dist := course.meadow_distance if li == 1 else (Course.CUP_DISTANCE if course.preset == 0 else course.free_distance)
+		var sub := ("%s · " % tr("Halle FN") if li == 0 else "") + "%s %d m" % [tr("Pylonabstand"), roundi(dist)]
 		var it := _item(_location_thumb(li), Course.LOCATION_NAMES[li], sub, course.location == li)
 		var idx := li
 		it.pressed.connect(func():

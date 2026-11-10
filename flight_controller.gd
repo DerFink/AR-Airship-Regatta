@@ -1,3 +1,4 @@
+# 2026-11-10 23:45 – Ohne eingebauten Teensy (Baukasten) gilt immer „Direkt“
 # 2026-11-10 11:45 – Mode 3: maximale Gierrate 110 °/s statt 180 °/s (Wunsch Nutzer); gespeicherte 180 werden beim Laden auf 110 umgestellt
 # 2026-11-09 16:00 – SIM_OPT neu für Mode 3 mit Gier-PID
 # 2026-11-09 15:20 – Mode 3: Gier als vollständiger PID-Drehratenregler (Kp/Ki/Kd_yaw_m3, immer aktiv, Sollrate 0 bei Knüppel Mitte ⇒ hält die Richtung; ersetzt Einblenden und Gierdämpfer); Höhenknüppel loslassen ⇒ Sollwinkel sofort 0 (wie Mode 2); Einstellungen Version 11
@@ -368,7 +369,7 @@ func _physics_process(dt: float) -> void:
 	var pitch_des := clampf(cmd_pitch, -1.0, 1.0) * pitch_max_deg      # ±maxPitch (Grad)
 	var yaw_des := clampf(cmd_yaw, -1.0, 1.0) * MAX_YAW                # ±maxYaw
 
-	if mode == Mode.DIRECT:
+	if mode == Mode.DIRECT or not airship.fc_teensy:   # ohne Teensy kein Regler
 		_mix_direct(pitch_des, yaw_des)
 		loop_sample.emit(Axis.PITCH, deg_to_rad(pitch_des), deg_to_rad(pitch_imu))
 		loop_sample.emit(Axis.ROLL, 0.0, deg_to_rad(roll_imu))

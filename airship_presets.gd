@@ -1,3 +1,4 @@
+# 2026-11-10 23:35 – Elektronik ohne Teensy 20 g + Teensy 10 g (Summe wie bisher 30 g); Akku 4S 300 mAh, 38 g (ANNAHME, bitte nachwiegen); keine Nutzlast; Turm entfällt
 # 2026-11-10 20:30 – META: Autor, Team und Kurzbeschreibung je Modell (für Modell & Bau)
 # 2026-11-08 20:30 – Chewie: Gesamtmasse 260 g (≈ 1 % schwerer als der Auftrieb)
 # 2026-11-08 19:30 – Chewie-/Albacore-Motoren: Hochlaufzeit 30 ms wie bei Quadcopter-Motoren (vorher 80 ms)
@@ -106,6 +107,8 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
 	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
+	ship.livery.material = "folie"            # Silberfolie
+	ship.livery.fin_material = "weiss"
 	# Turm wie beim Original, aber an der Unterseite (Optik + Wirkung als feste Flosse)
 	ship.sail_enabled = false              # Turm standardmäßig aus (im Baukasten zuschaltbar)
 	# Maße aus dem Bauplan abgemessen (Genauigkeit ca. ±10 %)
@@ -114,7 +117,12 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.sail_height_frac = 0.59
 	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
 	ship.hull_mass_kg = 0.086
-	ship.electronics_mass_kg = 0.030
+	ship.electronics_mass_kg = 0.020        # Empfänger, BEC, Kabel (Teensy extra, s. u.)
+	ship.fc_teensy = true                    # Teensy-Flugcontroller: +10 g
+	ship.battery_cells = 4
+	ship.battery_mah = 300.0
+	ship.battery_mass_kg = 0.038             # ANNAHME: typischer 4S-300-mAh-LiPo, bitte nachwiegen
+	ship.payload_mass_kg = 0.0
 	ship.ballast_auto_x = true
 	# X-Heck wie das Original (Phase III): 4 diagonale Flossen mit Ruderklappen
 	# direkt VOR dem Heckpropeller. Maße aus dem Bauplan abgemessen:
@@ -158,6 +166,8 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
 	ship.livery.text = "aerarium e.V."       # fester Schriftzug
+	ship.livery.material = "folie"           # Silberfolie wie das echte Schiff
+	ship.livery.fin_material = "weiss"       # weiße Flossen
 	# Regler: Werte 1:1 aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3,
 	# Stand 04.11.2026) – das sind auch die Werkseinstellungen des FlightController.
 	ship.fc_gains = {}
@@ -172,7 +182,12 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# Gesamtmasse exakt 260 g, etwa 1 % schwerer als der Auftrieb (Angabe Nutzer 08.11.2026):
 	# Auftrieb 0,25 m³ · (1,20 − 0,17) kg/m³ = 257,5 g ⇒ 2,5 g zu schwer = 0,0245 N
 	ship.trim_heaviness_n = 0.0245
-	ship.electronics_mass_kg = 0.030
+	ship.electronics_mass_kg = 0.020        # Empfänger, BEC, Kabel (Teensy extra, s. u.)
+	ship.fc_teensy = true                    # Teensy-Flugcontroller: +10 g
+	ship.battery_cells = 4
+	ship.battery_mah = 300.0
+	ship.battery_mass_kg = 0.038             # ANNAHME: typischer 4S-300-mAh-LiPo, bitte nachwiegen
+	ship.payload_mass_kg = 0.0
 	ship.ballast_auto_x = true
 	# λ-Leitwerk (umgekehrtes Y) laut Nutzer: Pendelausführung, je ca. 19 × 19 cm
 	# (0,036 m²), Streckung 1, Pfeilung (Zuspitzung) 0,8, untere Flossen 45°

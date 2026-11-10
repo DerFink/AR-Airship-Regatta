@@ -1,3 +1,4 @@
+# 2026-11-10 23:30 – Turm entfällt (lässt sich als Canard abbilden); Teensy-Flugcontroller als Bauteil (+10 g, ohne Teensy nur „Direkt“); Akku (Zellen, Kapazität, Masse) als Teil der Restmasse; frei platzierbare Nutzlast (Masse, Längslage, Umfangswinkel)
 # 2026-11-07 23:30 – Munk-Moment mit Abminderung munk_factor (Standard 0,6: Grenzschicht am Heck; mit 1,0 schwang Chewie mit den echten Teensy-Reglerwerten stark in Nick)
 # 2026-11-07 21:40 – Masse je Leitwerksflosse (fin_mass_kg) als Punktmasse am Einbauort: in Massenbilanz, Schwerpunkt, Austrimmen der Restmasse und Trägheit
 # 2026-10-29 01:13 – Test-Nickanschlag entfernt (ersetzt durch Nick-Schutz im Flugcontroller)
@@ -82,7 +83,29 @@ signal model_applied
 ## {"pitch": [kp, ki, kd], "roll": [...], "yaw": [...]}; leer = keine Vorgabe.
 @export var fc_gains: Dictionary = {}
 
-@export_group("Turm")
+@export_group("Flugcontroller, Akku, Nutzlast")
+## Teensy-Flugcontroller eingebaut? Ohne ihn gibt es nur „Direkt“ (Knüppel
+## gehen ohne Regler auf Ruder und Schwenker). Masse TEENSY_MASS_KG kommt zur
+## Elektronik unten an der Hülle dazu.
+@export var fc_teensy: bool = true
+const TEENSY_MASS_KG := 0.010
+## Akku: Zellenzahl (S), Kapazität (mAh) und Masse (kg). Er ist Teil der
+## Restmasse unten an der Hülle (Rest = Ballast).
+@export_range(1, 12, 1) var battery_cells: int = 4
+@export_range(50.0, 100000.0, 10.0) var battery_mah: float = 300.0
+@export_range(0.0, 50.0, 0.001) var battery_mass_kg: float = 0.038
+## Nutzlast: frei platzierbare Punktmasse an der Hülle (0 = keine).
+@export_range(0.0, 50.0, 0.001, "or_greater") var payload_mass_kg: float = 0.0
+## Längslage der Nutzlast (0 = Nase, 1 = Heck)
+@export_range(0.0, 1.0, 0.01) var payload_x: float = 0.5
+## Umfangswinkel der Nutzlast (0° oben, 90° rechts, 180° unten, 270° links)
+@export_range(0.0, 360.0, 1.0) var payload_angle_deg: float = 180.0
+## Lage der Nutzlast im Körpersystem (aus payload_x / payload_angle_deg)
+var payload_pos := Vector3.ZERO
+## Ballast (kg) = Restmasse − Akku; negativ heißt: der Akku ist schwerer als erlaubt
+var ballast_kg := 0.0
+
+@export_group("Turm (entfällt – nur noch für alte Modell-Strings)")
 ## Fester Turm an der Hüllenunterseite (wie der U-Boot-Turm, nur kopfüber).
 ## Wirkt aerodynamisch wie eine feste Flosse ohne Ruder.
 @export var sail_enabled: bool = false
@@ -177,8 +200,7 @@ func rebuild_mass_properties() -> void:
 	var gen: Array[ControlSurface] = []
 	if tail:
 		gen = tail.generate()
-	if sail_enabled:
-		gen.append(_make_sail())
+	# Turm entfällt (10.11.2026): eine feste Flosse unten lässt sich als Canard bauen
 	gen.append_array(free)
 	surfaces = gen
 	for s in surfaces:
@@ -204,7 +226,12 @@ func rebuild_mass_properties() -> void:
 		if s.tail_member:
 			fins.append(s)
 	var fin_total := fin_mass_kg * fins.size()
-	var fixed := hull_mass_kg + motor_mass + electronics_mass_kg + fin_total
+	var fc_mass := TEENSY_MASS_KG if fc_teensy else 0.0
+	# Nutzlast sitzt außen an der Hülle (wie eine Gondel)
+	var pa := deg_to_rad(payload_angle_deg)
+	payload_pos = Vector3(sin(pa), cos(pa), 0.0) * hull.radius_at(payload_x) \
+		+ Vector3(0, 0, payload_x * hull.length_m - hull.cb_from_nose)
+	var fixed := hull_mass_kg + motor_mass + electronics_mass_kg + fc_mass + fin_total + payload_mass_kg
 	if auto_trim:
 		# Auftrieb = ρ_Luft·V·g ; Gewicht = (Struktur + Gas)·g + gewünschte Schwere
 		var needed := air_density * V - gas_mass + trim_heaviness_n / gravity_mps2
@@ -214,7 +241,8 @@ func rebuild_mass_properties() -> void:
 		rest_mass_kg = maxf(0.0, structure_mass_kg - fixed)
 		overweight = false
 	structure_mass_kg = fixed + rest_mass_kg
-	bottom_mass_kg = electronics_mass_kg + rest_mass_kg
+	ballast_kg = rest_mass_kg - battery_mass_kg       # Akku gehört zur Restmasse
+	bottom_mass_kg = electronics_mass_kg + fc_mass + rest_mass_kg
 	total_mass = structure_mass_kg + gas_mass
 	mass = maxf(total_mass, 0.001)         # für Godots Kollisionsantwort
 
@@ -224,6 +252,7 @@ func rebuild_mass_properties() -> void:
 		mz_motors += mot.mass_kg * mot.position.z
 	for s in fins:
 		mz_motors += fin_mass_kg * s.position.z             # Flossen hinten: Restmasse wandert nach vorn
+	mz_motors += payload_mass_kg * payload_pos.z
 	if ballast_auto_x and bottom_mass_kg > 1e-6:
 		# Unten-Masse so legen, dass der Gesamtschwerpunkt unter dem Auftriebszentrum liegt
 		var z_needed := -mz_motors / bottom_mass_kg
@@ -237,6 +266,7 @@ func rebuild_mass_properties() -> void:
 		moment += mot.position * mot.mass_kg
 	for s in fins:
 		moment += s.position * fin_mass_kg
+	moment += payload_pos * payload_mass_kg
 	cg_offset = moment / maxf(total_mass, 1e-6)
 
 	# --- 3) Trägheitsmomente um das Auftriebszentrum (Diagonale) -----------
@@ -251,6 +281,7 @@ func rebuild_mass_properties() -> void:
 		pts.append([mot.mass_kg, mot.position])
 	for s in fins:
 		pts.append([fin_mass_kg, s.position])
+	pts.append([payload_mass_kg, payload_pos])
 	for p in pts:
 		var m: float = p[0]
 		var r: Vector3 = p[1]

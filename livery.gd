@@ -1,3 +1,4 @@
+# 2026-11-11 00:50 – Material für Hülle (Silberfolie, Weiß matt, Goldfolie, Farbe) und Leitwerk (Weiß/Depron, Carbon, Silberfolie, Farbe) mit eigener Leitwerksfarbe
 # 2026-10-27 11:08 – Erstversion: Gestaltungsdaten der Hülle (Farbe, Schriftzug, Logo-Verweis, Größe/Lage, beidseitig); Logo-Import mit Verkleinerung und Inhalts-Hash als Dateiname; Logos liegen getrennt vom Modell
 # =============================================================================
 # Livery.gd  (Gestaltung = "Lackierung" der Hülle)
@@ -18,6 +19,18 @@ signal changed_look
 const LOGO_DIR_USER := "user://logos/"
 const LOGO_DIR_ADMIN := "res://models/logos/"
 
+## Hüllenmaterial: "folie" (Silberfolie), "weiss" (weiß matt), "gold" (Goldfolie), "farbe" (hull_color)
+const HULL_MATERIALS := ["folie", "weiss", "gold", "farbe"]
+const HULL_MATERIAL_NAMES := ["Silberfolie", "Weiß matt", "Goldfolie", "Farbe"]
+## Leitwerksmaterial: "weiss" (Depron weiß), "carbon", "folie" (Silberfolie), "farbe" (fin_color)
+const FIN_MATERIALS := ["weiss", "carbon", "folie", "farbe"]
+const FIN_MATERIAL_NAMES := ["Weiß / Depron", "Carbon", "Silberfolie", "Farbe"]
+@export var material := "folie":
+	set(v): material = v if v in HULL_MATERIALS else "folie"; changed_look.emit()
+@export var fin_material := "weiss":
+	set(v): fin_material = v if v in FIN_MATERIALS else "weiss"; changed_look.emit()
+@export var fin_color := Color("3d8bfd"):
+	set(v): fin_color = v; changed_look.emit()
 @export var hull_color := Color("dfe5ea"):
 	set(v): hull_color = v; changed_look.emit()
 @export var text := "":
@@ -39,6 +52,34 @@ const LOGO_DIR_ADMIN := "res://models/logos/"
 	set(v): logo_pos = v; changed_look.emit()
 @export var both_sides := true:
 	set(v): both_sides = v; changed_look.emit()
+
+
+## Grundfarbe der Hülle für das gewählte Material (Folien glänzen zusätzlich metallisch).
+func base_color() -> Color:
+	match material:
+		"folie": return Color("dde2e7")
+		"weiss": return Color("f4f5f6")
+		"gold": return Color("d9ab45")
+	return hull_color
+
+
+## Grundfarbe des Leitwerks für das gewählte Material.
+func fin_base_color() -> Color:
+	match fin_material:
+		"weiss": return Color("f2f3f1")
+		"carbon": return Color("26282c")
+		"folie": return Color("dde2e7")
+	return fin_color
+
+
+## Glanz: [metallisch 0…1, Rauheit 0…1] je Material.
+static func gloss(mat: String) -> Vector2:
+	match mat:
+		"folie": return Vector2(0.85, 0.22)
+		"gold": return Vector2(0.9, 0.25)
+		"carbon": return Vector2(0.2, 0.35)
+		"weiss": return Vector2(0.0, 0.9)
+	return Vector2(0.0, 0.55)
 
 
 ## Logo suchen: zuerst eigene, dann Admin-Sammlung. null = Datei fehlt.

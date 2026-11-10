@@ -1,3 +1,4 @@
+# 2026-11-11 01:20 – Flossen und Motoren genau aus den Modelldaten (Trapez wie im 3D-Modell: Wurzel-/Endtiefe aus Fläche, Streckung und Zuspitzung, Hinterkante gerade, Wurzel folgt der Hüllenkontur); Motoren mit Gondel und Propellerkreis an ihrer Einbaulage; Restmasse und Nutzlast; Material aus der Gestaltung; keine erfundene Gondel mehr
 # 2026-11-10 19:40 – Erstversion: Seitenansicht eines Luftschiffs als Bild, gezeichnet aus den Modelldaten (Gertler-Hülle, Flossen, Motoren, Gondel, Aussehen) – für Startseite, Modellliste, Icon-Ladeanzeige
 # =============================================================================
 # ShipPreview.gd
@@ -58,8 +59,19 @@ static func svg(ship: AirshipPhysics, width_px: int, label := "") -> String:
 		if c > 0.01: fin_up = maxf(fin_up, reach)
 		elif c < -0.01: fin_dn = maxf(fin_dn, reach)
 	var R := hull.diameter_m * 0.5 * k
+	# Motoren (mit Propellerkreis), Restmasse und Nutzlast können tiefer/höher reichen
+	for mo in ship.motors:
+		var pr := (mo.prop_diameter_in * 0.0254 * 0.5 + 0.01) * k
+		fin_up = maxf(fin_up, mo.position.y * k + pr)
+		fin_dn = maxf(fin_dn, -mo.position.y * k + pr)
+	var kk0 := pow(maxf(ship.bottom_mass_kg, 0.001) / 2000.0 / 4.5, 1.0 / 3.0)
+	fin_dn = maxf(fin_dn, (-ship.bottom_mass_pos.y + kk0) * k)
+	if ship.payload_mass_kg > 0.0005:
+		var e0 := pow(ship.payload_mass_kg / 1000.0, 1.0 / 3.0)
+		fin_up = maxf(fin_up, (ship.payload_pos.y + e0) * k)
+		fin_dn = maxf(fin_dn, (-ship.payload_pos.y + e0) * k)
 	var up := maxf(R, fin_up) + pad
-	var dn := maxf(R * 1.12, fin_dn) + pad
+	var dn := maxf(R, fin_dn) + pad
 	var H := up + dn
 	var cy := up
 	# --- Hüllenumriss aus dem Gertler-Profil ---
@@ -72,43 +84,54 @@ static func svg(ship: AirshipPhysics, width_px: int, label := "") -> String:
 		var x := float(i) / n
 		pts.append("%.1f %.1f" % [pad + x * L, cy + hull.radius_at(x) * k])
 	var hp := "M" + " L".join(pts) + "Z"
-	# --- Aussehen ---
-	var mat_name: String = str(ship.livery.get("material")) if ship.livery.get("material") != null else "folie"
-	var foil := mat_name == "folie"
-	var hull_fill := "url(#hg)"
-	if not foil:
-		hull_fill = "#" + ship.livery.hull_color.to_html(false)
-	var fin_fill := "#eef2f6"
-	if ship.livery.get("fin_color") != null:
-		fin_fill = "#" + (ship.livery.get("fin_color") as Color).to_html(false)
+	# --- Aussehen (Material aus der Gestaltung) ---
+	var liv := ship.livery
+	var foil := liv.material == "folie" or liv.material == "gold"
+	var base := liv.base_color()
+	var hull_fill := "url(#hg)" if foil else "#" + base.to_html(false)
+	var fin_fill := "#" + liv.fin_base_color().to_html(false)
+	var g0 := base.lightened(0.6)
+	var g1 := base
+	var g2 := base.darkened(0.3)
 	var defs := ('<defs><linearGradient id="hg" gradientUnits="userSpaceOnUse" x1="0" y1="%.1f" x2="0" y2="%.1f">' % [cy - R, cy + R]
-		+ '<stop offset="0" stop-color="#ffffff"/><stop offset=".25" stop-color="#cfd6de"/><stop offset=".42" stop-color="#f7f9fb"/>'
-		+ '<stop offset=".62" stop-color="#9aa5b1"/><stop offset=".82" stop-color="#dfe5ea"/><stop offset="1" stop-color="#7d8794"/></linearGradient>'
+		+ '<stop offset="0" stop-color="#%s"/><stop offset=".25" stop-color="#%s"/><stop offset=".42" stop-color="#%s"/>' % [g0.to_html(false), g1.to_html(false), g0.to_html(false)]
+		+ '<stop offset=".62" stop-color="#%s"/><stop offset=".82" stop-color="#%s"/><stop offset="1" stop-color="#%s"/></linearGradient>' % [g2.to_html(false), g1.to_html(false), g2.darkened(0.15).to_html(false)]
 		+ '<clipPath id="hc"><path d="%s"/></clipPath></defs>' % hp)
-	# --- Flossen (hinter der Hülle: nach unten zeigende; vor der Hülle: nach oben) ---
+	# Körpersystem → Bild: z (Länge, −cb = Nase) → x nach rechts, y (oben) → nach oben
+	var cb := hull.cb_from_nose
+	var P := func(z: float, y: float) -> String:
+		return "%.1f %.1f" % [pad + (z + cb) * k, cy - y * k]
+	# --- Flossen: Trapez wie in AirshipVisual._fin_mesh ---
+	# Von rechts gesehen liegen Flossen mit d.x < 0 hinter der Hülle, sonst davor.
 	var back := ""
 	var front := ""
 	for f in ship.surfaces:
-		var c := cos(deg_to_rad(f.hull_angle_deg))
-		if absf(c) < 0.05:
-			continue                                   # waagrechte Flosse: in der Seitenansicht nur ein Strich
-		var span := f.span_m() * k
-		var chord := sqrt(f.area_m2 / maxf(f.aspect_ratio, 0.1)) * k
-		var xc := pad + f.hull_x * L
-		var x0 := xc - chord * 0.5
-		var x1 := xc + chord * 0.5
-		var r0 := hull.radius_at(clampf((x0 - pad) / L, 0, 1)) * k
-		var r1 := hull.radius_at(clampf((x1 - pad) / L, 0, 1)) * k
-		var sgn := -1.0 if c > 0 else 1.0                # oben = negative SVG-y
-		var h := absf(c)
-		# Wurzel von der Mittellinie aus (steckt in der Hülle), Spitze leicht gepfeilt
-		var path := "M%.1f %.1f L%.1f %.1f L%.1f %.1f L%.1f %.1f L%.1f %.1f Z" % [
-			x0, cy, x0, cy + sgn * r0 * h,
-			x0 + chord * 0.35, cy + sgn * (r0 + span) * h,
-			x1, cy + sgn * (r1 + span) * h, x1, cy]
-		var el := '<path d="%s" fill="%s" stroke="#aab4be" stroke-width="0.6"/>' % [path, fin_fill]
-		if c > 0: front += el
-		else: back += el
+		var a := deg_to_rad(f.hull_angle_deg)
+		var dy := cos(a)
+		var dx := sin(a)
+		var span := f.span_m()
+		var mean_c := f.area_m2 / span
+		var c_r := 2.0 * mean_c / (1.0 + f.taper)
+		var c_t := c_r * f.taper
+		var zc := f.hull_x * Lm - cb                       # Flossenmitte (Körper-z)
+		var te := zc + c_r * 0.5                          # Hinterkante (gerade)
+		var rc := hull.radius_at(f.hull_x)
+		var el := ""
+		if absf(dy) < 0.08:
+			# waagrechte Flosse: von der Seite nur als Kante sichtbar
+			el = '<path d="M%s L%s L%s L%s Z" fill="%s" stroke="#7f8a95" stroke-width="0.6"/>' % [
+				P.call(te - c_r, 0.006), P.call(te, 0.006), P.call(te, -0.006), P.call(te - c_r, -0.006), fin_fill]
+		else:
+			var fp := PackedStringArray()
+			for i in 7:                                   # Wurzel entlang der Hüllenkontur
+				var z := lerpf(te - c_r, te, float(i) / 6.0)
+				var xr := clampf((z + cb) / Lm, 0.0, 1.0)
+				fp.append(P.call(z, dy * hull.radius_at(xr)))
+			fp.append(P.call(te, dy * (rc + span)))       # Spitze hinten
+			fp.append(P.call(te - c_t, dy * (rc + span))) # Spitze vorn
+			el = '<path d="M%s Z" fill="%s" stroke="#7f8a95" stroke-width="0.6"/>' % [" L".join(fp), fin_fill]
+		if dx < -0.05: back += el
+		else: front += el
 	# --- Falten der Silberfolie ---
 	var creases := ""
 	if foil:
@@ -121,18 +144,44 @@ static func svg(ship: AirshipPhysics, width_px: int, label := "") -> String:
 			var px := pad + x * L
 			creases += '<path d="M%.1f %.1f q1 %.1f 0 %.1f" stroke="#ffffff" stroke-opacity=".5" stroke-width=".7" fill="none"/>' % [
 				px, cy - r, r, 2.0 * r * rng.randf_range(0.5, 0.95)]
-	# --- Motoren und Gondel (dunkel, unten an der Hülle) ---
+	# --- Motoren an ihrer Einbaulage: Gondel (wie im 3D-Modell 9 cm × Ø 5,5 cm)
+	#     in Schubrichtung und Propellerkreis (Durchmesser aus den Daten) ---
 	var parts := ""
+	var parts_back := ""
 	for mo in ship.motors:
-		var mx := pad + mo.hull_x * L
-		var my := cy - mo.position.y * k
-		parts += '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="2" fill="#2d3239"/>' % [mx - 0.02 * L, my - 0.01 * L, 0.04 * L, 0.02 * L]
-	parts += '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="2" fill="#3a3f48"/>' % [
-		pad + 0.43 * L, cy + hull.radius_at(0.46) * k - 0.012 * L, 0.065 * L, 0.024 * L]
+		var td := mo.thrust_direction.normalized()
+		var dir2 := Vector2(td.z, td.y)                   # Schubrichtung in der Seitenansicht
+		if dir2.length() < 0.05: dir2 = Vector2(-1, 0)
+		dir2 = dir2.normalized()
+		var c := mo.position
+		var h := 0.045
+		var nrm := Vector2(-dir2.y, dir2.x)
+		var q := [Vector2(c.z, c.y) + dir2 * h + nrm * 0.026, Vector2(c.z, c.y) + dir2 * h - nrm * 0.026,
+			Vector2(c.z, c.y) - dir2 * h - nrm * 0.03, Vector2(c.z, c.y) - dir2 * h + nrm * 0.03]
+		var qs := PackedStringArray()
+		for v in q: qs.append(P.call(v.x, v.y))
+		var body := '<path d="M%s Z" fill="#2d3239"/>' % " L".join(qs)
+		var pr := mo.prop_diameter_in * 0.0254 * 0.5
+		var pc := Vector2(c.z, c.y) + dir2 * 0.05
+		var prop := '<path d="M%s L%s" stroke="#2d3239" stroke-opacity=".55" stroke-width="%.1f" stroke-linecap="round"/>' % [
+			P.call(pc.x + nrm.x * pr, pc.y + nrm.y * pr), P.call(pc.x - nrm.x * pr, pc.y - nrm.y * pr), maxf(1.0, 0.006 * k)]
+		if c.x < -0.01: parts_back += body + prop
+		else: parts += body + prop
+	# --- Restmasse (Akku, Ballast, Elektronik) und Nutzlast ---
+	var vol := maxf(ship.bottom_mass_kg, 0.001) / 2000.0
+	var kk := pow(vol / 4.5, 1.0 / 3.0)
+	var bp := ship.bottom_mass_pos
+	parts += '<path d="M%s L%s L%s L%s Z" fill="#3a3f48"/>' % [P.call(bp.z - 1.5 * kk, bp.y), P.call(bp.z + 1.5 * kk, bp.y),
+		P.call(bp.z + 1.5 * kk, bp.y - kk), P.call(bp.z - 1.5 * kk, bp.y - kk)]
+	if ship.payload_mass_kg > 0.0005:
+		var e := pow(ship.payload_mass_kg / 1000.0, 1.0 / 3.0)
+		var pp := ship.payload_pos + Vector3(sin(deg_to_rad(ship.payload_angle_deg)), cos(deg_to_rad(ship.payload_angle_deg)), 0) * e * 0.5
+		parts += '<path d="M%s L%s L%s L%s Z" fill="#e0a43a"/>' % [P.call(pp.z - e * 0.5, pp.y - e * 0.5), P.call(pp.z + e * 0.5, pp.y - e * 0.5),
+			P.call(pp.z + e * 0.5, pp.y + e * 0.5), P.call(pp.z - e * 0.5, pp.y + e * 0.5)]
 	var txt := ""
 	if label != "":
 		txt = '<text x="%.1f" y="%.1f" font-size="%.1f" fill="#4c5560" font-family="sans-serif" letter-spacing="1">%s</text>' % [
 			pad + 0.46 * L, cy + 0.01 * L, 0.028 * L, label.xml_escape()]
 	return ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %.1f">' % [width_px, int(H), width_px, H]
-		+ defs + back + '<path d="%s" fill="%s" stroke="#8a949f" stroke-width="0.7"/>' % [hp, hull_fill]
+		+ defs + back + parts_back + '<path d="%s" fill="%s" stroke="#8a949f" stroke-width="0.7"/>' % [hp, hull_fill]
 		+ '<g clip-path="url(#hc)">' + creases + '</g>' + front + parts + txt + '</svg>')

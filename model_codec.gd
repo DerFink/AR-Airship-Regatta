@@ -1,3 +1,5 @@
+# 2026-11-11 00:50 – Material von Hülle und Leitwerk (mat, fmat, fcol) im Modell-String
+# 2026-11-10 23:40 – Teensy (tee), Akku (bs, bmah, bm) und Nutzlast (pl, px, pa) im Modell-String; Turm wird nicht mehr gelesen (ältere Strings: Teensy an, Elektronik −10 g, damit die Masse gleich bleibt)
 # 2026-11-07 21:40 – Masse je Leitwerksflosse „fm“ im Modell-String (ältere Strings: 0)
 # 2026-10-29 02:25 – mix_yaw in den Regler-Vorgaben
 # 2026-10-29 01:53 – Regler-Vorgaben als „fc“ (Werte je Achse, Bereiche aus UI_PARAMS); alte „pid“-Listen werden ignoriert
@@ -40,7 +42,7 @@ const LIMITS := {
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
 	"sx": [0.05, 0.95], "sl": [0.02, 0.4], "sh": [0.05, 1.0],
-	"hm": [0.0, 1000.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
+	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
@@ -61,10 +63,10 @@ static func encode(ship: AirshipPhysics) -> String:
 		# Massen: Hülle, Elektronik, Lage der unten angeklebten Restmasse
 		# (Schwerpunkt wird beim Laden daraus neu berechnet)
 		"mass": {"trim": ship.trim_heaviness_n, "hm": ship.hull_mass_kg, "el": ship.electronics_mass_kg,
-			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x, "fm": ship.fin_mass_kg},
+			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x, "fm": ship.fin_mass_kg,
+			"tee": ship.fc_teensy, "bs": ship.battery_cells, "bmah": ship.battery_mah, "bm": ship.battery_mass_kg,
+			"pl": ship.payload_mass_kg, "px": ship.payload_x, "pa": ship.payload_angle_deg},
 		"fins": [], "motors": [],
-		# Turm an der Unterseite (an/aus, Lage, Länge, Höhe)
-		"sail": {"on": ship.sail_enabled, "sx": ship.sail_x, "sl": ship.sail_length_frac, "sh": ship.sail_height_frac},
 	}
 	# Symmetrisches Leitwerk als Beschreibung (nicht Flosse für Flosse)
 	if ship.tail:
@@ -88,7 +90,7 @@ static func encode(ship: AirshipPhysics) -> String:
 	if not ship.fc_gains.is_empty():
 		data["fc"] = ship.fc_gains                   # Regler-Vorgaben des Modells
 	var l := ship.livery
-	data["look"] = {"col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
+	data["look"] = {"mat": l.material, "fmat": l.fin_material, "fcol": l.fin_color.to_html(false), "col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
 		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides}
 
@@ -145,10 +147,14 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.ballast_x = d.mass.bx
 	ship.ballast_auto_x = d.mass.bauto
 	ship.fc_gains = d.get("fc", {})
-	ship.sail_enabled = d.sail.on
-	ship.sail_x = d.sail.sx
-	ship.sail_length_frac = d.sail.sl
-	ship.sail_height_frac = d.sail.sh
+	ship.fc_teensy = d.mass.tee
+	ship.battery_cells = int(d.mass.bs)
+	ship.battery_mah = d.mass.bmah
+	ship.battery_mass_kg = d.mass.bm
+	ship.payload_mass_kg = d.mass.pl
+	ship.payload_x = d.mass.px
+	ship.payload_angle_deg = d.mass.pa
+	ship.sail_enabled = false                    # Turm entfällt (als Canard bauen)
 
 	var fins: Array[ControlSurface] = []
 	for f in d.fins:
@@ -180,6 +186,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 
 	var l := Livery.new()
 	var lk: Dictionary = d.look
+	l.material = lk.mat; l.fin_material = lk.fmat; l.fin_color = Color.html(lk.fcol)
 	l.hull_color = Color.html(lk.col); l.text = lk.txt; l.text_color = Color.html(lk.tcol)
 	l.text_size = lk.tsize; l.text_pos = lk.tpos; l.logo_ref = lk.logo
 	l.logo_size = lk.lsize; l.logo_pos = lk.lpos; l.both_sides = lk.both
@@ -236,7 +243,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"cp": _num(hd, "cp", 0.65), "ld": _num(hd, "ld", 5.0), "vol": _num(hd, "vol", 0.25)},
 		# ältere Strings ohne Teilmassen bekommen die Standardwerte
 		"mass": {"trim": _num(md, "trim", 0.05), "hm": _num(md, "hm", 0.086), "el": _num(md, "el", 0.030),
-			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true), "fm": _num(md, "fm", 0.0)},
+			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true), "fm": _num(md, "fm", 0.0),
+			"tee": _flag(md, "tee", true), "bs": _num(md, "bs", 4), "bmah": _num(md, "bmah", 300.0),
+			"bm": _num(md, "bm", 0.038), "pl": _num(md, "pl", 0.0), "px": _num(md, "px", 0.5), "pa": _num(md, "pa", 180.0)},
 		"fins": [], "motors": [],
 	}
 	# Regler-Vorgaben (Kaskadenregler): je Achse bekannte Werte, begrenzt auf
@@ -265,9 +274,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			fc_out["swv_pitch"] = clampf(float(sp), 0.0, 120.0)
 		if not fc_out.is_empty():
 			out["fc"] = fc_out
-	var sd: Dictionary = d.get("sail", {}) if d.get("sail") is Dictionary else {}
-	out["sail"] = {"on": _flag(sd, "on", false), "sx": _num(sd, "sx", 0.30),
-		"sl": _num(sd, "sl", 0.12), "sh": _num(sd, "sh", 0.33)}
+	# Ältere Strings ohne Teensy-Angabe: Teensy steckte in der Elektronik → 10 g abziehen
+	if not md.has("tee"):
+		out.mass.el = maxf(0.0, out.mass.el - AirshipPhysics.TEENSY_MASS_KG)
 	var fins = d.get("fins", [])
 	if fins is Array:
 		for f in fins.slice(0, MAX_FINS):
@@ -299,7 +308,11 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 	# Logo-Verweis darf nur ein schlichter Dateiname sein (kein Pfad!)
 	if not logo.is_valid_filename() or not logo.ends_with(".png"):
 		logo = ""
-	out["look"] = {"col": _color(lk, "col", "dfe5ea"), "txt": _txt(lk, "txt", "", 24),
+	var mat := _txt(lk, "mat", "farbe", 8)          # ältere Strings: Farbe wie bisher
+	var fmat := _txt(lk, "fmat", "farbe", 8)
+	out["look"] = {"mat": mat if mat in Livery.HULL_MATERIALS else "farbe",
+		"fmat": fmat if fmat in Livery.FIN_MATERIALS else "farbe", "fcol": _color(lk, "fcol", "3d8bfd"),
+		"col": _color(lk, "col", "dfe5ea"), "txt": _txt(lk, "txt", "", 24),
 		"tcol": _color(lk, "tcol", "1b2128"), "tsize": _num(lk, "tsize", 0.3), "tpos": _num(lk, "tpos", 0.5),
 		"logo": logo, "lsize": _num(lk, "lsize", 0.45), "lpos": _num(lk, "lpos", 0.25),
 		"both": _flag(lk, "both", true)}
