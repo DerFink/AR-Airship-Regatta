@@ -1,3 +1,4 @@
+# 2026-11-11 16:40 – Werkstatt-Musik außerhalb des Flugs, Bodenspur (CourseTrack), Einstellungen-Fenster (Musik, Motorklang, Spur)
 # 2026-11-11 10:40 – Klang-Sicherung (SoundGuard): Klangstufe Fein/Mittel/Einfach, Klangerzeuger werden bei Stufenwechsel neu gebaut
 # 2026-11-11 02:55 – Ladeanzeige (Luftschiff fliegt die Acht) während des Aufbaus; Baukasten: Boxmaß-Ecke, Seitenansicht mittig zwischen den Spalten, Strecke ausgeblendet; Regler-Menü aus dem Baukasten
 # 2026-11-11 00:15 – Bestenliste aus „Modell & Bau“; Akku-Daten aus dem Modell
@@ -34,7 +35,7 @@
 # =============================================================================
 extends Node3D
 
-enum View { FLY, BUILD, PID, SHARE, COURSE, LEADER, START, HUB, ABOUT }
+enum View { FLY, BUILD, PID, SHARE, COURSE, LEADER, START, HUB, ABOUT, SETTINGS }
 
 # --- Strecke und Pilot (Meter) ------------------------------------------------
 # Draufsicht: vorderer Pylon bei x = 0, hinterer Pylon bei x = Abstand (Course).
@@ -59,6 +60,7 @@ var autopilot: Autopilot             ## Autopilot (fliegt live die aktuelle Stre
 var start_screen: StartScreen
 var hub: ModelHub
 var about: AboutPanel
+var settings: SettingsPanel
 var battery: Battery                 ## Akku-Modell (Spannung, Ladezustand, Schubabfall)
 var course_panel: CoursePanel
 var leader_panel: LeaderboardPanel
@@ -74,6 +76,7 @@ var _prop_sounds: Array[PropSynth] = []
 var _sound_level := -1               ## Klangstufe, mit der _prop_sounds gebaut wurden
 var sound_guard: SoundGuard          ## Klang-Sicherung (Fein → Mittel → Einfach)
 var gauge: BoxGauge                  ## Boxmaß-Ecke im Baukasten
+var track: CourseTrack               ## Acht als Spur auf dem Boden
 
 # --- Baukasten-Ansicht: Modell drehen und zoomen ----------------------------
 var _orbit_yaw := 0.0            ## Drehung um die Hochachse (rad), 0 = von der Seite
@@ -83,6 +86,7 @@ var _touches := {}               ## aktive Finger: Index → Position
 
 
 func _ready() -> void:
+	AppSettings.load_all()                   # Lautstärken, Spur (vor dem Aufbau: Audio-Busse)
 	I18n.setup()                             # gespeicherte Sprache laden (vor dem Aufbau der Oberfläche)
 	# Ladeanzeige (Luftschiff fliegt die Acht) zuerst – zwischen den Bauschritten
 	# wird je ein Bild gezeichnet, damit sie sich bewegt
@@ -169,6 +173,13 @@ func _build_ship() -> void:
 	gauge.visible = false
 	ship.add_child(gauge)
 	ship.config_changed.connect(func(): _rebuild_gauge.call_deferred())
+	# Spur: Acht auf dem Boden mit Richtungspfeilen, Lot und Vorausschau (an/aus unter Einstellungen)
+	track = CourseTrack.new()
+	track.course = course
+	track.ship = ship
+	course.add_child(track)
+	track.visible = AppSettings.track_on
+	AppSettings.on_change.append(func(): if is_instance_valid(track): track.visible = AppSettings.track_on)
 	_rebuild_prop_sounds()
 
 	# Akku-Modell: rechnet vor dem Luftschiff und gibt den Schubfaktor an die Motoren
@@ -289,7 +300,11 @@ func _build_ui() -> void:
 	start_screen.build_requested.connect(func(): _set_view(View.HUB))
 	start_screen.about_requested.connect(func(): _set_view(View.ABOUT))
 	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
-	start_screen.settings_requested.connect(func(): _pid_back = View.START; _set_view(View.PID))
+	settings = SettingsPanel.new()
+	root.add_child(settings)
+	start_screen.settings_requested.connect(func(): _set_view(View.SETTINGS))
+	settings.closed.connect(func(): _set_view(View.START))
+	settings.controls_requested.connect(func(): _pid_back = View.SETTINGS; _set_view(View.PID))
 	about.closed.connect(func(): _set_view(View.START))
 	hub.closed.connect(func(): _set_view(View.FLY))
 	hub.home_requested.connect(func(): _set_view(View.START))
@@ -383,6 +398,10 @@ func _on_race_changed() -> void:
 		# Autopilot im Ziel: Zeit zeigen, nichts in die Bestenliste
 		hud.show_notice("%s · %s (%s)" % [tr("Autopilot"), Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
 		autopilot.stop()
+		return
+	# Bestenliste nur mit unveränderten Modellen aus der Auswahl (Aussehen/Regler egal)
+	if AirshipPresets.standard_model_of(ship) == "":
+		hud.show_notice("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl" % Course.format_time(course.time_s), "info", 5.0)
 		return
 	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
 		fc.armed = false
@@ -479,9 +498,10 @@ func _set_view(v: View) -> void:
 	start_screen.visible = v == View.START
 	hub.visible = v == View.HUB
 	about.visible = v == View.ABOUT
+	settings.visible = v == View.SETTINGS
 	if v != View.FLY and autopilot and autopilot.active:
 		reset_ship()                                  # Ansicht verlassen beendet den Autopiloten
-	if v == View.START or v == View.HUB or v == View.ABOUT:
+	if v == View.START or v == View.HUB or v == View.ABOUT or v == View.SETTINGS:
 		fc.armed = false                              # außerhalb der Flugansicht: Motoren aus
 	# Baukasten/Teilen: Motoren aus, Schiff festhalten, ruhiger Klangteppich.
 	# Flug/PID: kein Klangteppich – zu hören sind nur die Motoren.
@@ -506,7 +526,8 @@ func _set_view(v: View) -> void:
 	if not workshop:
 		camera.h_offset = 0.0
 	visual.set_workshop(workshop)          # Restmasse + Schwerpunkt nur im Baukasten zeigen
-	ui_sounds.set_pad(workshop)
+	# Musik überall außer im Flug (und Bestenliste nach dem Rennen)
+	ui_sounds.set_music(v != View.FLY and v != View.LEADER)
 
 
 # =============================================================================

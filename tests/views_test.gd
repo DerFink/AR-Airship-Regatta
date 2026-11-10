@@ -78,7 +78,12 @@ func _process(_dt: float) -> bool:
 	if f == 1220:
 		print("Über/Lizenz enthält Kontakt: ", main.about._text.get_parsed_text().contains("erich.fink ät aerarium.de"))
 		main.about.closed.emit()
+		main.start_screen.settings_requested.emit()
 		I18n.set_language("en", false)
+	if f == 1224:
+		print("Einstellungen: view=%d (9 = SETTINGS)" % main.view)
+		_shot("settings")
+		main.settings.closed.emit()
 	if f == 1226:
 		main.start_screen._refresh()
 	if f == 1230:

@@ -1,3 +1,4 @@
+# 2026-11-11 16:50 – fingerprint(): Bauart ohne Name/Aussehen/Regler (Bestenliste nur mit unveränderten Modellen der Auswahl)
 # 2026-11-11 11:00 – Schubrichtung je Motor (td, x vorn · y rechts · z unten)
 # 2026-11-11 10:00 – Regler komplett im Modell-String: alle Reglerwerte je Achse + Mischer/Vorsteuerung (gen) aus dem aktuellen Flugcontroller; Massen von Teensy (tm) und je Canard (m)
 # 2026-11-11 00:50 – Material von Hülle und Leitwerk (mat, fmat, fcol) im Modell-String
@@ -58,6 +59,23 @@ const LIMITS := {
 # Export
 # =============================================================================
 static func encode(ship: AirshipPhysics) -> String:
+	var data := _data(ship, true)
+	var raw := JSON.stringify(data).to_utf8_buffer()
+	var packed := raw.compress(FileAccess.COMPRESSION_DEFLATE)
+	var b64 := Marshalls.raw_to_base64(packed).replace("+", "-").replace("/", "_").replace("=", "")
+	return "%s:%s:%s:%s" % [PREFIX, _clean_name(ship.model_name), b64, _checksum(b64)]
+
+
+## Fingerabdruck der Bauart (Hülle, Massen, Flossen, Motoren, Akku …) ohne
+## Name, Aussehen und Reglerwerte – gleich = unverändertes Modell (Bestenliste).
+static func fingerprint(ship: AirshipPhysics) -> String:
+	var d := _data(ship, false)
+	d.erase("look")
+	return JSON.stringify(d, "", true).sha256_text()
+
+
+## Alle Modelldaten als Dictionary (with_fc: Reglerwerte des Flugcontrollers mit).
+static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 	var h := ship.hull
 	var data := {
 		"v": 1,
@@ -91,7 +109,7 @@ static func encode(ship: AirshipPhysics) -> String:
 			"mk": m.mass_kg, "td": [snappedf(m.user_dir().x, 0.001), snappedf(m.user_dir().y, 0.001), snappedf(m.user_dir().z, 0.001)]})
 	# Regler: die AKTUELLEN Werte des Flugcontrollers (alle Achsen, Mischer,
 	# Vorsteuerung), ohne Stick-Mode (der gehört zum Piloten, nicht zum Modell).
-	var fc := _find_fc(ship)
+	var fc := _find_fc(ship) if with_fc else null
 	if fc:
 		var fcd := {}
 		for ax in FlightController.AXIS_KEYS:
@@ -101,17 +119,14 @@ static func encode(ship: AirshipPhysics) -> String:
 			if k != "stick_mode": gen[k] = fc.get(k)
 		fcd["gen"] = gen
 		data["fc"] = fcd
-	elif not ship.fc_gains.is_empty():
+	elif with_fc and not ship.fc_gains.is_empty():
 		data["fc"] = ship.fc_gains                   # Regler-Vorgaben des Modells
 	var l := ship.livery
 	data["look"] = {"mat": l.material, "fmat": l.fin_material, "fcol": l.fin_color.to_html(false), "col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
 		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides}
 
-	var raw := JSON.stringify(data).to_utf8_buffer()
-	var packed := raw.compress(FileAccess.COMPRESSION_DEFLATE)
-	var b64 := Marshalls.raw_to_base64(packed).replace("+", "-").replace("/", "_").replace("=", "")
-	return "%s:%s:%s:%s" % [PREFIX, _clean_name(ship.model_name), b64, _checksum(b64)]
+	return data
 
 
 # =============================================================================

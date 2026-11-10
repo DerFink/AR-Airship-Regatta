@@ -1,3 +1,5 @@
+# 2026-11-11 17:15 – Presets setzen alle Bau-Werte zurück (_reset_common), sonst blieben Werte des vorigen Modells stehen
+# 2026-11-11 16:55 – Bestenliste: standard_model_of() erkennt unveränderte Modelle aus Standard und Sammlung
 # 2026-11-11 15:00 – meta(): Angaben auch für Modelle aus der Sammlung (Angabenzeile in models/sammlung.txt)
 # 2026-11-10 23:35 – Elektronik ohne Teensy 20 g + Teensy 10 g (Summe wie bisher 30 g); Akku 4S 300 mAh, 38 g (ANNAHME, bitte nachwiegen); keine Nutzlast; Turm entfällt
 # 2026-11-10 20:30 – META: Autor, Team und Kurzbeschreibung je Modell (für Modell & Bau)
@@ -60,13 +62,30 @@ static func meta(name: String) -> Dictionary:
 
 static func list() -> Array[Dictionary]:
 	var out: Array[Dictionary] = [
-		{"name": "Albacore Standard", "build": albacore_default},
-		{"name": "Chewie", "build": chewie},
+		{"name": "Albacore Standard", "build": albacore_default, "source": "Standard"},
+		{"name": "Chewie", "build": chewie, "source": "Standard"},
 	]
 	for e in ModelLibrary.entries():
 		out.append({"name": "%s (%s)" % [e.name, e.source],
-			"build": _build_from_code.bind(e.code)})
+			"build": _build_from_code.bind(e.code), "source": e.source})
 	return out
+
+
+## Fingerabdrücke der zugelassenen Modelle (Standard + Sammlung), einmal berechnet
+static var _allowed := {}
+
+## Darf mit diesem Luftschiff in die Bestenliste? Nur unveränderte Modelle aus
+## der Auswahl (Standard und Sammlung, nicht „Eigene“). Aussehen und
+## Reglerwerte zählen nicht als Veränderung. Rückgabe: Name des Modells oder "".
+static func standard_model_of(ship: AirshipPhysics) -> String:
+	if _allowed.is_empty():
+		for e in list():
+			if e.source == "Eigene": continue
+			var s := AirshipPhysics.new()
+			e.build.call(s)
+			_allowed[ModelCodec.fingerprint(s)] = e.name
+			s.free()
+	return _allowed.get(ModelCodec.fingerprint(ship), "")
 
 
 ## Baut ein Modell aus einem Modell-String (für Sammlung und eigene Modelle).
@@ -105,7 +124,22 @@ static func make_motor(name: String, x: float, angle_deg: float, thrust_n: float
 # Standard: USS Albacore-Form, L/D 5, 0,25 m³, Kreuzleitwerk mit Ruderklappen,
 # starrer Heckmotor.
 # =============================================================================
+## Alle Bau-Werte auf Grundstellung, bevor ein Preset seine eigenen setzt –
+## sonst blieben beim Wechsel Werte des vorigen Modells stehen (z. B. Schwere,
+## Flossenmasse von Chewie im Albacore).
+static func _reset_common(ship: AirshipPhysics) -> void:
+	ship.trim_heaviness_n = 0.05
+	ship.fin_mass_kg = 0.0
+	ship.ballast_auto_x = true
+	ship.teensy_mass_kg = AirshipPhysics.TEENSY_MASS_KG
+	ship.payload_mass_kg = 0.0
+	ship.payload_x = 0.5
+	ship.payload_angle_deg = 180.0
+	ship.sail_enabled = false
+
+
 static func albacore_default(ship: AirshipPhysics) -> void:
+	_reset_common(ship)
 	# Schlankheit wie das Original (62,6 m / 8,3 m ≈ 7,5)
 	var h := GertlerHull.new()
 	h.length_to_diameter = 7.5
@@ -165,6 +199,7 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 # ANNAHME (bitte am Modell nachmessen): Längsposition der Motoren 0,25.
 # =============================================================================
 static func chewie(ship: AirshipPhysics) -> void:
+	_reset_common(ship)
 	# Hülle laut Nutzer: 0,25 m³, L/D 6, Octax mit Nähten 86 g
 	var h := GertlerHull.new()
 	h.length_to_diameter = 6.0

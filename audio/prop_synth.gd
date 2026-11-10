@@ -1,3 +1,4 @@
+# 2026-11-11 16:35 – Bus „Motoren“ (Lautstärke/aus unter Einstellungen)
 # 2026-11-11 10:30 – Klang-Sicherung: drei Stufen (static level: 2 Fein = je Motor, 1 Mittel = ein gemeinsamer Klang für alle Motoren, 0 Einfach = Schleife); Aussetzer und Rechenzeit werden an SoundGuard gemeldet, der stufenweise herunterschaltet
 # 2026-11-10 17:00 – Erstversion: Propellerklang mit gleitender Tonhöhe – jeder Abtastwert bekommt seine eigene Drehzahl (zwischen zwei Bildern linear übergeblendet), dadurch keine Tonhöhen-Stufen mehr bei schnellem Gasgeben/-wegnehmen; Tabellen statt Sinus-Rechnung (≈ 3 ms Rechenzeit je Sekunde Klang); im Browser automatischer Rückfall auf die Schleife (PropSound), falls die Wiedergabe Aussetzer hat
 # =============================================================================
@@ -75,6 +76,7 @@ func setup_shared(ms: Array[VectorMotor]) -> void:
 
 
 func _ready() -> void:
+	bus = "Motoren"                     # Lautstärke/aus unter Einstellungen (AppSettings)
 	unit_size = 2.0 + motor.prop_diameter_in * 0.4
 	max_db = 3.0
 	attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE

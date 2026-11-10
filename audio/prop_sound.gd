@@ -1,3 +1,4 @@
+# 2026-11-11 16:35 – Bus „Motoren“ (Lautstärke/aus unter Einstellungen)
 # 2026-11-09 14:55 – Schneller Klang als Rückmeldung beim Gasgeben: keine Zusatzglättung mehr (nur noch der Motor-Hochlauf), Nachführung in jedem Bild (am PC oft 120–144/s statt 60/s)
 # 2026-11-09 14:20 – Weichere Übergänge: Drehzahl zweistufig geglättet (je 50 ms, wie Propeller- und Reglerträgheit) und im festen Physiktakt nachgeführt (unabhängig von der Bildrate) – Tonhöhe ändert sich je Schritt nur noch wenig statt in Sprüngen
 # 2026-11-09 14:00 – Feiner: 44,1 kHz statt 22 kHz; Rauschen als eigene, 4 s lange Schleife (vorher wiederholte sich das Rauschen mit der 1-s-Tonschleife – bei hoher Drehzahl mehrmals pro Sekunde hörbar als grobes Muster)
@@ -57,6 +58,7 @@ func setup(m: VectorMotor) -> void:
 
 
 func _ready() -> void:
+	bus = "Motoren"                     # Lautstärke/aus unter Einstellungen (AppSettings)
 	# Größere Propeller sind weiter hörbar
 	unit_size = 2.0 + motor.prop_diameter_in * 0.4
 	max_db = 3.0

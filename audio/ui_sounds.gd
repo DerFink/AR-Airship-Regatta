@@ -1,88 +1,88 @@
+# 2026-11-11 16:30 – Umbau: Werkstatt-Musik (Gitarre, Datei audio/werkstatt_gitarre.ogg, Schleife) mit weichem Ein-/Ausblenden statt Klangteppich; Glockentöne entfernt (Bedientöne aus; ein leiser Klick ist vorbereitet, CLICK_ON)
 # 2026-11-09 13:50 – Ohne Ton (im Flug fast immer) Stille in einem Aufruf statt Abtastwert für Abtastwert – entlastet besonders die Browser-Version
 # 2026-10-27 11:08 – Erstversion: ruhige Klänge für den Baukasten (sanfte Glockentöne bei Aktionen, sehr leiser Klangteppich), prozedural erzeugt; im Flug still
 # =============================================================================
 # UISounds.gd
 # -----------------------------------------------------------------------------
-# Ruhige Töne für den Baukasten – ebenfalls ohne Sounddateien:
-#   chime(kind)   sanfter Glockenton (Sinus mit langem Ausklang) aus einer
-#                 Pentatonik, damit jede Tonfolge harmonisch klingt
-#   set_pad(on)   sehr leiser, langsam atmender Klangteppich (Quinte C–G),
-#                 nur solange der Baukasten offen ist
-# Im Flugmodus bleibt alles still – dort hört man nur die Motoren.
-# Lautstärken stehen oben als Konstanten und lassen sich leicht anpassen.
+#   set_music(on)  Werkstatt-Musik ein-/ausblenden (Bus „Musik“). An auf
+#                  Startseite, Modell & Bau, Baukasten, Grundlagen; im Flug aus.
+#   chime(kind)    leiser Bedienklick (Bus „Klick“), Name bleibt für die
+#                  vorhandenen Signale; kind wird nicht mehr unterschieden
+#   set_pad(on)    alter Name für set_music (Baukasten)
 # =============================================================================
 class_name UISounds
-extends AudioStreamPlayer
+extends Node
 
-const SAMPLE_RATE := 22050.0
-const CHIME_VOLUME := 0.18
-const PAD_VOLUME := 0.035
-## Pentatonik (C-Dur): klingt in jeder Reihenfolge ruhig
-const NOTES := {
-	"add": 659.3,      # e''  Bauteil hinzugefügt
-	"select": 523.3,   # c''  Auswahl
-	"remove": 392.0,   # g'   entfernt
-	"ok": 784.0,       # g''  gespeichert / geladen
-	"warn": 440.0,     # a'   Hinweis (z. B. instabil)
-}
+const MUSIC := "res://audio/werkstatt_gitarre.ogg"
+const MUSIC_DB := -6.0             ## Grundlautstärke der Musik (Feinregelung über den Bus)
+const FADE_S := 1.5                ## Ein-/Ausblendzeit
+const CLICK_GAP := 0.25            ## Mindestabstand zwischen zwei Klicks (s)
+## Bedientöne ganz aus (Glockentöne entfernt, Klick nur bei Bedarf wieder einschalten)
+const CLICK_ON := false
 
-var _playback: AudioStreamGeneratorPlayback
-var _voices: Array = []            ## [Frequenz, Phase, Amplitude]
-var _pad_on := false
-var _pad_gain := 0.0
-var _pad_ph := [0.0, 0.0]
-var _lfo := 0.0
+var _music := AudioStreamPlayer.new()
+var _click := AudioStreamPlayer.new()
+var _want := false                 ## Musik soll laufen
+var _gain := 0.0                   ## aktuelle Blende 0…1
+var _last_click := -10.0
 
 
 func _ready() -> void:
-	var gen := AudioStreamGenerator.new()
-	gen.mix_rate = SAMPLE_RATE
-	gen.buffer_length = 0.1
-	stream = gen
-	play()
-	_playback = get_stream_playback() as AudioStreamGeneratorPlayback
+	AppSettings.load_all()
+	var st = load(MUSIC)
+	if st is AudioStreamOggVorbis:
+		(st as AudioStreamOggVorbis).loop = true
+	_music.stream = st
+	_music.bus = "Musik"
+	_music.volume_db = -80.0
+	add_child(_music)
+	_click.stream = _make_click()
+	_click.bus = "Klick"
+	_click.volume_db = -22.0
+	add_child(_click)
 
 
-func chime(kind: String) -> void:
-	var f: float = NOTES.get(kind, 523.3)
-	_voices.append([f, 0.0, CHIME_VOLUME])
-	if _voices.size() > 6:
-		_voices.pop_front()
+func set_music(on: bool) -> void:
+	_want = on
+	if on and not _music.playing and _music.stream:
+		_music.play()
 
 
 func set_pad(on: bool) -> void:
-	_pad_on = on
+	set_music(on)
 
 
-func _process(_dt: float) -> void:
-	if _playback == null:
+func chime(_kind: String = "") -> void:
+	if not CLICK_ON:
+		return                                       # Bedientöne aus (Wunsch Nutzer 10.11.2026)
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_click < CLICK_GAP:
 		return
-	var frames := _playback.get_frames_available()
-	if frames <= 0:
-		return
-	# Nichts zu hören (keine Glocke, kein Klangteppich): Stille in einem Stück
-	# nachschieben – die Schleife unten kostet im Browser spürbar Rechenzeit
-	if _voices.is_empty() and not _pad_on and _pad_gain <= 0.0001:
-		var silence := PackedVector2Array()
-		silence.resize(frames)
-		_playback.push_buffer(silence)
-		return
-	var decay := exp(-1.0 / (SAMPLE_RATE * 0.55))     # ca. 0,55 s Ausklang
-	for i in frames:
-		var s := 0.0
-		for v in _voices:
-			v[1] = fposmod(v[1] + v[0] / SAMPLE_RATE, 1.0)
-			# Grundton + leiser Oberton wie bei einer weichen Glocke
-			s += v[2] * (sin(TAU * v[1]) + 0.2 * sin(2.0 * TAU * v[1]))
-			v[2] *= decay
-		# Klangteppich weich ein-/ausblenden
-		_pad_gain = move_toward(_pad_gain, PAD_VOLUME if _pad_on else 0.0, 1.0 / (SAMPLE_RATE * 2.0))
-		if _pad_gain > 0.0001:
-			_lfo = fposmod(_lfo + 0.08 / SAMPLE_RATE, 1.0)
-			_pad_ph[0] = fposmod(_pad_ph[0] + 130.81 / SAMPLE_RATE, 1.0)
-			_pad_ph[1] = fposmod(_pad_ph[1] + 196.0 / SAMPLE_RATE, 1.0)
-			var breath := 0.7 + 0.3 * sin(TAU * _lfo)
-			s += _pad_gain * breath * (sin(TAU * _pad_ph[0]) + 0.7 * sin(TAU * _pad_ph[1]))
-		_playback.push_frame(Vector2(s, s))
-	# Verklungene Stimmen entfernen
-	_voices = _voices.filter(func(v): return v[2] > 0.0005)
+	_last_click = now
+	_click.play()
+
+
+func _process(dt: float) -> void:
+	_gain = move_toward(_gain, 1.0 if _want else 0.0, dt / FADE_S)
+	_music.volume_db = MUSIC_DB + linear_to_db(maxf(_gain, 0.0001))
+	if _gain <= 0.0 and _music.playing and not _want:
+		_music.stop()                              # ganz aus: nichts mehr abspielen
+
+
+## Kurzer, weicher Holzklick (12 ms, gedämpfter Sinus mit etwas Rauschen).
+static func _make_click() -> AudioStreamWAV:
+	var sr := 22050
+	var n := int(sr * 0.03)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	for i in n:
+		var t := float(i) / sr
+		var v := (sin(TAU * 1300.0 * t) * 0.7 + rng.randf_range(-1, 1) * 0.15) * exp(-t * 260.0) * minf(1.0, t / 0.0015)
+		data.encode_s16(i * 2, int(clampf(v, -1, 1) * 30000))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = sr
+	w.data = data
+	return w
