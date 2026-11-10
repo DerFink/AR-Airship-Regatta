@@ -1,3 +1,4 @@
+<!-- 2026-11-10 13:30 – Stand .ino Beta 1.4: Mode-3-Erweiterungen übertragen, Mode 2 unverändert -->
 <!-- 2026-11-09 14:45 – Punkt 5 Nick-Schutz ergänzt -->
 <!-- 2026-11-08 20:30 – Erstversion: Stand Regler und Simulator-Modell von Chewie als Prompt -->
 # Chewie – Stand Regler und Simulator-Modell (08.11.2026)
@@ -17,6 +18,21 @@ die erste Zeile jeder geänderten Datei einen Kommentar mit Zeitstempel und kurz
 Liste der Änderungen, und kommentiere den Code so, dass klar ist, wofür jeder
 Abschnitt zuständig ist. Gas wird nie vom Regler verändert (Pilot muss bei Gefahr
 sofort abschalten können), kein Differenzschub.
+
+## 0. Stand 10.11.2026: Teensy-Code Beta 1.4
+
+Datei Chewie_SBUS_dRehmFlight_Teensy_BETA_1_4_20261110.ino. **Mode 1 und Mode 2 unverändert** (im Chewie
+erprobter Stand). **Mode 3** enthält den Simulator-Stand 0.13.4:
+- Gier als PID-Drehratenregler, immer aktiv (Mitte = Sollrate 0): Kp_yaw_m3 1,8, Ki_yaw_m3 0,8,
+  Kd_yaw_m3 0,03 auf die gemessene Drehbeschleunigung (20-ms-Tiefpass), I-Grenze 30, Integrator 0 bei
+  Motoren aus. MODE3_YAW_LOOP_FADE entfällt.
+- MODE3_YAW_RATE_MAX_DPS 110 (vorher 180), Expo 0,3 auf dem Seitenknüppel (nur Mode 3).
+- Höhenknüppel losgelassen → Sollwinkel sofort 0 (MODE3_PITCH_RETURN_INSTANT).
+- Vorlauf-Grenze nur bei bewegtem Höhenknüppel, danach ±30°.
+- Nick-Schutz (MODE3_PITCH_PROTECT_BAND 10°), nur Mode 3.
+- Gier-Schwenk der Motoren ab 22 % Schub × (0,22 / Schub)² (MODE3_YAW_SWIVEL_FULL_LEVER), nur Mode 3.
+Vor dem Erstflug: Bodentest YAW_RATE_SIGN, Mode 3 zuerst mit wenig Gas. Im Simulator gelten Nick-Schutz,
+Expo und Schwenk-Rücknahme zusätzlich auch in Mode 2 (Simulator-Erweiterung).
 
 ## 1. Chewie (Modell im Simulator)
 
