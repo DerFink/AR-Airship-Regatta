@@ -1,3 +1,4 @@
+# 2026-11-11 15:00 – meta(): Angaben auch für Modelle aus der Sammlung (Angabenzeile in models/sammlung.txt)
 # 2026-11-10 23:35 – Elektronik ohne Teensy 20 g + Teensy 10 g (Summe wie bisher 30 g); Akku 4S 300 mAh, 38 g (ANNAHME, bitte nachwiegen); keine Nutzlast; Turm entfällt
 # 2026-11-10 20:30 – META: Autor, Team und Kurzbeschreibung je Modell (für Modell & Bau)
 # 2026-11-08 20:30 – Chewie: Gesamtmasse 260 g (≈ 1 % schwerer als der Auftrieb)
@@ -48,7 +49,13 @@ const META := {
 
 ## Angaben (Autor, Team, Beschreibung) zu einem Modellnamen; unbekannt → leer.
 static func meta(name: String) -> Dictionary:
-	return META.get(name, {"author": "", "team": "", "desc": ""})
+	if META.has(name):
+		return META[name]
+	# Sammlung/Eigene: Anzeigename „Name (Quelle)“ oder nur der Modellname
+	for e in ModelLibrary.entries():
+		if name == "%s (%s)" % [e.name, e.source] or name == e.name:
+			return e.meta
+	return {"author": "", "team": "", "desc": ""}
 
 
 static func list() -> Array[Dictionary]:

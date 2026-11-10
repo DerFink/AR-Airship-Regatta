@@ -1,3 +1,4 @@
+# 2026-11-11 15:10 – Hinweis: Autor, Team und Beschreibung mitschicken (Angabenzeile in der Sammlung)
 # 2026-10-28 00:15 – Import meldet model_applied (PID-Vorgaben übernehmen)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
 # 2026-10-27 11:08 – Erstversion: Teilen-Dialog nach freigegebenem Entwurf – Modell-String anzeigen/kopieren, eingefügten String prüfen und laden, eigenes Modell speichern, Hinweis aufs separat zu schickende Logo
@@ -90,7 +91,7 @@ func _ready() -> void:
 	_logo_hint = UITheme.make_label("")
 	_logo_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rcol.add_child(_logo_hint)
-	var admin := UITheme.make_label("Für die Sammlung: String an den Admin schicken. Er fügt ihn als Zeile in models/sammlung.txt ein, das Logo kommt nach models/logos/.", "MutedLabel")
+	var admin := UITheme.make_label("Für die Sammlung: String an den Admin schicken, gern mit Autor, Team und einem Satz Beschreibung. Er fügt ihn als Zeile in models/sammlung.txt ein (Angaben als Zeile „# Autor: … | Team: … | Beschreibung: …“ darüber), das Logo kommt nach models/logos/.", "MutedLabel")
 	admin.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rcol.add_child(admin)
 	var spacer := Control.new()
