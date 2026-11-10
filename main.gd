@@ -1,3 +1,4 @@
+# 2026-11-10 17:00 – Propellerklang: PropSynth (gleitende Tonhöhe) statt PropSound-Schleife; Rückfall auf die Schleife macht PropSynth selbst
 # 2026-11-10 14:10 – Boden 3 × 3 km (Wiese mit 500 m Pylonabstand); Akku-Modell (4S 300 mAh), wird bei „Zurücksetzen“ voll geladen; Location aus der Flugansicht
 # 2026-11-09 10:20 – Reglerwahl Teensy/Sim-optimiert aus der Flugansicht; Modellwechsel behält „Sim-optimiert“
 # 2026-11-09 10:00 – Demo-Flug (DemoPilot) verdrahtet; Zurücksetzen beendet die Demo
@@ -23,7 +24,7 @@
 # Baut die komplette App per Code auf, damit alles an einem Ort nachvollziehbar
 # ist:
 #   Welt ─ Himmel, Licht, Boden, Pylone
-#   Luftschiff (AirshipPhysics) ─ AirshipVisual, FlightController, PropSound je Motor
+#   Luftschiff (AirshipPhysics) ─ AirshipVisual, FlightController, PropSynth je Motor (Rückfall PropSound)
 #   PerformanceWatchdog, ARToggle, UISounds
 #   CanvasLayer ─ UI-Wurzel (Theme) ─ FlightHUD | BuilderPanel | PIDPanel | SharePanel
 # =============================================================================
@@ -58,7 +59,7 @@ var ui_sounds: UISounds
 var view := View.FLY
 var _world_env: WorldEnvironment
 var _scenery: Node3D
-var _prop_sounds: Array[PropSound] = []
+var _prop_sounds: Array[PropSynth] = []
 
 # --- Baukasten-Ansicht: Modell drehen und zoomen ----------------------------
 var _orbit_yaw := 0.0            ## Drehung um die Hochachse (rad), 0 = von der Seite
@@ -172,7 +173,7 @@ func _rebuild_prop_sounds() -> void:
 		for p in _prop_sounds: p.queue_free()
 		_prop_sounds.clear()
 		for m in ship.motors:
-			var p := PropSound.new()
+			var p := PropSynth.new()                     # gleitende Tonhöhe, fällt bei Aussetzern selbst auf PropSound zurück
 			p.setup(m)
 			ship.add_child(p)
 			_prop_sounds.append(p)
