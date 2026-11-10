@@ -1,3 +1,4 @@
+# 2026-11-11 16:00 – Acht als statische Funktion figure_eight() (auch für die Bodenspur)
 # 2026-11-10 21:30 – Umbenannt zu Autopilot (ersetzt den Demo-Flug): fliegt live die aktuelle Strecke mit dem aktuellen Modell und den aktuellen Reglerwerten; kann scheitern (Akku leer, Bahn verloren) und meldet das per Signal failed
 # 2026-11-09 17:00 – Demo fliegt mit den echten Reglerwerten (Teensy-Werkseinstellung, Mode 3), Flugweise dafür neu optimiert (12,3 s)
 # 2026-11-09 14:00 – Robuste Bestrunde Mode 3 (Böen und Knüppelverzögerung mitgerechnet)
@@ -136,6 +137,12 @@ func _physics_process(dt: float) -> void:
 
 ## Sollbahn: Acht aus Kreisen um beide Pylone mit tangentialen Diagonalen
 func _make_path(dist: float) -> Array:
+	return figure_eight(dist)
+
+
+## Die Acht als Punktliste (auch für die Spur auf dem Hallenboden, CourseTrack).
+## Je Punkt: [Vector2(x, z), im Bogen?, Weg bis Bogen, Weg seit Bogen].
+static func figure_eight(dist: float) -> Array:
 	var R1: float = FLY.R1
 	var R2: float = FLY.R2
 	var pts: Array = []
