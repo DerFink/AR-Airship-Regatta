@@ -1,3 +1,4 @@
+# 2026-11-10 14:10 – Boden 3 × 3 km (Wiese mit 500 m Pylonabstand); Akku-Modell (4S 300 mAh), wird bei „Zurücksetzen“ voll geladen; Location aus der Flugansicht
 # 2026-11-09 10:20 – Reglerwahl Teensy/Sim-optimiert aus der Flugansicht; Modellwechsel behält „Sim-optimiert“
 # 2026-11-09 10:00 – Demo-Flug (DemoPilot) verdrahtet; Zurücksetzen beendet die Demo
 # 2026-11-08 17:40 – Bestenliste mit dem Sender: SH bestätigt/schließt das Fenster, rechter Knüppel wählt
@@ -50,6 +51,7 @@ var pid: PIDPanel
 var share: SharePanel
 var course: Course
 var demo: DemoPilot                  ## Demo-Flug (Autopilot)
+var battery: Battery                 ## Akku-Modell (Spannung, Ladezustand, Schubabfall)
 var course_panel: CoursePanel
 var leader_panel: LeaderboardPanel
 var ui_sounds: UISounds
@@ -97,13 +99,13 @@ func _build_world() -> void:
 	var ground := StaticBody3D.new()
 	var gs := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(400, 1, 400)
+	box.size = Vector3(3000, 1, 3000)                  # groß genug für die Wiese (bis 500 m Pylonabstand)
 	gs.shape = box
 	gs.position.y = -0.5
 	ground.add_child(gs)
 	var gm := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(400, 400)
+	plane.size = Vector2(3000, 3000)
 	gm.mesh = plane
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color("5f7d4f")
@@ -134,6 +136,12 @@ func _build_ship() -> void:
 	add_child(ship)
 	ship.config_changed.connect(_rebuild_prop_sounds)
 	_rebuild_prop_sounds()
+
+	# Akku-Modell: rechnet vor dem Luftschiff und gibt den Schubfaktor an die Motoren
+	battery = Battery.new()
+	battery.name = "Battery"
+	battery.ship = ship
+	add_child(battery)
 
 	watchdog = PerformanceWatchdog.new()
 	watchdog.airship = ship
@@ -186,7 +194,14 @@ func _build_ui() -> void:
 
 	hud = FlightHUD.new()
 	hud.setup(fc, ship)
+	hud.course = course
+	hud.battery = battery
 	root.add_child(hud)
+	# Location aus der Flugansicht: Strecke umbauen, Schiff an den Start
+	hud.location_requested.connect(func(i: int):
+		course.set_location(i)
+		reset_ship()
+		hud.show_notice("Location: %s · Pylonabstand %d m" % [Course.LOCATION_NAMES[i], roundi(course.distance())], "info", 2.5))
 	builder = BuilderPanel.new()
 	builder.setup(ship, visual)
 	root.add_child(builder)
@@ -197,7 +212,7 @@ func _build_ui() -> void:
 	share.setup(ship)
 	root.add_child(share)
 	course_panel = CoursePanel.new()
-	course_panel.setup(course)
+	course_panel.setup(course, battery)
 	root.add_child(course_panel)
 	leader_panel = LeaderboardPanel.new()
 	leader_panel.setup(course, ship)
@@ -279,6 +294,8 @@ func reset_ship() -> void:
 	ship.reset_to(course.start_transform(ship))
 	fc._reset_integrators()
 	course.reset_race()
+	if battery:
+		battery.recharge()                            # neuer Start = voller Akku
 	hud.show_notice("Zurückgesetzt", "info", 1.5)
 
 

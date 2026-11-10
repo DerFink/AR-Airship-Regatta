@@ -1,3 +1,4 @@
+# 2026-11-10 14:35 – Strecke: Abstand jetzt per course.set_distance (Zahlenfeld statt Schieberegler)
 # 2026-11-07 23:30 – Reglerwert heißt jetzt wie im Teensy-Code (Kp)
 # 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 (Geregelt, Luftschiff, Gedämpft entfallen)
 # 2026-10-29 03:38 – Zurücksetzen aller Einstellungen geprüft
@@ -65,7 +66,7 @@ func _process(_dt: float) -> bool:
 			pass
 		423:
 			main._set_view(main.View.COURSE)
-			main.course_panel._on_distance(30.0)
+			main.course.set_distance(30.0); main.course_panel.course_changed.emit()
 			print("Strecke frei: %s, Start x=%.1f, Rennanzeige: %s" % [main.course.title(), main.course.start_transform(main.ship).origin.x, main.hud._pill_race.text])
 			main.course.set_course(0, 30.0)
 			main.course.lap_times = PackedFloat32Array([20.0, 21.0, 22.0]); main.course.time_s = 63.0

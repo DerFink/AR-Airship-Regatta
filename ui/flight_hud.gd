@@ -1,3 +1,4 @@
+# 2026-11-10 14:20 – Knöpfe „Halle | Wiese“ (Location) in der Knopfreihe; Akku-Anzeige links unter den Rundenzeiten (Spannung, Ladezustand, Strom, Restzeit)
 # 2026-11-09 14:20 – Fenster „Sender kalibrieren“ (aus dem Menü); solange offen: Motoren aus, Knüppel wirken nicht
 # 2026-11-09 10:20 – Neben dem Modusschalter: Reglerwahl „Teensy | Sim-optimiert“ und Knopf „Demo“ (während der Demo „Demo stoppen“)
 # 2026-11-09 10:00 – Demo-Flug: Menüeintrag, Knüppel werden während der Demo nicht an den Regler gegeben
@@ -42,6 +43,8 @@ signal course_requested
 signal model_requested
 signal leaderboard_requested
 signal demo_requested
+## Location gewählt: 0 = Halle, 1 = Wiese (main.gd baut die Strecke um)
+signal location_requested(index: int)
 ## Reglerwahl: "teensy" oder "sim" (main.gd setzt die Werte)
 signal preset_requested(name: String)
 ## true, solange der Demo-Flug läuft: dann steuert der Autopilot, nicht die Knüppel
@@ -62,6 +65,15 @@ var _btn_arm: Button
 var _preset_btns := {}                    ## "teensy"/"sim" → Button
 var _btn_demo: Button
 var _calib: CalibrationPanel              ## Fenster „Sender kalibrieren“
+var _loc_btns: Array = []                 ## Knöpfe „Halle“, „Wiese“
+## Von main.gd gesetzt: Strecke (für die Location-Anzeige) und Akku-Modell
+var course: Course
+var battery: Battery
+var _batt_box: PanelContainer             ## Akku-Anzeige (dunkle Kachel, auf hellem Grund lesbar)
+var _batt_top: Label
+var _batt_bar_bg: ColorRect
+var _batt_bar: ColorRect
+var _batt_bottom: Label
 var _banner: PanelContainer
 var _banner_timer := 0.0
 var _tl: HBoxContainer
@@ -133,6 +145,41 @@ func _ready() -> void:
 		else:
 			demo_requested.emit())
 	_mode_box.add_child(_btn_demo)
+
+	# --- Location: Halle oder Wiese (gleich daneben) ---
+	var gap3 := Control.new()
+	gap3.custom_minimum_size.x = UITheme.space("md")
+	_mode_box.add_child(gap3)
+	var lgrp := UITheme.make_toggle_group()
+	for li in Course.LOCATION_NAMES.size():
+		var lb := UITheme.make_pill(Course.LOCATION_NAMES[li], true)
+		lb.toggle_mode = true
+		lb.button_group = lgrp
+		var idx := li
+		lb.pressed.connect(func(): location_requested.emit(idx))
+		_mode_box.add_child(lb)
+		_loc_btns.append(lb)
+
+	# --- Akku-Anzeige (links unter den Rundenzeiten) ---
+	_batt_box = PanelContainer.new()
+	_batt_box.add_theme_stylebox_override("panel", UITheme.box(Color(0.08, 0.11, 0.15, 0.82), Color(0, 0, 0, 0), -1, UITheme.space("sm")))
+	_batt_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bv := UITheme.make_vbox("xs")
+	bv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_batt_box.add_child(bv)
+	_batt_top = UITheme.make_label("Akku")
+	_batt_bar_bg = ColorRect.new()
+	_batt_bar_bg.color = Color(0.2, 0.22, 0.27, 0.85)
+	_batt_bar_bg.custom_minimum_size = Vector2(220, 10)
+	_batt_bar = ColorRect.new()
+	_batt_bar.size = Vector2(220, 10)
+	_batt_bar_bg.add_child(_batt_bar)
+	_batt_bottom = UITheme.make_label("")
+	_batt_bottom.modulate = Color(0.8, 0.85, 0.9)
+	for c in [_batt_top, _batt_bar_bg, _batt_bottom]:
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bv.add_child(c)
+	add_child(_batt_box)
 
 	# --- Oben rechts: nur „Armed“ und „Menü“ (Armen bleibt immer direkt erreichbar) ---
 	_tr = UITheme.make_hbox("xs")
@@ -216,6 +263,8 @@ func _layout() -> void:
 	_tr.position = Vector2(sz.x - _tr.size.x - m, m)
 	_laps.size = _laps.get_combined_minimum_size()
 	_laps.position = Vector2(m, _tl.position.y + _tl.size.y + m * 0.5)
+	_batt_box.size = _batt_box.get_combined_minimum_size()
+	_batt_box.position = Vector2(m, _laps.position.y + _laps.size.y + m * 0.5)
 	# Schalter mittig zwischen Telemetrie und Menüs
 	_mode_box.size = _mode_box.get_combined_minimum_size()
 	var free0 := _tl.position.x + _tl.size.x + m
@@ -243,6 +292,25 @@ func _refresh_stick_captions() -> void:
 	var labels := fc.stick_labels()
 	stick_left.caption = labels[0]
 	stick_right.caption = labels[1]
+
+
+## Akku-Anzeige: oben Zellen und Spannung, Balken = Ladezustand (grün → gelb →
+## rot), unten Prozent, Strom und geschätzte Restflugzeit.
+func _update_battery() -> void:
+	if battery == null:
+		_batt_box.visible = false
+		return
+	_batt_box.visible = true
+	var pct := battery.soc * 100.0
+	_batt_top.text = ("Akku %dS · %.2f V" % [battery.cells, battery.voltage]).replace(".", ",")
+	var w := _batt_bar_bg.custom_minimum_size.x
+	_batt_bar.size = Vector2(w * battery.soc, _batt_bar_bg.custom_minimum_size.y)
+	_batt_bar.color = Color(0.25, 0.75, 0.42) if battery.soc > 0.3 else (Color(0.95, 0.75, 0.2) if battery.soc > 0.1 else Color(0.9, 0.3, 0.25))
+	var rest := battery.remaining_s()
+	var rest_txt := "–" if rest == INF or rest > 5999.0 else "%d:%02d min" % [int(rest) / 60, int(rest) % 60]
+	_batt_bottom.text = ("%d %% · %.1f A · Rest ≈ %s" % [roundi(pct), battery.current, rest_txt]).replace(".", ",")
+	if battery.soc <= 0.0:
+		_batt_bottom.text = "Akku leer"
 
 
 ## Kurzer Hinweis, verschwindet nach `seconds` von selbst.
@@ -296,6 +364,13 @@ func _process(dt: float) -> void:
 			var pon: bool = fc.preset == key
 			if _preset_btns[key].button_pressed != pon:
 				_preset_btns[key].set_pressed_no_signal(pon)
+	# Location-Knöpfe nachziehen
+	if course:
+		for li in _loc_btns.size():
+			var lon: bool = course.location == li
+			if _loc_btns[li].button_pressed != lon:
+				_loc_btns[li].set_pressed_no_signal(lon)
+	_update_battery()
 	var dtxt := "Demo stoppen" if demo_active else "Demo"
 	if _btn_demo.text != dtxt:
 		_btn_demo.text = dtxt

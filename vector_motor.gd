@@ -1,3 +1,4 @@
+# 2026-11-10 14:10 – voltage_factor vom Akku-Modell: Schub × Faktor², Drehzahl (Klang) × Faktor
 # 2026-11-07 21:40 – Erklärung der Achsneigung: +45° = Schub schwenkt tangential (rollt stark), −45° = Schub schwenkt radial (Chewie)
 # 2026-10-27 23:28 – Mischer-Wirkvektor des Schwenks in Neutralstellung (beide Gondeln schwenken symmetrisch, Drehen auf der Stelle)
 # 2026-10-27 16:07 – Gondelmasse mass_kg (mit Schwenkservo); Pigleg-Neigung der Schwenkachse gilt jetzt gegen die Waagrechte (unabhängig vom Einbauwinkel)
@@ -88,6 +89,9 @@ extends Resource
 # --- Laufzeit-Zustand ---------------------------------------------------------
 var throttle_cmd: float = 0.0   ## -1..+1 (bidirektional)
 var swivel_cmd: float = 0.0     ## -1..+1 → ±max_swivel_deg
+## Akkuspannung relativ zum vollen Akku (vom Akku-Modell gesetzt, 1 = voll).
+## Drehzahl ∝ Spannung, Schub ∝ Drehzahl² → Schub × voltage_factor²
+var voltage_factor: float = 1.0
 var armed: bool = false         ## Ohne Armen kein Schub (Failsafe!)
 var _throttle: float = 0.0      ## tatsächliche Drehzahl-Stellung −1..+1
 var _swivel_deg: float = 0.0
@@ -145,7 +149,7 @@ func compute_force(dt: float, v_local := Vector3.ZERO) -> Vector3:
 	var s := -swivel_cmd if invert_swivel else swivel_cmd
 	_swivel_deg = move_toward(_swivel_deg, clampf(s, -1.0, 1.0) * max_swivel_deg, servo_speed_dps * dt)
 	var d := current_direction()
-	return d * thrust_for(_throttle) * speed_factor(v_local.dot(d))
+	return d * thrust_for(_throttle) * voltage_factor * voltage_factor * speed_factor(v_local.dot(d))
 
 
 ## Schubabfall mit der Fahrt: Ein Propeller "schraubt" sich mit seiner
@@ -195,7 +199,7 @@ func moment_per_newton(cg: Vector3) -> Vector3:
 # --- Für den Sound ------------------------------------------------------------
 ## Aktuelle Drehzahl in U/min (Betrag).
 func rpm() -> float:
-	return absf(_throttle) * max_rpm
+	return absf(_throttle) * max_rpm * voltage_factor
 
 ## Läuft der Propeller gerade rückwärts?
 func is_reversing() -> bool:

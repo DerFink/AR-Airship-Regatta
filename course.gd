@@ -1,3 +1,4 @@
+# 2026-11-10 14:00 – Location „Halle“ / „Wiese“ (Wiese: keine Wände/Decke, Pylonabstand Vorgabe 200 m); Pylonabstand frei 5–500 m; Halle nachgebildet nach Fotos der Windreiter-Halle (Glasdach mit Holzraster, Band mit Horizont-Wandbildern, zwei Galerien mit Geländer, weiße Säulen, Glastüren, dunkler glänzender Boden)
 # 2026-11-09 09:45 – Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke 25 m, halb durchsichtig mit 5-m-Raster, Luftschiff prallt ab
 # 2026-10-29 00:19 – course_key() für die Bestenliste
 # 2026-10-28 15:12 – Start in 1,5 m Höhe
@@ -48,7 +49,9 @@ enum Race { WAIT, RUN, DONE }
 const CUP_NAME := "FN Hugo Eckener Cup"
 const CUP_DISTANCE := 18.0
 const MIN_DISTANCE := 5.0
-const MAX_DISTANCE := 50.0
+const MAX_DISTANCE := 500.0
+const MEADOW_DISTANCE := 200.0   ## Vorgabe Pylonabstand auf der Wiese
+const LOCATION_NAMES := ["Halle", "Wiese"]
 const PYLON_HEIGHT := 5.0
 const FIELD_MARGIN := 3.5        ## Rechteck reicht so weit vor/hinter die Pylone
 const FIELD_WIDTH := 20.0
@@ -69,6 +72,10 @@ const COLOR_GREEN := Color("3fb27f")
 
 ## 0 = FN Hugo Eckener Cup (18 m), 1 = frei einstellbar
 var preset := 0
+## 0 = Halle (Wände und Decke), 1 = Wiese (keine Begrenzung)
+var location := 0
+## Pylonabstand auf der Wiese (eigener Wert, Halle behält ihren)
+var meadow_distance := MEADOW_DISTANCE
 ## Abstand bei „frei“ (m)
 var free_distance := 25.0
 
@@ -95,16 +102,22 @@ func _ready() -> void:
 
 ## Aktueller Pylonabstand in m.
 func distance() -> float:
+	if location == 1:
+		return meadow_distance
 	return CUP_DISTANCE if preset == 0 else free_distance
 
 
 ## Name für die Anzeige.
 ## Schlüssel für die Bestenliste: eigene Liste je Strecke/Abstand.
 func course_key() -> String:
+	if location == 1:
+		return "wiese_%.1f" % meadow_distance            # eigene Bestenliste je Abstand auf der Wiese
 	return "cup" if preset == 0 else "frei_%.1f" % free_distance
 
 
 func title() -> String:
+	if location == 1:
+		return "Wiese %d m" % roundi(meadow_distance)
 	return CUP_NAME if preset == 0 else "Freie Strecke %d m" % roundi(free_distance)
 
 
@@ -146,7 +159,8 @@ func rebuild() -> void:
 		mi.material_override = lm
 		mi.position = st[0]
 		add_child(mi)
-	_build_hall(x0 - HALL_GAP, x1 + HALL_GAP, hw + HALL_GAP)
+	if location == 0:
+		_build_hall(x0 - HALL_GAP, x1 + HALL_GAP, hw + HALL_GAP)   # Wiese: keine Wände, keine Decke
 
 
 # =============================================================================
@@ -182,58 +196,74 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 		cs.shape = sh
 		cs.position = bx[0]
 		hall.add_child(cs)
-	# Sichtbare Flächen: hell, halb durchsichtig, nur innen sichtbar
-	var wm := StandardMaterial3D.new()
-	wm.albedo_color = Color(0.85, 0.88, 0.92, 0.18)
-	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	wm.cull_mode = BaseMaterial3D.CULL_DISABLED
-	wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var faces := [
-		[Vector3(xa, H * 0.5, 0), Vector3(0.02, H, lz)],
-		[Vector3(xb, H * 0.5, 0), Vector3(0.02, H, lz)],
-		[Vector3(cx, H * 0.5, -hz), Vector3(lx, H, 0.02)],
-		[Vector3(cx, H * 0.5, hz), Vector3(lx, H, 0.02)],
-		[Vector3(cx, H, 0), Vector3(lx, 0.02, lz)],
+	# --- Aussehen wie die Windreiter-Halle (Fotos 10.11.2026) ---------------------
+	# Wände und Decke sind je eine Fläche mit einem Shader, der das Muster in Metern
+	# zeichnet (Glastüren, Galerien, Säulen, Wandbilder bzw. Glasdach). Das ist
+	# schnell (keine hunderte Einzelteile) und passt sich jeder Hallengröße an.
+	var shader := load("res://hall.gdshader") as Shader
+	# [Mitte, Breite, Drehung um y] der vier Wände; die Vorderseite zeigt nach innen
+	var walls := [
+		[Vector3(cx, H * 0.5, -hz), lx, 0.0],          # hinten (dem Piloten abgewandt)
+		[Vector3(cx, H * 0.5, hz), lx, PI],            # vorn (Pilotenseite)
+		[Vector3(xa, H * 0.5, 0), lz, PI * 0.5],       # Stirnwand links
+		[Vector3(xb, H * 0.5, 0), lz, -PI * 0.5],      # Stirnwand rechts
 	]
-	for fc in faces:
+	for w in walls:
 		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = fc[1]
-		mi.mesh = bm
-		mi.material_override = wm
-		mi.position = fc[0]
+		var q := QuadMesh.new()
+		q.size = Vector2(w[1], H)
+		mi.mesh = q
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("size_m", Vector2(w[1], H))
+		mat.set_shader_parameter("kind", 0)
+		mi.material_override = mat
+		mi.position = w[0]
+		mi.rotation.y = w[2]
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
-	# 5-m-Raster als Linien (eine Linienmesh für alle Flächen)
-	var im := ImmediateMesh.new()
-	im.surface_begin(Mesh.PRIMITIVE_LINES)
-	var step := 5.0
-	var line := func(a: Vector3, b: Vector3): im.surface_add_vertex(a); im.surface_add_vertex(b)
-	var y := 0.0
-	while y <= H + 0.01:                              # waagrechte Linien an allen vier Wänden
-		line.call(Vector3(xa, y, -hz), Vector3(xa, y, hz)); line.call(Vector3(xb, y, -hz), Vector3(xb, y, hz))
-		line.call(Vector3(xa, y, -hz), Vector3(xb, y, -hz)); line.call(Vector3(xa, y, hz), Vector3(xb, y, hz))
-		y += step
-	var x := xa
-	while x <= xb + 0.01:                             # senkrechte Linien an den Längswänden + Decke quer
-		line.call(Vector3(x, 0, -hz), Vector3(x, H, -hz)); line.call(Vector3(x, 0, hz), Vector3(x, H, hz))
-		line.call(Vector3(x, H, -hz), Vector3(x, H, hz))
-		x += step
-	var z := -hz
-	while z <= hz + 0.01:                             # senkrechte Linien an den Stirnwänden + Decke längs
-		line.call(Vector3(xa, 0, z), Vector3(xa, H, z)); line.call(Vector3(xb, 0, z), Vector3(xb, H, z))
-		line.call(Vector3(xa, H, z), Vector3(xb, H, z))
-		z += step
-	im.surface_end()
-	var lmi := MeshInstance3D.new()
-	lmi.mesh = im
-	var lmat := StandardMaterial3D.new()
-	lmat.albedo_color = Color(0.95, 0.97, 1.0, 0.55)
-	lmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lmi.material_override = lmat
-	lmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(lmi)
+	# Decke: Glasdach mit Holzbalken-Raster, Vorderseite nach unten
+	var ceil := MeshInstance3D.new()
+	var cq := QuadMesh.new()
+	cq.size = Vector2(lx, lz)
+	ceil.mesh = cq
+	var cmat := ShaderMaterial.new()
+	cmat.shader = shader
+	cmat.set_shader_parameter("size_m", Vector2(lx, lz))
+	cmat.set_shader_parameter("kind", 1)
+	ceil.material_override = cmat
+	ceil.position = Vector3(cx, H, 0)
+	ceil.rotation.x = PI * 0.5                       # Quad liegt flach, Vorderseite zeigt nach unten
+	ceil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ceil)
+	# Boden: dunkelgrauer, glänzender Steinboden (knapp über der Wiese)
+	var floor_mi := MeshInstance3D.new()
+	var fp := PlaneMesh.new()
+	fp.size = Vector2(lx, lz)
+	floor_mi.mesh = fp
+	var fmat := StandardMaterial3D.new()
+	fmat.albedo_color = Color(0.13, 0.15, 0.17)
+	fmat.roughness = 0.35
+	fmat.metallic_specular = 0.35
+	floor_mi.material_override = fmat
+	floor_mi.position = Vector3(cx, 0.004, 0)
+	add_child(floor_mi)
+	# Säulen: weiße Vierkantpfeiler an den Längswänden (alle 8 m), nur Optik
+	var col_mat := StandardMaterial3D.new()
+	col_mat.albedo_color = Color(0.95, 0.95, 0.94)
+	col_mat.roughness = 0.7
+	var col_mesh := BoxMesh.new()
+	col_mesh.size = Vector3(0.8, 17.0, 0.8)
+	var px := xa + 4.0
+	while px < xb - 2.0:
+		for zz in [-hz + 0.4, hz - 0.4]:
+			var c := MeshInstance3D.new()
+			c.mesh = col_mesh
+			c.material_override = col_mat
+			c.position = Vector3(px, 8.5, zz)
+			c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(c)
+		px += 8.0
 
 
 ## Startlage des Schiffs: Bug 1 m hinter der Linie des vorderen Pylons,
@@ -361,10 +391,30 @@ func set_course(new_preset: int, new_free_distance: float) -> void:
 	rebuild()
 
 
+## Location wechseln (0 = Halle, 1 = Wiese).
+func set_location(new_location: int) -> void:
+	location = clampi(new_location, 0, 1)
+	save_settings()
+	rebuild()
+
+
+## Pylonabstand eintragen (Zahlenfeld im Menü „Strecke“): auf der Wiese der
+## Wiesen-Abstand, in der Halle der freie Abstand (schaltet auf „Frei“).
+func set_distance(d: float) -> void:
+	if location == 1:
+		meadow_distance = clampf(d, MIN_DISTANCE, MAX_DISTANCE)
+		save_settings()
+		rebuild()
+	else:
+		set_course(1, d)
+
+
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("strecke", "preset", preset)
 	cfg.set_value("strecke", "frei_abstand", free_distance)
+	cfg.set_value("strecke", "location", location)
+	cfg.set_value("strecke", "wiese_abstand", meadow_distance)
 	cfg.save(SETTINGS_PATH)
 
 
@@ -374,3 +424,5 @@ func load_settings() -> void:
 		return
 	preset = clampi(int(cfg.get_value("strecke", "preset", preset)), 0, 1)
 	free_distance = clampf(float(cfg.get_value("strecke", "frei_abstand", free_distance)), MIN_DISTANCE, MAX_DISTANCE)
+	location = clampi(int(cfg.get_value("strecke", "location", location)), 0, 1)
+	meadow_distance = clampf(float(cfg.get_value("strecke", "wiese_abstand", meadow_distance)), MIN_DISTANCE, MAX_DISTANCE)
