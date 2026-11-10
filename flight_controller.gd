@@ -1,3 +1,4 @@
+# 2026-11-11 10:00 – Modell-Regler aus dem Modell-String (gen = Mischer/Vorsteuerung) übernehmen; Stick-Mode bleibt beim Piloten
 # 2026-11-10 23:45 – Ohne eingebauten Teensy (Baukasten) gilt immer „Direkt“
 # 2026-11-10 11:45 – Mode 3: maximale Gierrate 110 °/s statt 180 °/s (Wunsch Nutzer); gespeicherte 180 werden beim Laden auf 110 umgestellt
 # 2026-11-09 16:00 – SIM_OPT neu für Mode 3 mit Gier-PID
@@ -635,11 +636,13 @@ func apply_model_gains(gains: Dictionary) -> void:
 			for term in g:
 				if params[a].has(term):
 					params[a][term] = float(g[term])
-	var mx = gains.get("mix")
-	if mx is Dictionary:
-		for k in mx:
-			if k in GENERAL_KEYS:
-				set(k, float(mx[k]))
+	# Mischer/Vorsteuerung: "gen" (Modell-String ab 11.11.2026) oder "mix" (Presets)
+	for key in ["mix", "gen"]:
+		var mx = gains.get(key)
+		if mx is Dictionary:
+			for k in mx:
+				if k in GENERAL_KEYS and k != "stick_mode":
+					set(k, float(mx[k]))
 	_reset_integrators()
 	save_settings()
 

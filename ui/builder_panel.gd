@@ -1,3 +1,6 @@
+# 2026-11-11 12:00 – Flight Controller: Bausteine an/aus, Signalfluss-Bild, Export als Teensy-Sketch (.ino, dRehmFlight)
+# 2026-11-11 11:00 – Antrieb: Schubrichtung als Vektor (x vorn, y rechts, z unten), im Paar gespiegelt
+# 2026-11-11 10:10 – Eigene Massen: je Leitwerksflosse, je Canard, Flugcontroller; Ausschlag bis 80°
 # 2026-11-11 01:35 – Reiter Hülle · Leitwerk · Antrieb · Flight Controller · Optik; Flight Controller: Teensy an/aus und Regler (PID) einstellen; Optik: Material und Farbe von Hülle und Leitwerk getrennt
 # 2026-11-11 00:40 – Turm entfernt (als Canard bauen); Schwere in % des Auftriebs (0 % = aerostatisch ausgeglichen); Nutzlast (Masse, Lage, Winkel); Antrieb: Teensy (+10 g) und Akku (Zellen, Kapazität, Masse); Motorpaare bleiben symmetrisch zur Längsachse; Paar wird gemeinsam entfernt
 # 2026-11-07 21:40 – Achsneigung der Schwenkmotoren −60…60° (negativ = Schub schwenkt radial wie bei Chewie)
@@ -55,6 +58,9 @@ var _view_btn: Button
 var _preview: TailPreview
 var _hull_rows := {}
 var _teensy_check: CheckBox       ## Teensy-Flugcontroller eingebaut
+var _flow_win: PanelContainer     ## Fenster Signalfluss
+var _flow: FlowDiagram
+var _ino_info: Label              ## Ergebnis des .ino-Exports
 var _cells_row: Control           ## Akku-Zellen (Stepper)
 var _ballast_auto: CheckBox        ## Restmasse automatisch austrimmen
 var _mass_info: Label              ## Anzeige Akku + Ballast / Übergewicht
@@ -342,8 +348,11 @@ func _fill_tail_page() -> void:
 		func(v): t.taper = v; _tail_changed(false), "%.2f"))
 	_tail_box.add_child(UITheme.make_slider_row("Position am Heck", 0.5, 1.0, 0.01, t.hull_x,
 		func(v): t.hull_x = v; _tail_changed(false), "%.2f"))
-	_tail_box.add_child(UITheme.make_slider_row("Ausschlag max", 0.0, 45.0, 1.0, t.max_deflection_deg,
+	_tail_box.add_child(UITheme.make_slider_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
 		func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
+	# Eigene Masse je Flosse (mit Servo) – sitzt im Flächenschwerpunkt der Flosse
+	_tail_box.add_child(UITheme.make_slider_row("Masse je Flosse (mit Servo)", 0.0, 200.0, 1.0, ship.fin_mass_kg * 1000.0,
+		func(v): ship.fin_mass_kg = v / 1000.0; _changed(), "%d g"))
 	# Elastisches Leitwerk für beide Bauarten schaltbar (aus = starre Flossen)
 	var flex := CheckBox.new()
 	flex.text = "Elastisches Leitwerk (Pseudo-Flex) – aus = starr"
@@ -402,6 +411,8 @@ func _edit_canard(i: int) -> void:
 		func(v): s.hull_angle_deg = v; _changed(), "%d°"))
 	_canard_editor.add_child(UITheme.make_slider_row("Fläche", 20.0, 2000.0, 1.0, s.area_m2 * 1e4,
 		func(v): s.area_m2 = v / 1e4; _changed(), "%d cm²"))
+	_canard_editor.add_child(UITheme.make_slider_row("Masse (mit Servo)", 0.0, 200.0, 1.0, s.mass_kg * 1000.0,
+		func(v): s.mass_kg = v / 1000.0; _changed(), "%d g"))
 	var del := UITheme.make_button("Canard entfernen")
 	del.pressed.connect(func():
 		ship.surfaces.erase(s)
@@ -445,10 +456,13 @@ func _build_drive_page(col: VBoxContainer) -> void:
 func _build_fc_page(col: VBoxContainer) -> void:
 	col.add_child(UITheme.make_title("Flight Controller"))
 	_teensy_check = CheckBox.new()
-	_teensy_check.text = "Teensy-Flugcontroller (+10 g)"
+	_teensy_check.text = "Teensy-Flugcontroller eingebaut"
 	_teensy_check.button_pressed = ship.fc_teensy
 	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _changed())
 	col.add_child(_teensy_check)
+	_hull_rows.tm = UITheme.make_slider_row("Masse Flugcontroller", 0.0, 100.0, 1.0, ship.teensy_mass_kg * 1000.0,
+		func(v): ship.teensy_mass_kg = v / 1000.0; _changed(), "%d g")
+	col.add_child(_hull_rows.tm)
 	var note := UITheme.make_label("Ohne Flugcontroller gibt es nur „Direkt“: Knüppel gehen ohne Regler auf Ruder und Schwenker. Das Gas bleibt immer beim Piloten.", "MutedLabel")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(note)
@@ -456,6 +470,79 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	var b := UITheme.make_button("Regler einstellen")
 	b.pressed.connect(func(): ui_action.emit("select"); pid_requested.emit())
 	col.add_child(b)
+	# --- Bausteine: an/aus; feste Sicherheits-Bausteine sind immer an ---
+	col.add_child(UITheme.make_title("Bausteine"))
+	var fc := ModelCodec._find_fc(ship)
+	for blk in FcBlocks.BLOCKS:
+		var cb := CheckBox.new()
+		cb.text = blk.name + ("  (fest)" if blk.get("fixed", false) else ("  (geplant)" if blk.get("planned", false) else ""))
+		cb.tooltip_text = blk.desc
+		cb.button_pressed = FcBlocks.is_on(blk.id) or blk.get("fixed", false)
+		cb.disabled = blk.get("fixed", false) or blk.get("planned", false) or fc == null
+		var bid: String = blk.id
+		cb.toggled.connect(func(on):
+			FcBlocks.set_on(fc, bid, on)
+			ui_action.emit("select")
+			if _flow: _flow.queue_redraw())
+		col.add_child(cb)
+		var d := UITheme.make_label(blk.desc, "MutedLabel")
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(d)
+	var bf := UITheme.make_button("Signalfluss anzeigen")
+	bf.pressed.connect(_show_flow)
+	col.add_child(bf)
+	# --- Export als Teensy-Sketch (dRehmFlight, Vorlage Chewie BETA 1.4) ---
+	col.add_child(UITheme.make_title("Teensy-Sketch"))
+	var be := UITheme.make_button("Als .ino exportieren")
+	be.pressed.connect(_export_ino)
+	col.add_child(be)
+	_ino_info = UITheme.make_label("", "MutedLabel")
+	_ino_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_ino_info)
+
+
+## Signalflussbild als Fenster über dem Baukasten.
+func _show_flow() -> void:
+	if _flow_win == null:
+		_flow_win = PanelContainer.new()
+		_flow_win.add_theme_stylebox_override("panel", UITheme.box(Color("101720"), Color("2c3746"), -1, 12))
+		var v := UITheme.make_vbox("sm")
+		var head := UITheme.make_hbox("sm")
+		var t := UITheme.make_title("Signalfluss des Reglers")
+		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(t)
+		var close := UITheme.make_button("Schließen")
+		close.pressed.connect(func(): _flow_win.visible = false)
+		head.add_child(close)
+		v.add_child(head)
+		_flow = FlowDiagram.new()
+		_flow.ship = ship
+		_flow.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		v.add_child(_flow)
+		_flow_win.add_child(v)
+		add_child(_flow_win)
+	_flow_win.visible = true
+	_flow_win.position = Vector2(size.x * 0.08, size.y * 0.06)
+	_flow_win.size = Vector2(size.x * 0.84, size.y * 0.88)
+	_flow.queue_redraw()
+
+
+## Reglerwerte als Teensy-Sketch speichern (Browser: Download).
+func _export_ino() -> void:
+	var fc := ModelCodec._find_fc(ship)
+	if fc == null:
+		return
+	var warn := InoExport.check(ship)
+	var r := InoExport.build(fc, ship.model_name)
+	if r.text == "":
+		_ino_info.text = "Vorlage nicht gefunden."
+		return
+	var stamp := Time.get_datetime_string_from_system(false, true).replace(":", "").replace("-", "").replace("T", "_").left(13)
+	var fname := "%s_dRehmFlight_%s.ino" % [ship.model_name.replace(" ", "_").replace("(", "").replace(")", ""), stamp]
+	var where := InoExport.save(r.text, fname)
+	_ino_info.text = "%s\n%d Werte geändert%s%s" % [where, r.changed.size(),
+		("\nNicht gefunden: " + ", ".join(r.missing)) if not r.missing.is_empty() else "", ("\n" + warn) if warn != "" else ""]
+	ui_action.emit("ok")
 
 
 func _add_motor_pair() -> void:
@@ -517,6 +604,20 @@ func _on_part_selected(i: int) -> void:
 		if relayout: _changed()
 	_editor_box.add_child(UITheme.make_slider_row("Masse je Gondel (mit Servo)", 0.0, 300.0, 1.0, mo.mass_kg * 1000.0,
 		func(v): set_all.call("mass_kg", v / 1000.0, true), "%d g"))
+	# Schubrichtung als Vektor (x vorn, y rechts, z unten); der Partner im Paar
+	# bekommt y gespiegelt, damit das Paar symmetrisch bleibt
+	_editor_box.add_child(UITheme.make_label("Schubrichtung (x vorn · y rechts · z unten)", "MutedLabel"))
+	var ud := mo.user_dir()
+	for ci in 3:
+		var comp := ci
+		_editor_box.add_child(UITheme.make_slider_row(["x", "y", "z"][ci], -1.0, 1.0, 0.05, [ud.x, ud.y, ud.z][ci],
+			func(v):
+				var u := mo.user_dir()
+				u[comp] = v
+				mo.set_user_dir(u)
+				for m in pair:
+					if m != mo: m.set_user_dir(Vector3(u.x, -u.y, u.z))
+				_changed(), "%.2f"))
 	_editor_box.add_child(UITheme.make_slider_row("Schub vor", 0.1, 20.0, 0.1, mo.max_thrust_n,
 		func(v): set_all.call("max_thrust_n", v, true), "%.1f N"))
 	var rev := CheckBox.new()
@@ -725,9 +826,9 @@ func _sync_from_ship() -> void:
 		"m": ship.hull.m, "cp": ship.hull.cp, "hm": ship.hull_mass_kg * 1000.0,
 		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x, "tw": _heaviness_pct(),
 		"pl": ship.payload_mass_kg * 1000.0, "px": ship.payload_x, "pa": ship.payload_angle_deg,
-		"bmah": ship.battery_mah, "bm": ship.battery_mass_kg * 1000.0}
+		"bmah": ship.battery_mah, "bm": ship.battery_mass_kg * 1000.0, "tm": ship.teensy_mass_kg * 1000.0}
 	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hm": "%d g", "el": "%d g", "bx": "%.2f",
-		"tw": "%.1f %%", "pl": "%d g", "px": "%.2f", "pa": "%d°", "bmah": "%d mAh", "bm": "%d g"}
+		"tw": "%.1f %%", "pl": "%d g", "px": "%.2f", "pa": "%d°", "bmah": "%d mAh", "bm": "%d g", "tm": "%d g"}
 	_teensy_check.set_pressed_no_signal(ship.fc_teensy)
 	(_cells_row.get_meta("out") as Label).text = str(ship.battery_cells)
 	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)

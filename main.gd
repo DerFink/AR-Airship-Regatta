@@ -1,3 +1,4 @@
+# 2026-11-11 10:40 – Klang-Sicherung (SoundGuard): Klangstufe Fein/Mittel/Einfach, Klangerzeuger werden bei Stufenwechsel neu gebaut
 # 2026-11-11 02:55 – Ladeanzeige (Luftschiff fliegt die Acht) während des Aufbaus; Baukasten: Boxmaß-Ecke, Seitenansicht mittig zwischen den Spalten, Strecke ausgeblendet; Regler-Menü aus dem Baukasten
 # 2026-11-11 00:15 – Bestenliste aus „Modell & Bau“; Akku-Daten aus dem Modell
 # 2026-11-10 22:00 – Neue Ansichten: Startseite (erste Ansicht), „Modell & Bau“ (ModelHub), „Grundlagen des Simulators“ (AboutPanel); Sprache (I18n) beim Start; Autopilot (live, aktuelles Modell/Regler) statt Demo; Kamera-Perspektiven Pilot am Start / Hinterher / Hinterher + Lage; AR-Knopf und Bestenlisten-Menü entfernt
@@ -70,6 +71,8 @@ var _pid_back := View.FLY           ## wohin „Fertig“ im Regler-Menü zurüc
 var _world_env: WorldEnvironment
 var _scenery: Node3D
 var _prop_sounds: Array[PropSynth] = []
+var _sound_level := -1               ## Klangstufe, mit der _prop_sounds gebaut wurden
+var sound_guard: SoundGuard          ## Klang-Sicherung (Fein → Mittel → Einfach)
 var gauge: BoxGauge                  ## Boxmaß-Ecke im Baukasten
 
 # --- Baukasten-Ansicht: Modell drehen und zoomen ----------------------------
@@ -182,6 +185,10 @@ func _build_ship() -> void:
 	watchdog = PerformanceWatchdog.new()
 	watchdog.airship = ship
 	add_child(watchdog)
+	sound_guard = SoundGuard.new()
+	add_child(sound_guard)
+	watchdog.simplified_changed.connect(sound_guard.on_low_fps)
+	sound_guard.level_changed.connect(func(_l): _rebuild_prop_sounds(true))
 
 	ar = ARToggle.new()
 	ar.virtual_environment = _scenery
@@ -199,21 +206,37 @@ func _build_ship() -> void:
 
 ## Ein Klangerzeuger pro Motor, an dessen Position. Neu aufbauen, wenn
 ## Motoren hinzukommen/entfallen; sonst nur die Lage nachführen.
-func _rebuild_prop_sounds() -> void:
-	var same := _prop_sounds.size() == ship.motors.size()
+func _rebuild_prop_sounds(force := false) -> void:
+	# Klangstufe (SoundGuard): Fein = je Motor, Mittel = ein Klang für alle, Einfach = Schleifen
+	var lv := SoundGuard.level_for(ship.motors.size())
+	var shared := lv == 1 and ship.motors.size() > 1
+	var same := not force and lv == _sound_level
 	if same:
-		for i in _prop_sounds.size():
-			same = same and _prop_sounds[i].motor == ship.motors[i]
+		if shared:
+			same = _prop_sounds.size() == 1 and _prop_sounds[0].motors == ship.motors
+		else:
+			same = _prop_sounds.size() == ship.motors.size()
+			for i in mini(_prop_sounds.size(), ship.motors.size()):
+				same = same and _prop_sounds[i].motor == ship.motors[i]
 	if not same:
 		for p in _prop_sounds: p.queue_free()
 		_prop_sounds.clear()
-		for m in ship.motors:
-			var p := PropSynth.new()                     # gleitende Tonhöhe, fällt bei Aussetzern selbst auf PropSound zurück
-			p.setup(m)
+		_sound_level = lv
+		if ship.motors.is_empty():
+			return
+		if shared:
+			var p := PropSynth.new()                     # ein gemeinsamer Klang in der Schiffsmitte
+			p.setup_shared(ship.motors.duplicate())
 			ship.add_child(p)
 			_prop_sounds.append(p)
+		else:
+			for m in ship.motors:
+				var p := PropSynth.new()                 # Fein: gleitende Tonhöhe; Einfach: Schleife
+				p.setup(m)
+				ship.add_child(p)
+				_prop_sounds.append(p)
 	for p in _prop_sounds:
-		p.position = p.motor.position
+		p.position = Vector3.ZERO if p.motors.size() > 1 else p.motor.position
 
 
 # =============================================================================
@@ -319,6 +342,7 @@ func _build_ui() -> void:
 	pid.closed.connect(func(): _set_view(_pid_back); _pid_back = View.FLY)
 	pid.reset_all_requested.connect(reset_all_settings)
 	watchdog.notice.connect(func(t): hud.show_notice(t, "warning"))
+	sound_guard.notice.connect(func(t): hud.show_notice(t, "warning", 3.0))
 	ar.ar_state_changed.connect(func(_on, msg): hud.show_notice(msg, "info", 2.0))
 
 
@@ -385,6 +409,7 @@ func _physics_process(dt: float) -> void:
 func reset_all_settings() -> void:
 	fc.armed = false
 	fc.reset_to_defaults(ship.fc_gains)
+	FcBlocks.clear()                                  # Bausteine wieder alle an (Werte sind jetzt Werkseinstellung)
 	course.set_course(0, 25.0)
 	reset_ship()
 	pid._sync()

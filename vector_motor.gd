@@ -1,3 +1,4 @@
+# 2026-11-11 11:00 – Schubrichtung als Vektor im Nutzer-System (x vorn, y rechts, z unten) lesen/setzen: user_dir() / set_user_dir()
 # 2026-11-10 14:10 – voltage_factor vom Akku-Modell: Schub × Faktor², Drehzahl (Klang) × Faktor
 # 2026-11-07 21:40 – Erklärung der Achsneigung: +45° = Schub schwenkt tangential (rollt stark), −45° = Schub schwenkt radial (Chewie)
 # 2026-10-27 23:28 – Mischer-Wirkvektor des Schwenks in Neutralstellung (beide Gondeln schwenken symmetrisch, Drehen auf der Stelle)
@@ -117,6 +118,20 @@ func place_on_hull(hull: GertlerHull) -> void:
 	var horiz := Vector3(side, 0.0, 0.0)
 	swivel_axis = horiz.rotated(Vector3(0, 0, 1), -side * deg_to_rad(swivel_tilt_deg)).normalized()
 	invert_swivel = side < 0.0
+
+
+## Schubrichtung im Nutzer-System wie in der Luftfahrt: x nach vorn, y nach
+## rechts, z nach unten (Chewie: 1, 0, 0). Körpersystem intern: −Z vorn,
+## +X rechts, +Y oben → Körper = (y, −z, −x).
+func user_dir() -> Vector3:
+	var d := thrust_direction
+	return Vector3(-d.z, d.x, -d.y)
+
+
+func set_user_dir(u: Vector3) -> void:
+	if u.length() < 1e-4:
+		u = Vector3(1, 0, 0)
+	thrust_direction = Vector3(u.y, -u.z, -u.x).normalized()
 
 
 ## Aktuelle Schubrichtung (nach Schwenk) im Körpersystem.

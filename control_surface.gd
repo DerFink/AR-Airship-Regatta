@@ -1,3 +1,4 @@
+# 2026-11-11 10:05 – Eigene Masse je Fläche (mass_kg, für Canards)
 # 2026-11-07 23:55 – Flossen an der Hülle: wirksame Streckung doppelt (Hülle als Spiegelwand) und Rumpf-Flossen-Interferenz 1,3 (Chewie lief sonst nicht geradeaus)
 # 2026-11-07 23:00 – größter Ausschlag bis 80° einstellbar (Chewie: Pendelflossen ±50°)
 # 2026-10-27 23:49 – Kennung sail_member für den festen Turm
@@ -51,6 +52,9 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 @export_range(0.2, 1.0, 0.05) var taper: float = 1.0
 ## Gehört zum symmetrischen Leitwerk (wird aus TailConfig erzeugt). Freie
 ## Flächen wie Canards haben false und bleiben beim Neuaufbau erhalten.
+## Eigene Masse dieser Fläche (kg) – für Canards; Leitwerksflossen nutzen
+## AirshipPhysics.fin_mass_kg
+@export_range(0.0, 50.0, 0.001, "or_greater") var mass_kg: float = 0.0
 @export var tail_member: bool = false
 ## true = fester Turm unter/über der Hülle (wie beim U-Boot): ohne Ruder,
 ## wird aus den Turm-Einstellungen von AirshipPhysics neu erzeugt.

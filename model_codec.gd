@@ -1,3 +1,5 @@
+# 2026-11-11 11:00 – Schubrichtung je Motor (td, x vorn · y rechts · z unten)
+# 2026-11-11 10:00 – Regler komplett im Modell-String: alle Reglerwerte je Achse + Mischer/Vorsteuerung (gen) aus dem aktuellen Flugcontroller; Massen von Teensy (tm) und je Canard (m)
 # 2026-11-11 00:50 – Material von Hülle und Leitwerk (mat, fmat, fcol) im Modell-String
 # 2026-11-10 23:40 – Teensy (tee), Akku (bs, bmah, bm) und Nutzlast (pl, px, pa) im Modell-String; Turm wird nicht mehr gelesen (ältere Strings: Teensy an, Elektronik −10 g, damit die Masse gleich bleibt)
 # 2026-11-07 21:40 – Masse je Leitwerksflosse „fm“ im Modell-String (ältere Strings: 0)
@@ -42,9 +44,9 @@ const LIMITS := {
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
 	"sx": [0.05, 0.95], "sl": [0.02, 0.4], "sh": [0.05, 1.0],
-	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
+	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "tm": [0.0, 1.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
-	"defl": [0.0, 45.0], "flap": [0.1, 0.6],
+	"defl": [0.0, 80.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
 	"reff": [0.1, 1.0], "d": [1.0, 30.0], "pit": [1.0, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
 	"v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
@@ -64,7 +66,7 @@ static func encode(ship: AirshipPhysics) -> String:
 		# (Schwerpunkt wird beim Laden daraus neu berechnet)
 		"mass": {"trim": ship.trim_heaviness_n, "hm": ship.hull_mass_kg, "el": ship.electronics_mass_kg,
 			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x, "fm": ship.fin_mass_kg,
-			"tee": ship.fc_teensy, "bs": ship.battery_cells, "bmah": ship.battery_mah, "bm": ship.battery_mass_kg,
+			"tee": ship.fc_teensy, "tm": ship.teensy_mass_kg, "bs": ship.battery_cells, "bmah": ship.battery_mah, "bm": ship.battery_mass_kg,
 			"pl": ship.payload_mass_kg, "px": ship.payload_x, "pa": ship.payload_angle_deg},
 		"fins": [], "motors": [],
 	}
@@ -80,14 +82,26 @@ static func encode(ship: AirshipPhysics) -> String:
 			continue
 		data.fins.append({"n": s.display_name, "k": int(s.kind), "x": s.hull_x, "a": s.hull_angle_deg,
 			"area": s.area_m2, "ar": s.aspect_ratio, "defl": s.max_deflection_deg,
-			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper})
+			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper, "mk": s.mass_kg})
 	for m in ship.motors:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
 			"swv": m.max_swivel_deg, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
 			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir,
-			"mk": m.mass_kg})
-	if not ship.fc_gains.is_empty():
+			"mk": m.mass_kg, "td": [snappedf(m.user_dir().x, 0.001), snappedf(m.user_dir().y, 0.001), snappedf(m.user_dir().z, 0.001)]})
+	# Regler: die AKTUELLEN Werte des Flugcontrollers (alle Achsen, Mischer,
+	# Vorsteuerung), ohne Stick-Mode (der gehört zum Piloten, nicht zum Modell).
+	var fc := _find_fc(ship)
+	if fc:
+		var fcd := {}
+		for ax in FlightController.AXIS_KEYS:
+			fcd[FlightController.AXIS_KEYS[ax]] = fc.params[ax].duplicate()
+		var gen := {}
+		for k in FlightController.GENERAL_KEYS:
+			if k != "stick_mode": gen[k] = fc.get(k)
+		fcd["gen"] = gen
+		data["fc"] = fcd
+	elif not ship.fc_gains.is_empty():
 		data["fc"] = ship.fc_gains                   # Regler-Vorgaben des Modells
 	var l := ship.livery
 	data["look"] = {"mat": l.material, "fmat": l.fin_material, "fcol": l.fin_color.to_html(false), "col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
@@ -148,6 +162,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.ballast_auto_x = d.mass.bauto
 	ship.fc_gains = d.get("fc", {})
 	ship.fc_teensy = d.mass.tee
+	ship.teensy_mass_kg = d.mass.tm
 	ship.battery_cells = int(d.mass.bs)
 	ship.battery_mah = d.mass.bmah
 	ship.battery_mass_kg = d.mass.bm
@@ -161,6 +176,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		var s := AirshipPresets.make_fin(f.n, f.x, f.a, f.area, int(f.k))
 		s.aspect_ratio = f.ar; s.max_deflection_deg = f.defl
 		s.flap_chord_ratio = f.flap; s.pseudo_flex = f.flex; s.taper = f.tp
+		s.mass_kg = f.mk
 		fins.append(s)
 	ship.surfaces = fins
 	ship.tail = null
@@ -181,6 +197,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		mo.prop_diameter_in = m.d; mo.prop_pitch_in = m.pit; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
 		mo.spin_dir = int(m.dir)
 		mo.mass_kg = m.mk
+		mo.set_user_dir(Vector3(m.td[0], m.td[1], m.td[2]))
 		mots.append(mo)
 	ship.motors = mots
 
@@ -211,6 +228,25 @@ static func _fail(msg: String) -> Dictionary:
 
 
 ## Zahl lesen und auf LIMITS[key] begrenzen; fehlt sie, gilt der Standardwert.
+## Dreier-Liste [x, y, z] mit Werten je −1…1 (Schubrichtung).
+static func _vec3(src: Dictionary, key: String, def: Array) -> Array:
+	var v = src.get(key)
+	if not (v is Array) or v.size() != 3:
+		return def
+	var out := []
+	for c in v:
+		out.append(clampf(float(c), -1.0, 1.0) if (c is float or c is int) else 0.0)
+	return out
+
+
+## Flugcontroller des Luftschiffs (Kind-Node), falls vorhanden.
+static func _find_fc(ship: AirshipPhysics) -> FlightController:
+	for c in ship.get_children():
+		if c is FlightController:
+			return c
+	return null
+
+
 static func _num(src: Dictionary, key: String, def: float) -> float:
 	var v = src.get(key, def)
 	var f := float(v) if (v is float or v is int) else def
@@ -244,7 +280,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		# ältere Strings ohne Teilmassen bekommen die Standardwerte
 		"mass": {"trim": _num(md, "trim", 0.05), "hm": _num(md, "hm", 0.086), "el": _num(md, "el", 0.030),
 			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true), "fm": _num(md, "fm", 0.0),
-			"tee": _flag(md, "tee", true), "bs": _num(md, "bs", 4), "bmah": _num(md, "bmah", 300.0),
+			"tee": _flag(md, "tee", true), "tm": _num(md, "tm", 0.010), "bs": _num(md, "bs", 4), "bmah": _num(md, "bmah", 300.0),
 			"bm": _num(md, "bm", 0.038), "pl": _num(md, "pl", 0.0), "px": _num(md, "px", 0.5), "pa": _num(md, "pa", 180.0)},
 		"fins": [], "motors": [],
 	}
@@ -253,25 +289,33 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 	# 3-Zahlen-Listen) passen nicht zum neuen Regler und werden ignoriert.
 	var fd = d.get("fc")
 	if fd is Dictionary:
+		# Je Achse nur bekannte Reglerwerte (Namen aus FlightController.params),
+		# Schieberegler-Bereiche aus UI_PARAMS, sonst grobe Grenzen ±1000.
 		var fc_out := {}
+		var ref := FlightController.new()
 		for ax in FlightController.AXIS_KEYS:
 			var g = fd.get(FlightController.AXIS_KEYS[ax])
 			if not g is Dictionary: continue
-			var vals := {}
+			var rng := {}
 			for spec in FlightController.UI_PARAMS[ax]:
-				var v = g.get(spec.term)
+				rng[spec.term] = [spec.min, spec.max]
+			var vals := {}
+			for term in ref.params[ax]:
+				var v = g.get(term)
 				if v is float or v is int:
-					vals[spec.term] = clampf(float(v), spec.min, spec.max)
+					var lim: Array = rng.get(term, [-1000.0, 1000.0])
+					vals[term] = clampf(float(v), lim[0], lim[1])
 			if not vals.is_empty(): fc_out[FlightController.AXIS_KEYS[ax]] = vals
-		var mx = fd.get("mix")                   # Stärken [Leitwerk, Schwenk] 0…1
-		if mx is Array and mx.size() == 2 and (mx[0] is float or mx[0] is int) and (mx[1] is float or mx[1] is int):
-			fc_out["mix"] = [clampf(float(mx[0]), 0.0, 1.0), clampf(float(mx[1]), 0.0, 1.0)]
-		var my = fd.get("mix_yaw")               # Schwenkstärke fürs Gieren 0…1
-		if my is float or my is int:
-			fc_out["mix_yaw"] = clampf(float(my), 0.0, 1.0)
-		var sp = fd.get("swv_pitch")
-		if sp is float or sp is int:
-			fc_out["swv_pitch"] = clampf(float(sp), 0.0, 120.0)
+		var gd = fd.get("gen")
+		if gd is Dictionary:
+			var gen := {}
+			for k in FlightController.GENERAL_KEYS:
+				if k == "stick_mode": continue
+				var v = gd.get(k)
+				if v is float or v is int:
+					gen[k] = clampf(float(v), -1000.0, 1000.0)
+			if not gen.is_empty(): fc_out["gen"] = gen
+		ref.free()
 		if not fc_out.is_empty():
 			out["fc"] = fc_out
 	# Ältere Strings ohne Teensy-Angabe: Teensy steckte in der Elektronik → 10 g abziehen
@@ -284,7 +328,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			out.fins.append({"n": _txt(f, "n", "Flosse", 32), "k": clampi(int(_num(f, "k", 0)), 0, 2),
 				"x": _num(f, "x", 0.9), "a": _num(f, "a", 0.0), "area": _num(f, "area", 0.08),
 				"ar": _num(f, "ar", 1.5), "defl": _num(f, "defl", 25.0), "flap": _num(f, "flap", 0.3),
-				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0)})
+				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0), "mk": _num(f, "mk", 0.0)})
 	var td = d.get("tail")
 	if td is Dictionary:
 		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 8),
@@ -302,7 +346,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				"tilt": _num(m, "tilt", 0.0), "thrust": _num(m, "thrust", 1.2), "swv": _num(m, "swv", 60.0),
 				"rev": _flag(m, "rev", true), "reff": _num(m, "reff", 0.55), "d": _num(m, "d", 5.0),
 				"pit": _num(m, "pit", 3.0), "bl": _num(m, "bl", 2), "rpm": _num(m, "rpm", 18000.0),
-				"dir": -1 if _num(m, "dir", 1) < 0 else 1, "mk": _num(m, "mk", 0.030)})
+				"dir": -1 if _num(m, "dir", 1) < 0 else 1, "mk": _num(m, "mk", 0.030), "td": _vec3(m, "td", [1.0, 0.0, 0.0])})
 	var lk: Dictionary = d.get("look", {}) if d.get("look") is Dictionary else {}
 	var logo := _txt(lk, "logo", "", 40)
 	# Logo-Verweis darf nur ein schlichter Dateiname sein (kein Pfad!)

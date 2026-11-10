@@ -104,15 +104,21 @@ func _process(_dt: float) -> bool:
 	if f == 1280:
 		print("Nutzlast 20 g: Ballast %.0f g, Schwerpunkt z %.3f m" % [main.ship.ballast_kg * 1000, main.ship.cg_offset.z])
 		_shot("builder_payload")
+		var tabs: TabContainer = main.builder._left.get_child(0)
+		tabs.current_tab = 3
+		main.builder._show_flow()
 		var code := ModelCodec.encode(main.ship)
 		var d := ModelCodec.decode(code)
 		print("Codec: ok=%s, Nutzlast %.3f, Akku %dS %d mAh, Material %s" % [d.ok, d.data.mass.pl, d.data.mass.bs, d.data.mass.bmah, d.data.look.mat])
+	if f == 1286:
+		_shot("builder_flow")
+		main.builder._flow_win.visible = false
 		main.ship.fc_teensy = false
 		main.fc.mode = FlightController.Mode.MODE3
 		main.builder.closed.emit()
-	if f == 1290:
+	if f == 1292:
 		main.hub.closed.emit()
-	if f == 1296:
+	if f == 1298:
 		print("Ohne Teensy: Mode-3-Knopf gesperrt=%s, Direkt gedrückt=%s" % [main.hud._mode_btns[FlightController.Mode.MODE3].disabled, main.hud._mode_btns[FlightController.Mode.DIRECT].button_pressed])
 		AirshipPresets.chewie(main.ship)
 		print("ENDE")

@@ -1,3 +1,4 @@
+# 2026-11-11 10:05 – Teensy-Masse einstellbar (teensy_mass_kg); Canards mit eigener Masse (ControlSurface.mass_kg) in Massenbilanz, Schwerpunkt und Trägheit
 # 2026-11-10 23:30 – Turm entfällt (lässt sich als Canard abbilden); Teensy-Flugcontroller als Bauteil (+10 g, ohne Teensy nur „Direkt“); Akku (Zellen, Kapazität, Masse) als Teil der Restmasse; frei platzierbare Nutzlast (Masse, Längslage, Umfangswinkel)
 # 2026-11-07 23:30 – Munk-Moment mit Abminderung munk_factor (Standard 0,6: Grenzschicht am Heck; mit 1,0 schwang Chewie mit den echten Teensy-Reglerwerten stark in Nick)
 # 2026-11-07 21:40 – Masse je Leitwerksflosse (fin_mass_kg) als Punktmasse am Einbauort: in Massenbilanz, Schwerpunkt, Austrimmen der Restmasse und Trägheit
@@ -89,6 +90,8 @@ signal model_applied
 ## Elektronik unten an der Hülle dazu.
 @export var fc_teensy: bool = true
 const TEENSY_MASS_KG := 0.010
+## Masse des Teensy-Flugcontrollers (kg), im Baukasten einstellbar
+@export_range(0.0, 1.0, 0.001) var teensy_mass_kg: float = TEENSY_MASS_KG
 ## Akku: Zellenzahl (S), Kapazität (mAh) und Masse (kg). Er ist Teil der
 ## Restmasse unten an der Hülle (Rest = Ballast).
 @export_range(1, 12, 1) var battery_cells: int = 4
@@ -226,7 +229,13 @@ func rebuild_mass_properties() -> void:
 		if s.tail_member:
 			fins.append(s)
 	var fin_total := fin_mass_kg * fins.size()
-	var fc_mass := TEENSY_MASS_KG if fc_teensy else 0.0
+	# Freie Flächen (Canards) mit eigener Masse als Punktmassen am Einbauort
+	var extra: Array = []
+	for s in surfaces:
+		if not s.tail_member and not s.sail_member and s.mass_kg > 0.0:
+			extra.append([s.mass_kg, s.position])
+			fin_total += s.mass_kg
+	var fc_mass := teensy_mass_kg if fc_teensy else 0.0
 	# Nutzlast sitzt außen an der Hülle (wie eine Gondel)
 	var pa := deg_to_rad(payload_angle_deg)
 	payload_pos = Vector3(sin(pa), cos(pa), 0.0) * hull.radius_at(payload_x) \
@@ -253,6 +262,7 @@ func rebuild_mass_properties() -> void:
 	for s in fins:
 		mz_motors += fin_mass_kg * s.position.z             # Flossen hinten: Restmasse wandert nach vorn
 	mz_motors += payload_mass_kg * payload_pos.z
+	for e in extra: mz_motors += e[0] * (e[1] as Vector3).z
 	if ballast_auto_x and bottom_mass_kg > 1e-6:
 		# Unten-Masse so legen, dass der Gesamtschwerpunkt unter dem Auftriebszentrum liegt
 		var z_needed := -mz_motors / bottom_mass_kg
@@ -267,6 +277,7 @@ func rebuild_mass_properties() -> void:
 	for s in fins:
 		moment += s.position * fin_mass_kg
 	moment += payload_pos * payload_mass_kg
+	for e in extra: moment += (e[1] as Vector3) * float(e[0])
 	cg_offset = moment / maxf(total_mass, 1e-6)
 
 	# --- 3) Trägheitsmomente um das Auftriebszentrum (Diagonale) -----------
@@ -282,6 +293,7 @@ func rebuild_mass_properties() -> void:
 	for s in fins:
 		pts.append([fin_mass_kg, s.position])
 	pts.append([payload_mass_kg, payload_pos])
+	pts.append_array(extra)
 	for p in pts:
 		var m: float = p[0]
 		var r: Vector3 = p[1]

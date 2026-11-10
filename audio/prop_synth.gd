@@ -1,3 +1,4 @@
+# 2026-11-11 10:30 – Klang-Sicherung: drei Stufen (static level: 2 Fein = je Motor, 1 Mittel = ein gemeinsamer Klang für alle Motoren, 0 Einfach = Schleife); Aussetzer und Rechenzeit werden an SoundGuard gemeldet, der stufenweise herunterschaltet
 # 2026-11-10 17:00 – Erstversion: Propellerklang mit gleitender Tonhöhe – jeder Abtastwert bekommt seine eigene Drehzahl (zwischen zwei Bildern linear übergeblendet), dadurch keine Tonhöhen-Stufen mehr bei schnellem Gasgeben/-wegnehmen; Tabellen statt Sinus-Rechnung (≈ 3 ms Rechenzeit je Sekunde Klang); im Browser automatischer Rückfall auf die Schleife (PropSound), falls die Wiedergabe Aussetzer hat
 # =============================================================================
 # PropSynth.gd  (ein Knoten je Motor, sitzt an der Motorposition)
@@ -16,10 +17,9 @@
 #   Rauschen kommen aus vorberechneten Tabellen (eine Schwingung bzw. 4 s
 #   Rauschen); pro Abtastwert nur Tabellen lesen und addieren.
 #
-#   Rückfall: Godot hat im Browser bei selbst erzeugtem Ton manchmal Aussetzer
-#   (Puffer läuft leer). Zählt der Player in den ersten Sekunden zu viele
-#   ausgelassene Abtastwerte, schaltet ALLE Motoren auf die bewährte Schleife
-#   (PropSound) um (static use_synth = false).
+#   Klang-Sicherung (SoundGuard): Aussetzer (Puffer läuft leer) und zu viel
+#   Rechenzeit werden gemeldet; SoundGuard schaltet dann stufenweise
+#   Fein → Mittel → Einfach (Schleife PropSound) herunter.
 # =============================================================================
 class_name PropSynth
 extends AudioStreamPlayer3D
@@ -33,15 +33,21 @@ const BUFFER_S := 0.06              ## Pufferlänge Desktop/Handy (s) = Verzöge
 const BUFFER_S_WEB := 0.10          ## im Browser etwas mehr Puffer gegen Aussetzer
 const SKIP_LIMIT := 4000            ## ausgelassene Abtastwerte (≈ 0,2 s) in den ersten Sekunden → Rückfall
 
-## false = alle Motoren nutzen die Schleife (PropSound); wird beim Rückfall gesetzt
-static var use_synth := true
+## Klangstufe (setzt SoundGuard): 2 = Fein (je Motor ein Klang), 1 = Mittel
+## (ein gemeinsamer Klang für alle Motoren), 0 = Einfach (Schleife PropSound)
+static var level := 2
+## Gemeldete Aussetzer (Puffer lief leer) – SoundGuard schaltet dann herunter
+static var underrun := false
+## Rechenzeit aller Klangerzeuger seit dem letzten Abholen (µs)
+static var usec_acc := 0
 ## Gemeinsame Tabellen (einmal berechnet)
 static var _tone := PackedFloat32Array()     ## Blattfolge-Ton mit Obertönen, eine Schwingung
 static var _sine := PackedFloat32Array()     ## reiner Sinus (Motor-Pfeifen)
 static var _flut := PackedFloat32Array()     ## Flatter-Hüllkurve (Rückwärtslauf), eine Schwingung
 static var _noise := PackedFloat32Array()    ## tiefpassgefiltertes Rauschen
 
-var motor: VectorMotor
+var motor: VectorMotor               ## erster (bzw. einziger) Motor
+var motors: Array[VectorMotor] = []  ## alle Motoren dieses Klangs (Mittel: alle)
 var _pb: AudioStreamGeneratorPlayback
 var _buf := PackedVector2Array()
 var _rpm := 0.0                     ## zuletzt übernommene Drehzahl (für Anzeige/Test)
@@ -59,13 +65,20 @@ var _fallback: PropSound            ## Schleifen-Klang nach dem Rückfall
 
 func setup(m: VectorMotor) -> void:
 	motor = m
+	motors = [m]
+
+
+## Stufe „Mittel“: EIN Klang für alle Motoren (Mittelwert der Drehzahlen).
+func setup_shared(ms: Array[VectorMotor]) -> void:
+	motors = ms
+	motor = ms[0]
 
 
 func _ready() -> void:
 	unit_size = 2.0 + motor.prop_diameter_in * 0.4
 	max_db = 3.0
 	attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-	if not use_synth:
+	if level == 0:
 		_switch_to_loop()
 		return
 	_make_tables()
@@ -82,26 +95,37 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	if motor == null or _fallback != null:
 		return
-	if not use_synth:                  # ein anderer Motor hat den Rückfall ausgelöst
+	if level == 0:                     # SoundGuard hat auf „Einfach“ geschaltet
 		_switch_to_loop()
 		return
 	if _pb == null:
 		return
-	# --- Aussetzer-Prüfung (nur in den ersten 8 s nach dem Start) ---
+	# --- Aussetzer melden (SoundGuard schaltet eine Stufe herunter) ---
 	_age += dt
-	if _age < 8.0 and _pb.get_skips() > SKIP_LIMIT:
-		push_warning("Propellerklang: Aussetzer (%d) – Rückfall auf Schleife" % _pb.get_skips())
-		use_synth = false
-		_switch_to_loop()
-		return
+	if _age > 1.0 and _pb.get_skips() > SKIP_LIMIT:
+		push_warning("Propellerklang: Aussetzer (%d)" % _pb.get_skips())
+		underrun = true
+		_age = -1e9                     # nur einmal melden
+	var t0 := Time.get_ticks_usec()
 	# --- Zielwerte für das Ende dieses Puffers ---
+	# Mehrere Motoren (Mittel): mittlere Blattfolge-Frequenz, Lautstärken
+	# addiert wie unabhängige Quellen (Wurzel der Quadratsumme)
+	var f_sum := 0.0
+	var w_sum := 0.0
+	var a_sq := 0.0
+	var r1 := 0.0
+	for m in motors:
+		var rpm := m.rpm()
+		var detune := 1.0 + (0.012 * float(m.spin_dir) if motors.size() == 1 else 0.0)   # Schwebung zwischen Einzelklängen
+		var size_gain := clampf(pow(m.prop_diameter_in / 5.0, 1.2), 0.4, 3.0) * 0.45
+		var a := pow(rpm / m.max_rpm, 1.5) * size_gain if rpm >= 30.0 else 0.0
+		f_sum += rpm / 60.0 * float(m.prop_blades) * detune * (a + 1e-6)
+		w_sum += a + 1e-6
+		a_sq += a * a
+		if m.is_reversing(): r1 = 1.0
 	_rpm = motor.rpm()
-	var detune := 1.0 + 0.012 * float(motor.spin_dir)       # Schwebung zwischen den Motoren
-	var f1 := _rpm / 60.0 * float(motor.prop_blades) * detune
-	var size_gain := clampf(pow(motor.prop_diameter_in / 5.0, 1.2), 0.4, 3.0) * 0.45
-	var a1 := pow(_rpm / motor.max_rpm, 1.5) * size_gain if _rpm >= 30.0 else 0.0
-	var r1 := 1.0 if motor.is_reversing() else 0.0
-	_fill(f1, a1, r1)
+	_fill(f_sum / w_sum, sqrt(a_sq), r1)
+	usec_acc += Time.get_ticks_usec() - t0
 
 
 ## Puffer füllen; Frequenz, Lautstärke und Rückwärtsanteil gleiten vom letzten
@@ -169,9 +193,12 @@ func _switch_to_loop() -> void:
 	if _fallback != null:
 		return
 	stop()
-	_fallback = PropSound.new()
-	_fallback.setup(motor)
-	add_child(_fallback)
+	for m in motors:                   # je Motor eine Schleife (billig: nur Tonhöhe verstellen)
+		var ps := PropSound.new()
+		ps.setup(m)
+		add_child(ps)
+		ps.position = m.position - position
+		_fallback = ps
 
 
 ## Tabellen einmal berechnen (gemeinsam für alle Motoren).

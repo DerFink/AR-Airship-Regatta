@@ -84,6 +84,7 @@ const TEXTS := {
 	"Speichern": ["Save", "Enregistrer", "Guardar", "Salva", "Uložit", "Zapisz", "儲存"],
 	"Halle FN": ["Hall FN", "Hall FN", "Pabellón FN", "Padiglione FN", "Hala FN", "Hala FN", "FN 室內場館"],
 	"Bestenliste": ["Leaderboard", "Classement", "Clasificación", "Classifica", "Žebříček", "Ranking", "排行榜"],
+	"Zu geringe Rechenleistung, Klang vereinfacht": ["Not enough performance, sound simplified", "Puissance insuffisante, son simplifié", "Rendimiento insuficiente, sonido simplificado", "Prestazioni insufficienti, suono semplificato", "Nedostatečný výkon, zvuk zjednodušen", "Za mała wydajność, dźwięk uproszczony", "效能不足，音效已簡化"],
 	"Fertig": ["Done", "Terminé", "Listo", "Fatto", "Hotovo", "Gotowe", "完成"],
 	"Grundlagen des Simulators": ["Simulator fundamentals", "Bases du simulateur", "Fundamentos del simulador", "Fondamenti del simulatore", "Základy simulátoru", "Podstawy symulatora", "模擬器原理"],
 	"Physik": ["Physics", "Physique", "Física", "Fisica", "Fyzika", "Fizyka", "物理"],

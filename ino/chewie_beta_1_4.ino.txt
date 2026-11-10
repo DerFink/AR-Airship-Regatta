@@ -1,0 +1,2999 @@
+// 2026-11-10 13:30 (MEZ) | Aenderungen: NUR MODE 3 (Mode 1 und Mode 2 unveraendert = im Chewie erprobter Stand): Uebernahme aus dem Simulator AR-Airship-Regatta 0.13.4 -
+//   (1) Gier als PID-Drehratenregler, immer aktiv (Knueppel Mitte = Sollrate 0, haelt die Richtung), Kp 1.8 / Ki 0.8 / Kd 0.03, D auf gemessene Drehbeschleunigung (20 ms Tiefpass), I-Grenze 30, Integrator 0 bei Motoren aus; ersetzt das Einblenden (MODE3_YAW_LOOP_FADE) und den reinen P-Regler
+//   (2) maximale Gierrate 110 Grad/s (vorher 180)   (3) Expo 0.3 auf dem Seiten-Knueppel (nur Mode 3)
+//   (4) Hoehen-Knueppel losgelassen -> Nick-Sollwinkel sofort 0 (vorher mit 20 Grad/s zurueck)   (5) Vorlauf-Grenze (15 Grad) nur bei bewegtem Hoehen-Knueppel, danach erst +-30 Grad
+//   (6) Nick-Schutz: Lage ueber 30 Grad -> Knueppel-Vorsteuerung in diese Richtung bis 40 Grad auf 0   (7) Gier-Schwenk der Motoren ab 22 % Schub mit (0.22/Schub)^2 zuruecknehmen
+//   Gas wird weiterhin NIE vom Regler veraendert. VOR DEM ERSTFLUG: Bodentest YAW_RATE_SIGN (siehe unten) und Mode 3 zuerst mit wenig Gas fliegen.
+// 2026-11-04 12:25 (MEZ) | Aenderungen: Mode 1 (nur dort): Rolle fuer Kunstflug auf dem linken Knueppel links/rechts (Kanal 7); Totband MODE1_ROLL_DEADBAND, Leitwerke gleichsinnig (mode1_roll_tail), Motorschwenker optional (mode1_roll_motor, Standard 0)
+// 2026-11-04 12:10 (MEZ) | Aenderungen: Mode 2 = bisheriger Mode 3 (starke Roll-Daempfung, Motorschwenker rollen mit); NEUER Mode 3 = Drehraten-Modus: Daempfung wie Mode 2, Knueppel Hoehe = Nickrate (max 45 Grad/s, Sollwinkel faehrt bei losgelassenem Knueppel zurueck auf 0), Knueppel Seite = Gierrate (max 180 Grad/s) mit Vorsteuerung bis Vollausschlag plus Drehratenregler (YAW_RATE_SIGN per Bodentest pruefen)
+// 2026-11-04 10:05 (MEZ) | Aenderungen: Servo-Totband um die Mitte (alle Servos 1-5, nur Mode 1, SERVO_DEADBAND_US) und Servo-Ruhe: nach 1 s ohne Knueppelbewegung bei Motoren aus wird der Servo-Puls abgeschaltet (Servos stromlos, kein Zittern durch Getriebespiel), SERVO_IDLE_ENABLE/SERVO_IDLE_TIME_MS
+// 2026-10-30 17:55 (MESZ) | Aenderungen: auf deine Datei abgeglichen: SERVO_FREQ_HZ 50, stick_pitch_tail 0.015 (deine Aenderung), stick_yaw_tail wieder 0.005 (deine getesteten Werte), printRadioData() aktiv wie bei dir
+// 2026-10-30 17:44 (MESZ) | Aenderungen: Mode 3 neu = Mode 2 + Roll-Daempfung (eigene Roll-Gains Kp/Ki/Kd, Roll-Faktor Leitwerke 1.5, Motorschwenker gleichsinnig an der Roll-Regelung beteiligt, MOTOR_ROLL_SIGN per Bodentest pruefen), adaptive Daempfung aus, Gier-Werte stick_yaw_motor 0.016 / stick_yaw_tail 0.015
+// 2026-10-02 15:37 (MESZ) | Aenderungen: IMU-Nullpunkt-Trigger loest bei Kanalwert ueber der Mitte aus (IMU_ZERO_THRESHOLD_US = 1550, egal wie hoch), Start-Zeiten (MPU, Kalibrierung, Einschwingen) im Serial Monitor
+// 2026-10-02 15:31 (MESZ) | Aenderungen: IMU-Nullpunkt-Trigger robuster (Schalter muss nach dem Start erst in Ruhestellung gewesen sein, wartet statt abzubrechen, Meldungen mit Kanalwert und Grund)
+// 2026-10-02 15:14 (MESZ) | Aenderungen: Knueppelbefehle Hoehe/Seite in Mode 2+3 lageunabhaengig (feste Ruderverteilung, Stabilisierung weiter mit Rollwinkel-Kompensation)
+// 2026-10-02 15:05 (MESZ) | Aenderungen: Fahrtindex-Schaetzung (Lernen in Mode 3 nur bei Fahrt, Ausrollen 2 s quadratisch), Fortschrittswaechter fuer Kd (6 Schritte, geglaettetes zeta), Speichern nur im Stillstand, IMU-Nullpunkt per SBUS-Trigger (Kanal 12, 2 s halten, 3 s mitteln)
+
+
+//Arduino/Teensy Flight Controller - dRehmFlight
+//Author: Nicholas Rehm
+//Project Start: 1/6/2020
+//Last Updated: 7/29/2022
+//Version: Beta 1.3
+
+// angepasst für Airship MiniMe - 30.10.2024 - Erich Fink 
+// angepasst für Airship Schubi-2 - Feb/Mar - Martin Zobel 
+// Version 0.2
+// viele Änderungen für Schubi-2 - Okt. 2025 - Martin Zobel
+// kleine Änderungen im Teil Funktionen mit Hilfe von Gemini - PIDs müssen noch getestet werden - Spt 2026 - Erich Fink 
+// Überarbeitet Okt. 2026 (mit Claude): 3-Positions-Modusschalter (Kanal 13) mit klaren Grenzen, Failsafe schaltet Motoren AUS,
+//   Pitch/Roll gleich gewichtet, Mixer als gemeinsame Funktion (Vorzeichen konsistent), controlANGLE() nur noch 1x pro Loop,
+//   Integratoren werden beim Modus-Wechsel zurückgesetzt, MPU6050-Start mit Wiederholung und einstellbaren Zeiten.
+
+//========================================================================================================================//
+
+//CREDITS + SPECIAL THANKS
+/*
+Some elements inspired by:
+http://www.brokking.net/ymfc-32_main.html
+
+Madgwick filter function adapted from:
+https://github.com/arduino-libraries/MadgwickAHRS
+
+MPU9250 implementation based on MPU9250 library by:
+brian.taylor@bolderflight.com
+http://www.bolderflight.com
+
+Thank you to:
+RcGroups 'jihlein' - IMU implementation overhaul + SBUS implementation.
+Everyone that sends me pictures and videos of your flying creations! -Nick
+
+*/
+
+//========================================================================================================================//
+//                                                 USER-SPECIFIED DEFINES                                                 //                                                                 
+//========================================================================================================================//
+
+//Uncomment only one receiver type
+//#define USE_PWM_RX
+//#define USE_PPM_RX
+#define USE_SBUS_RX
+//#define USE_DSM_RX
+static const uint8_t num_DSM_channels = 6; //If using DSM RX, change this to match the number of transmitter channels you have
+
+//Uncomment only one IMU
+#define USE_MPU6050_I2C //Default
+//#define USE_MPU9250_SPI
+
+//Uncomment only one full scale gyro range (deg/sec) ----- change For agressive Flying ***************************************
+#define GYRO_250DPS //Default
+//#define GYRO_500DPS
+//#define GYRO_1000DPS
+//#define GYRO_2000DPS
+
+//Uncomment only one full scale accelerometer range (G's)
+#define ACCEL_2G //Default
+//#define ACCEL_4G
+//#define ACCEL_8G
+//#define ACCEL_16G
+
+
+
+//========================================================================================================================//
+
+
+
+//REQUIRED LIBRARIES (included with download in main sketch folder)
+
+#include <Wire.h>     //I2c communication
+#include <SPI.h>      //SPI communication
+#include <PWMServo.h> //Commanding any extra actuators, installed with teensyduino installer
+#include <EEPROM.h>   //Speichert die gelernten Werte (Mode 2) dauerhaft, auch ohne Akku
+
+#if defined USE_SBUS_RX
+  #include "src/SBUS/SBUS.h"   //sBus interface
+#endif
+
+#if defined USE_DSM_RX
+  #include "src/DSMRX/DSMRX.h"  
+#endif
+
+#if defined USE_MPU6050_I2C
+  #include "src/MPU6050/MPU6050.h"
+  MPU6050 mpu6050;
+#elif defined USE_MPU9250_SPI
+  #include "src/MPU9250/MPU9250.h"
+  MPU9250 mpu9250(SPI2,36);
+#else
+  #error No MPU defined... 
+#endif
+
+
+
+//========================================================================================================================//
+
+
+
+//Setup gyro and accel full scale value selection and scale factor
+
+#if defined USE_MPU6050_I2C
+  #define GYRO_FS_SEL_250    MPU6050_GYRO_FS_250
+  #define GYRO_FS_SEL_500    MPU6050_GYRO_FS_500
+  #define GYRO_FS_SEL_1000   MPU6050_GYRO_FS_1000
+  #define GYRO_FS_SEL_2000   MPU6050_GYRO_FS_2000
+  #define ACCEL_FS_SEL_2     MPU6050_ACCEL_FS_2
+  #define ACCEL_FS_SEL_4     MPU6050_ACCEL_FS_4
+  #define ACCEL_FS_SEL_8     MPU6050_ACCEL_FS_8
+  #define ACCEL_FS_SEL_16    MPU6050_ACCEL_FS_16
+#elif defined USE_MPU9250_SPI
+  #define GYRO_FS_SEL_250    mpu9250.GYRO_RANGE_250DPS
+  #define GYRO_FS_SEL_500    mpu9250.GYRO_RANGE_500DPS
+  #define GYRO_FS_SEL_1000   mpu9250.GYRO_RANGE_1000DPS                                                        
+  #define GYRO_FS_SEL_2000   mpu9250.GYRO_RANGE_2000DPS
+  #define ACCEL_FS_SEL_2     mpu9250.ACCEL_RANGE_2G
+  #define ACCEL_FS_SEL_4     mpu9250.ACCEL_RANGE_4G
+  #define ACCEL_FS_SEL_8     mpu9250.ACCEL_RANGE_8G
+  #define ACCEL_FS_SEL_16    mpu9250.ACCEL_RANGE_16G
+#endif
+  
+#if defined GYRO_250DPS
+  #define GYRO_SCALE GYRO_FS_SEL_250
+  #define GYRO_SCALE_FACTOR 131.0
+#elif defined GYRO_500DPS
+  #define GYRO_SCALE GYRO_FS_SEL_500
+  #define GYRO_SCALE_FACTOR 65.5
+#elif defined GYRO_1000DPS
+  #define GYRO_SCALE GYRO_FS_SEL_1000
+  #define GYRO_SCALE_FACTOR 32.8
+#elif defined GYRO_2000DPS
+  #define GYRO_SCALE GYRO_FS_SEL_2000
+  #define GYRO_SCALE_FACTOR 16.4
+#endif
+
+#if defined ACCEL_2G
+  #define ACCEL_SCALE ACCEL_FS_SEL_2
+  #define ACCEL_SCALE_FACTOR 16384.0
+#elif defined ACCEL_4G
+  #define ACCEL_SCALE ACCEL_FS_SEL_4
+  #define ACCEL_SCALE_FACTOR 8192.0
+#elif defined ACCEL_8G
+  #define ACCEL_SCALE ACCEL_FS_SEL_8
+  #define ACCEL_SCALE_FACTOR 4096.0
+#elif defined ACCEL_16G
+  #define ACCEL_SCALE ACCEL_FS_SEL_16
+  #define ACCEL_SCALE_FACTOR 2048.0
+#endif
+
+
+
+//========================================================================================================================//
+//                                               USER-SPECIFIED VARIABLES                                                 //                           
+//========================================================================================================================//
+
+//Radio failsafe values for every channel in the event that bad reciever data is detected. Recommended defaults:
+unsigned long channel_1_fs = 1500; //thro (Failsafe: Gasknueppel Mitte = Motor-Stopp, die Motoren laufen in beide Richtungen)
+unsigned long channel_2_fs = 1500; //thro
+unsigned long channel_3_fs = 1500; //not used
+unsigned long channel_4_fs = 1500; //not used
+unsigned long channel_5_fs = 1500; //pitch (elv stick)
+unsigned long channel_6_fs = 1500; //yaw (ail stick)
+unsigned long channel_7_fs = 1500; //yawLStick (rud stick)
+unsigned long channel_8_fs = 1500; //aux1
+unsigned long channel_9_fs = 1500; //aux1
+unsigned long channel_10_fs = 1500; //
+unsigned long channel_11_fs = 1500; //
+unsigned long channel_12_fs = 1500; //
+unsigned long channel_13_fs = 1500; //Mode Switch
+unsigned long channel_14_fs = 1000; //Motor-Freigabe (Failsafe: AUS!)
+unsigned long channel_15_fs = 1500; //aux1
+unsigned long channel_16_fs = 1500; //aux1
+
+
+//Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
+float B_madgwick = 0.04;  //Madgwick filter parameter
+float B_accel = 0.14;     //Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.1;       //Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_mag = 1.0;        //Magnetometer LP filter parameter
+
+//Magnetometer calibration parameters - if using MPU9250, uncomment calibrateMagnetometer() in void setup() to get these values, else just ignore these
+float MagErrorX = 0.0;
+float MagErrorY = 0.0; 
+float MagErrorZ = 0.0;
+float MagScaleX = 1.0;
+float MagScaleY = 1.0;
+float MagScaleZ = 1.0;
+
+//IMU calibration parameters - calibrate IMU using calculate_IMU_error() in the void setup() to get these values, then comment out calculate_IMU_error()
+float AccErrorX = 0.0;   //the orginial values are all 0.0
+float AccErrorY = 0.0;
+float AccErrorZ = 0.0;
+float GyroErrorX = 0.0;
+float GyroErrorY= 0.0;
+float GyroErrorZ = 0.0;
+
+
+//Controller parameters (take note of defaults before modifying!): 
+float i_limit = 25.0;     //Integrator saturation level, mostly for safety (default 25.0)
+float maxRoll = 30.0;     //Max roll angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode 
+float maxPitch = 30.0;    //Max pitch angle in degrees for angle mode (maximum ~70 degrees), deg/sec for rate mode
+float maxYaw = 160.0;     //Max yaw rate in deg/sec
+
+float Kp_roll_angle = 0.2;    //Roll P-gain - angle mode 
+float Ki_roll_angle = 0.3;    //Roll I-gain - angle mode 
+float Kd_roll_angle = 0.05;   //Roll D-gain - angle mode (has no effect on controlANGLE2); EF/ MZ geändert von 0.05 auf ___ 
+float B_loop_roll = 0.9;      //Roll damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+float Kp_pitch_angle = 0.2;   //Pitch P-gain - angle mode
+float Ki_pitch_angle = 0.3;   //Pitch I-gain - angle mode
+float Kd_pitch_angle = 0.05;  //Pitch D-gain - angle mode (has no effect on controlANGLE2)
+float B_loop_pitch = 0.9;     //Pitch damping term for controlANGLE2(), lower is more damping (must be between 0 to 1)
+
+float Kp_roll_rate = 0.2;    //Roll P-gain - rate mode
+float Ki_roll_rate = 0.3;     //Roll I-gain - rate mode
+float Kd_roll_rate = 0.0002;  //Roll D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
+float Kp_pitch_rate = 0.2;   //Pitch P-gain - rate mode
+float Ki_pitch_rate = 0.3;    //Pitch I-gain - rate mode
+float Kd_pitch_rate = 0.0002; //Pitch D-gain - rate mode (be careful when increasing too high, motors will begin to overheat!)
+
+float Kp_yaw = 0.4;           //Yaw P-gain
+float Ki_yaw = 0.05;          //Yaw I-gain
+float Kd_yaw = 0.00011;       //Yaw D-gain (be careful when increasing too high, motors will begin to overheat!)
+
+
+
+//========================================================================================================================//
+//                                       LUFTSCHIFF-EINSTELLUNGEN (hier tunen)                                            //
+//========================================================================================================================//
+
+// ---------- START / IMU (zum Austesten der Startzeit) ----------
+// Der Start wiederholt den MPU6050-Verbindungsversuch automatisch, bis der Sensor antwortet. Die Startzeit passt sich also selbst an.
+// Im Serial Monitor steht nach dem Start, nach wie vielen ms und Versuchen der MPU geantwortet hat -> damit die Werte unten optimieren.
+unsigned long STARTUP_DELAY_MS   = 100;    // Pause direkt nach dem Einschalten, bevor irgendetwas initialisiert wird (Spannung stabilisieren)
+unsigned long MPU_POWERUP_MS     = 100;    // (getestet: 100 reicht, MPU meldet sich beim 1. Versuch) *** Haupt-Stellschraube *** Wartezeit vor dem ersten MPU-Verbindungsversuch.
+                                           // Vorschlag zum Testen: 0, 50, 100, 200, 500 ausprobieren. Meldet der Serial Monitor
+                                           // "Versuche: 1", ist der Wert ausreichend, bei mehr Versuchen ruhig erhöhen.
+unsigned long MPU_RETRY_MS       = 100;    // Pause zwischen zwei Verbindungsversuchen
+unsigned long MPU_SETTLE_MS      = 100;    // Pause nach erfolgreicher Verbindung, bevor die Kalibrierung startet (Gyro muss sich einschwingen)
+unsigned long MPU_GIVE_UP_MS     = 20000;  // Antwortet der MPU so lange nicht: Start trotzdem, aber NUR Mode 1 (Direktsteuerung), LED blinkt schnell
+uint32_t      I2C_CLOCK_HZ       = 100000; // 100000 = langsam/sehr sicher (wie im Original), 400000 = schnell. Erst auf 400000 gehen, wenn der Start mit 100000 sauber klappt
+int           IMU_CAL_SAMPLES    = 2000;   // Anzahl Messungen für die Nullpunkt-Kalibrierung (Original: 12000). Bei 400 kHz ca. 1 s. Luftschiff dabei ruhig halten!
+unsigned long ATTITUDE_WARMUP_MS = 1500;   // Zeit, in der der Lagefilter vor dem Start einschwingt (0 = aus)
+float         ATTITUDE_WARMUP_BETA = 1.0;  // Filter-Verstärkung während des Einschwingens (hoch = schnelle Konvergenz), danach wieder B_madgwick
+
+// ---------- FUNK / FAILSAFE ----------
+float         sbus_scale         = 0.625;  // SBUS (172..1811) -> 988..2012 us, Mitte 992 -> 1500 us (Standard bei FrSky/EdgeTX). Alt: 0.615 / 895
+float         sbus_bias          = 880.0;
+unsigned long SBUS_TIMEOUT_MS    = 200;    // Kommt so lange kein gültiges SBUS-Paket mehr -> Failsafe (Motoren AUS)
+
+// ---------- MODUS-SCHALTER KANAL 13 (3 Positionen: ca. 1000 / 1500 / 2000 us) ----------
+// Kanal 13 > MODE_THRESH_HIGH_US -> Mode 1: Steuersignale direkt durchgereicht
+// Kanal 13 < MODE_THRESH_LOW_US  -> Mode 3: Drehraten-Modus (Daempfung/Lage wie Mode 2; Knueppel steuert Nickrate und Gierrate)
+// dazwischen                     -> Mode 2: geregelt (Leitwerke + Motorschwenker, starke Roll-Daempfung; war frueher "Mode 3")
+// Im Failsafe liegt Kanal 13 auf 1500 -> Mode 2 (Luftschiff wird stabilisiert, Motoren sind aus)
+int MODE_THRESH_LOW_US  = 1300;
+int MODE_THRESH_HIGH_US = 1700;
+
+// ---------- MOTOREN (Kanal 14 = Freigabe-Schalter, Kanal 1 = Gas) ----------
+int   MOTOR_SWITCH_ON_US = 1800;           // Kanal 14 darüber = Motoren frei
+bool  REQUIRE_MOTOR_SWITCH_LOW_AFTER_BOOT = true; // true: Nach dem Einschalten muss Kanal 14 erst einmal auf AUS gewesen sein (Schutz vor Anlaufen beim Booten)
+float MOTOR_STOP_THRO    = 0.5;            // Gaswert, bei dem die Motoren STEHEN. Die ESCs laufen in BEIDE Richtungen (3D-Modus):
+                                           // 0.0 (= 125 us) = voll rueckwaerts, 0.5 (= ca. 187 us) = Stopp, 1.0 (= 250 us) = voll vorwaerts. NICHT auf 0 setzen!
+float motor1_trim        = -0.02;          // Nullpunkt-Abgleich Motor 1 / Motor 2 (wird auf Gas addiert, gilt auch fuer den Stopp-Wert)
+float motor2_trim        = -0.01;
+
+// ---------- SERVOS ----------
+int   SERVO_PWM_MIN_US   = 800;            // Pulsbreite bei 0 Grad  (Servo 1-5, vorher s5 mit 900/2100 -> jetzt einheitlich)
+int   SERVO_PWM_MAX_US   = 2200;           // Pulsbreite bei 180 Grad
+#define SERVO_USE_RAW_PWM                  // aktiv: Servos ueber Hardware-PWM mit einstellbarer Frequenz und feiner Aufloesung.
+                                           // Zeile auskommentieren = zurueck zur alten PWMServo-Bibliothek (fest 50 Hz, 1-Grad-Schritte)
+int   SERVO_FREQ_HZ      = 50;             // Servo-Frequenz (nur mit SERVO_USE_RAW_PWM). 200 nur fuer DIGITALE Servos! Analoge Servos: 50
+int   SERVO_PWM_RES_BITS = 12;             // PWM-Aufloesung in Bit (12 bit = ca. 1,2 us pro Schritt bei 200 Hz)
+// ---------- SERVO-RUHE (gilt NUR in Mode 1; gegen Zittern von Servos mit ausgeschlagenem Getriebe) ----------
+bool  SERVO_DEADBAND_ENABLE = true;        // Totband um die Mittelstellung: kleine Abweichungen vom Neutralpunkt werden auf Neutral gesetzt
+float SERVO_DEADBAND_US     = 4.0;         // Breite des Totbands in us Servo-Pulsbreite (je Seite). 0 = aus. Nach dem Totband geht der Weg stetig weiter (kein Sprung)
+bool  SERVO_IDLE_ENABLE     = true;        // true: nach SERVO_IDLE_TIME_MS ohne Knueppelbewegung (und Motoren aus) wird der Servo-Puls abgeschaltet -> Servo ist stromlos, haelt nichts mehr!
+unsigned long SERVO_IDLE_TIME_MS = 1000;   // Wartezeit ohne Eingabe in ms, bis die Servos abgeschaltet werden
+float SERVO_IDLE_STICK_US   = 6.0;         // Aenderungen der Kanaele 1-4 kleiner als dieser Wert (us) zaehlen als "keine Eingabe" (Rauschen des Funkkanals)
+// Gesamt-Ausschlag je Modus (1.0 = 100 %, 0.5 = halber Ausschlag um die Mittelstellung; wirkt auf Knueppel UND Regler)
+float servo_throw_m1 = 1.0;                // Mode 1 (direkt)
+float servo_throw_m2 = 0.5;                // Mode 2
+float servo_throw_m3 = 0.5;                // Mode 3
+// Mittelstellungen (0.0 .. 1.0 entspricht 0 .. 180 Grad)
+float s1_center = 0.50;                    // Motorschwenker (Pin 7)
+float s2_center = 0.55;                    // Motorschwenker (Pin 6)
+float s3_center = 0.60;                    // Leitwerk unten (Pin 8)
+float s4_center = 0.60;                    // Leitwerk unten (Pin 9)
+float s5_center = 0.50;                    // Leitwerk oben  (Pin 10)
+float motor_servo_dir = 1.0;               // +1 / -1: Schwenkrichtung der Motorservos umkehren (gilt jetzt in ALLEN Modi)
+
+// Knueppel -> Servo (Servoweg pro Grad bzw. Grad/s Knueppelwert; Knueppel voll = +-30 Grad Pitch, +-160 Yaw)
+float mode1_stick_pitch_motor = 0.02;      // Mode 1 (direkt)
+float mode1_stick_yaw_motor   = 0.004;
+float mode1_stick_pitch_tail  = 0.02;
+float mode1_stick_yaw_tail    = 0.005;
+// Mode 1: Rolle (Kunstflug) auf dem LINKEN Knueppel links/rechts (SBUS-Kanal 7). Nur in Mode 1, nur bei bewusstem Knueppelausschlag.
+float MODE1_ROLL_DEADBAND     = 0.15;      // Knueppelweg (0..1) um die Mitte, in dem KEINE Rolle ausgegeben wird (stetig: danach beginnt die Rolle bei 0)
+float mode1_roll_tail         = 0.25;      // Rolle -> Leitwerke: Servoweg bei vollem Knueppel (0.25 = 45 Grad Servo), alle drei Leitwerke gleichsinnig
+float mode1_roll_motor        = 0.0;       // Rolle -> Motorschwenker (gleichsinnig wie Gier), Richtung MOTOR_ROLL_SIGN. 0 = aus; erst nach dem Bodentest
+                                           // von MOTOR_ROLL_SIGN erhoehen (z. B. 0.1), wenn die Rolle mehr Wirkung braucht
+float MODE1_ROLL_SIGN         = 1.0;       // +1 / -1: Rollrichtung umkehren, falls Knueppel RECHTS nicht nach rechts rollt
+float stick_pitch_motor       = 0.02;      // Mode 2 + 3 (Vorsteuerung Nick)
+float stick_yaw_motor         = 0.016;     // Mode 2 (Vorsteuerung Gier; Mode 3 hat eigene Werte weiter unten)
+float stick_pitch_tail        = 0.015;     // Mode 2 + 3
+float stick_yaw_tail          = 0.005;     // Mode 2
+
+// Regler -> Servo (Servoweg pro PID-Einheit)
+float tail_pitch_gain_m2  = 2.0;           // Leitwerke, Mode 2 + 3 (Hauptregler fuer die Servo-Bewegung: hoeher = Servos bewegen sich mehr; Roll skaliert automatisch mit)
+float motor_pitch_gain_m2 = 2.0;           // Motorschwenker, Mode 2 + 3 (getrennt einstellbar, falls die Schwenker zu stark/schwach reagieren)
+// Roll wird automatisch so skaliert, dass die Regelwirkung (Summe ueber alle drei Leitwerke) genauso stark ist wie bei Pitch.
+// roll_vs_pitch = 1.0 -> gleich stark, 0.5 -> Roll halb so stark, 2.0 -> doppelt so stark (hier 1.5: Roll staerker gedaempft als Pitch)
+float roll_vs_pitch = 1.5;                 // Mode 2 + 3 (vorher fuer den alten Mode 2: 1.0)
+const float ROLL_AUTH_FACTOR = 0.5;        // = (sin^2(60)+sin^2(300)+sin^2(180)) / 3 = 1.5 / 3 -> bei 3 Leitwerken (Lambda) nicht aendern
+bool  USE_ROLL_STICK = false;              // false: Roll-Sollwert immer 0 (Luftschiff soll waagerecht bleiben). true: Kanal 2 steuert den Roll-Sollwert
+
+// PID-Verstaerkungen fuer Roll UND Pitch (bewusst identisch, damit beide gleich stark regeln)
+float Kp_m2 = 0.6,  Ki_m2 = 0.4,  Kd_m2 = 0.15;   // Mode 2 + 3, nur PITCH (vorher 0.2 / 0.3 / 0.05). Ki wirkt, solange Kanal 1 > 1060 (Gasmitte 1500 -> praktisch immer). Roll hat unten eigene Werte
+
+// ---------- ROLL-DAEMPFUNG (Mode 2 + 3): staerkere Roll-Daempfung, auch ueber die Motorschwenker ----------
+// Hintergrund: Die Motoren sitzen unter dem Schwerpunkt. Schwenken sie zur Seite (Gier), entsteht ein Rollmoment (Kurve nach rechts ->
+// rechte Seite geht hoch). In Mode 2 und 3 wirkt der Roll-Regler deshalb zusaetzlich auf die Motorschwenker, und zwar GLEICHSINNIG
+// (beide Schwenker gleich verstellt, wie beim Gier-Befehl). Dadurch gilt: eine Roll-Korrektur bewegt auch die Gierrichtung ein wenig
+// (die beiden Schwenker haben nur zwei unabhaengige Bewegungen: Pitch = gegensinnig, Gier/Roll = gleichsinnig).
+float Kp_roll_m2 = 0.6;                    // Roll-Regler Mode 2 + 3: Kp
+float Ki_roll_m2 = 0.1;                    // Roll-Regler Mode 2 + 3: Ki (klein, damit sich in langen Kurven nichts aufwickelt)
+float Kd_roll_m2 = 0.45;                   // Roll-Regler Mode 2 + 3: Kd = Daempfung der Rollbewegung (dreimal so hoch wie beim Pitch-Kd)
+float motor_roll_gain  = 1.0;            // Roll-Regler -> Motorschwenker (Servoweg pro PID-Einheit). 0 = Motorschwenker nicht an der Roll-Regelung beteiligt
+float MOTOR_ROLL_SIGN = -1.0;              // Richtung der Roll-Korrektur an den Motorschwenkern (+1 / -1).
+                                           // BODENTEST (Propeller ab, Akku an, Mode 2): Rechte Seite des Luftschiffs nach oben kippen.
+                                           // Die Motorschwenker muessen dann in die ENTGEGENGESETZTE Richtung ausschlagen wie bei
+                                           // Gier-Knueppel nach rechts. Falls nicht: Vorzeichen auf +1 setzen.
+
+// ---------- MODE 3: DREHRATEN-MODUS ----------
+// Daempfung und Lage sind wie in Mode 2 (gleiche Regler-Werte, gleicher Ausschlag): ohne Knueppel fliegt das Luftschiff wie in Mode 2.
+// Der Knueppel steuert nur NICK und GIER, und zwar als Drehrate (Grad pro Sekunde) statt als Winkel bzw. Ruderstellung.
+// NICK:  Der Knueppel verschiebt den Nick-Sollwinkel mit der Drehrate (Knueppel voll = MODE3_PITCH_RATE_MAX_DPS). Bei losgelassenem
+//        Knueppel faehrt der Sollwinkel mit MODE3_PITCH_RETURN_DPS zurueck auf 0 (Luftschiff richtet sich wieder waagerecht aus).
+//        Laeuft das Luftschiff dem Sollwinkel nicht hinterher (wenig Fahrt), wird der Sollwinkel auf MODE3_PITCH_LEAD_MAX vor dem
+//        echten Nickwinkel begrenzt (kein Aufwickeln). Bei hoher Fahrt bremst der Winkelregler ein Voreilen der Nase wieder ab.
+// GIER:  Vorsteuerung (Knueppel -> Ruder) wie in Mode 2, aber so eingestellt, dass Vollausschlag = maximaler Servoweg ist, plus
+//        Drehratenregler auf die Gier-Drehrate (Gyro Z): bei niedriger Fahrt erreicht das Ruder nicht die Sollrate (Ruder bleiben am
+//        Anschlag = engste Kurve), bei hoher Fahrt dreht das Luftschiff schneller als verlangt und der Regler nimmt Ruder zurueck.
+//        Der Gier-Regler ist erst aktiv, wenn der Gier-Knueppel aus der Mitte bewegt wird (ohne Knueppel keine zusaetzliche Gier-Daempfung).
+//
+// STAND 10.11.2026 (aus dem Simulator, siehe Kopfzeile): Die Beschreibung oben ist der alte Stand. Jetzt gilt in Mode 3:
+// NICK:  Knueppel losgelassen -> Sollwinkel SOFORT 0 (MODE3_PITCH_RETURN_INSTANT). Vorlauf-Grenze nur bei bewegtem Knueppel.
+//        Nick-Schutz: geht die echte Lage ueber MODE3_PITCH_ANGLE_MAX hinaus, wird die Knueppel-Vorsteuerung in dieselbe Richtung
+//        ueber MODE3_PITCH_PROTECT_BAND Grad auf 0 zurueckgenommen (sonst stellt sich bei gehaltenem Knueppel ca. 60 Grad Nick ein).
+// GIER:  PID-Drehratenregler, IMMER aktiv. Knueppel Mitte = Sollrate 0: der Regler bremst jede Drehung ab und haelt mit dem I-Anteil
+//        die Richtung. Expo auf dem Knueppel. Der Gier-Schwenk der Motoren wird ab MODE3_YAW_SWIVEL_FULL_LEVER Schub zurueckgenommen,
+//        weil der Schwenk entlang der Huelle das Schiff mit einer Kraft proportional zum Schub rollt.
+float MODE3_PITCH_RATE_MAX_DPS = 45.0;     // maximale Nick-Drehrate bei vollem Hoehen-Knueppel (Grad/s)
+float MODE3_PITCH_ANGLE_MAX    = 30.0;     // der Nick-Sollwinkel wird auf +- diesen Wert begrenzt (Grad)
+float MODE3_PITCH_LEAD_MAX     = 15.0;     // der Sollwinkel darf dem echten Nickwinkel hoechstens so viele Grad vorauseilen
+float MODE3_PITCH_RETURN_DPS   = 20.0;     // Rueckstellrate des Sollwinkels auf 0 bei losgelassenem Knueppel (Grad/s). 0 = Winkel bleibt stehen. Nur wenn MODE3_PITCH_RETURN_INSTANT = false
+bool  MODE3_PITCH_RETURN_INSTANT = true;   // NEU 10.11.2026: true = Knueppel losgelassen -> Sollwinkel sofort 0 (Nase geht wie in Mode 2 gleich auf waagerecht)
+float MODE3_PITCH_PROTECT_BAND = 10.0;     // NEU 10.11.2026: Nick-Schutz. Ab MODE3_PITCH_ANGLE_MAX wird die Knueppel-Vorsteuerung ueber diese Spanne (Grad) auf 0 genommen. 0 = aus
+float MODE3_STICK_DEADBAND     = 0.05;     // Knueppel (0..1) kleiner als dieser Wert gilt als Mitte
+float MODE3_YAW_RATE_MAX_DPS   = 110.0;    // Gier-Sollrate bei vollem Seiten-Knueppel (Grad/s). 10.11.2026: 110 statt 180 (Pylonwende bei 30-50 % Gas braucht 70-110, Rest = Reserve)
+float MODE3_YAW_EXPO           = 0.3;      // NEU: Expo Seiten-Knueppel (nur Mode 3): (1-e)*x + e*x^3. 0 = linear (z. B. wenn Expo im Sender eingestellt ist)
+float Kp_yaw_m3                = 1.8;      // Gier-Drehratenregler P (x0.01 je Grad/s Regelfehler). 10.11.2026: 1.8 statt 0.4 (jetzt PID, im Simulator abgestimmt)
+float Ki_yaw_m3                = 0.8;      // NEU: Gier-Drehratenregler I (x0.01 je Grad/s*s) - haelt die Richtung, gegen langsames Weiterdrehen
+float Kd_yaw_m3                = 0.03;     // NEU: Gier-Drehratenregler D (x0.01 je Grad/s^2) auf die GEMESSENE Drehbeschleunigung (kein Ruck beim Knueppelausschlag)
+float MODE3_YAW_I_LIMIT        = 30.0;     // NEU: Grenze des Gier-Integrals (Grad/s*s); Ki 0.8 -> hoechstens 0.24 PID-Einheiten
+float MODE3_YAW_D_FILTER_S     = 0.02;     // NEU: Tiefpass (s) fuer die Drehbeschleunigung im D-Anteil (gegen Kreiselrauschen)
+float MODE3_YAW_SWIVEL_FULL_LEVER = 0.22;  // NEU: bis zu diesem Schub (0..1) voller Gier-Schwenk der Motoren, darueber Faktor (Grenze/Schub)^2. 0 = aus
+float yaw_loop_motor_m3        = 0.6;      // Gier-Regler -> Motorschwenker (Servoweg pro PID-Einheit)
+float yaw_loop_tail_m3         = 0.5;      // Gier-Regler -> Leitwerke (Servoweg pro PID-Einheit)
+float YAW_RATE_SIGN            = 1.0;      // +1 / -1: Vorzeichen der Gier-Drehrate (Gyro Z). BODENTEST (Propeller ab, Akku an, Mode 3, Knueppel Mitte):
+                                           // Luftschiff von Hand mit der Nase nach RECHTS drehen -> die Ruder muessen in die Richtung ausschlagen,
+                                           // die sonst "Gier-Knueppel nach LINKS" macht. Falls nicht: Vorzeichen auf -1 setzen!
+float stick_yaw_motor_m3       = 0.0125;   // Vorsteuerung Gier Motorschwenker, Mode 3: Vollausschlag Knueppel = voller Servoweg (bei servo_throw_m3 = 0.5)
+float stick_yaw_tail_m3        = 0.00625;  // Vorsteuerung Gier Leitwerke, Mode 3: oberes Leitwerk bei Vollausschlag = voller Servoweg, die unteren 50 %
+
+// ---------- ADAPTIVE DAEMPFUNG MODE 2 (siehe Block 'ADAPTIVE DAEMPFUNG' weiter unten) ----------
+bool  ADAPT_ENABLE        = false;         // AUS. false: nichts wird gelernt oder geladen, Pitch nutzt Kd_m2
+bool  ADAPT_AUTOSAVE      = true;          // gelernte Werte automatisch speichern (nur am Boden, Motoren aus)
+bool  ADAPT_RESET_STORED  = false;         // true = beim naechsten Start gespeicherte Werte loeschen (danach wieder auf false stellen!)
+float ADAPT_ZETA_TARGET   = 0.4;           // gewuenschter Daempfungsgrad (0.4 = ca. 25 % Ueberschwingen, 0.7 = kaum Ueberschwingen)
+float ADAPT_STEP          = 0.15;          // Kd wird pro Lernschritt um diesen Anteil erhoeht (0.15 = 15 %)
+float ADAPT_KD_MAX_FACTOR = 5.0;           // Kd darf maximal Kd_m2 * Faktor werden (nach unten gibt es keine Absenkung unter Kd_m2)
+float ADAPT_MIN_AMP_DEG   = 3.0;           // nur Schwingungen mit mehr als so viel Grad Ausschlag werden ausgewertet
+float ADAPT_RATE_THRESH   = 2.0;           // Grad/s: Drehrate, ab der eine Bewegungsrichtung erkannt wird (Rauschfilter)
+float ADAPT_MIN_HALF_PERIOD_S = 0.4;       // plausible Dauer zwischen zwei Extrema (halbe Schwingung)
+float ADAPT_MAX_HALF_PERIOD_S = 10.0;
+float ADAPT_GROWTH_RATIO  = 1.15;          // waechst die Schwingung je Periode um mehr als das (2x hintereinander) -> Sicherheits-Rueckfall
+float ADAPT_SPEED_MIN     = 0.35;          // Lernen nur, wenn der geschaetzte Fahrtindex (0 = Stillstand, 1 = volle Fahrt) darueber liegt
+float ADAPT_SPEED_RISE_S  = 4.0;           // Fahrtindex steigt mit dieser Zeitkonstante (s) auf den Schubwert
+float ADAPT_COAST_TIME_S  = 2.0;           // Ausrollen nach Motor-Aus: Fahrtindex faellt quadratisch in dieser Zeit auf 0 (4.0 waere ebenfalls plausibel)
+float ADAPT_SPEED_STILL   = 0.1;           // unter diesem Index gilt das Luftschiff als stehend (nur dann wird gespeichert)
+int   ADAPT_PROGRESS_STEPS = 6;            // Fortschrittswaechter: nach so vielen Kd-Erhoehungen in Folge ...
+float ADAPT_MIN_PROGRESS  = 0.02;          // ... muss das geglaettete zeta um mindestens diesen Wert gestiegen sein, sonst Rueckfall und Sperre
+float ADAPT_MAX_STICK_DEG = 3.0;           // Lernen nur bei (fast) neutralem Pitch-Knueppel
+unsigned long ADAPT_COOLDOWN_MS    = 5000; // Mindestabstand zwischen zwei Lernschritten pro Achse
+unsigned long ADAPT_SAVE_DELAY_MS  = 3000; // Speichern erst, wenn die Motoren so lange aus sind
+float ADAPT_SAVE_MIN_CHANGE = 0.03;        // nur speichern, wenn sich ein Wert um mehr als 3 % geaendert hat (schont den Flash)
+
+// Zustand der adaptiven Daempfung (nicht aendern)
+float ad_Kd[2];             //aktuelles Kd: [0] = Roll, [1] = Pitch
+float ad_KdSaved[2];        //zuletzt gespeicherte Werte
+float ad_zeta[2];           //letzte Schaetzung des Daempfungsgrads
+float ad_Tn[2];             //letzte Schaetzung der Schwingungsdauer in Sekunden
+int   ad_dir[2];            //letzte Bewegungsrichtung (+1 / -1 / 0 = unbekannt)
+bool  ad_haveRef[2];        //erstes Extremum als Bezug erfasst
+float ad_extAngle[2];       //Winkel am letzten Extremum
+unsigned long ad_extTime[2];
+float ad_amp[2][3];         //letzte drei Ausschlaege (Spitze zu Spitze), [..][0] = neuester
+float ad_halfT[2][2];       //letzte zwei Halbperioden in Sekunden
+int   ad_ampCount[2];       //Anzahl gueltiger Ausschlaege in Folge
+int   ad_growCount[2];      //Anzahl aufeinanderfolgender "waechst"-Auswertungen
+bool  ad_frozen[2];         //Achse gesperrt (nach anwachsender Schwingung)
+unsigned long ad_lastChange[2];
+const uint32_t ADAPT_MAGIC = 0xA11D5A02;
+float ad_zetaEma[2];         //geglaettetes zeta (Fortschrittswaechter)
+float ad_zetaSeriesStart[2]; //Fortschrittswaechter: geglaettetes zeta zu Beginn der Serie
+float ad_KdSeriesStart[2];   //Fortschrittswaechter: Kd zu Beginn der Serie
+int   ad_series[2];          //Anzahl Kd-Erhoehungen in der laufenden Serie
+float speedIndex = 0.0;      //geschaetzte Fahrt 0..1 (aus dem Schub, siehe updateSpeedIndex)
+float speedCoastF0 = 0.0;
+float speedCoastT = 0.0;
+bool  speedCoasting = false;
+
+// ---------- IMU-NULLPUNKT PER SBUS-TRIGGER (Luftschiff schief getrimmt, soll aber genau so fliegen) ----------
+// Ablauf: Motoren aus + Trigger-Kanal haelt den Trigger-Wert IMU_ZERO_HOLD_MS lang -> danach wird IMU_ZERO_AVG_MS lang gemittelt
+// -> der Mittelwert von Roll und Pitch gilt als neuer Nullpunkt. Der Nullpunkt gilt bis zum naechsten Neustart (beim Start gilt wieder
+// die Lage beim Einschalten als Nullpunkt, siehe calculate_IMU_error). Waehrend Halten und Mitteln blinkt die LED schnell.
+int   IMU_ZERO_CHANNEL    = 12;            // SBUS-Kanal fuer den Trigger (1..16), aktuell unbelegt: bitte in der Taranis einen Taster/Schalter darauf legen
+int   IMU_ZERO_THRESHOLD_US = 1550;        // Trigger = Kanalwert UEBER diesem Wert (Mitte 1500 + kleiner Abstand), egal wie hoch er ist.
+                                           // Ruhestellung = darunter. Beim Mitten-Rastpunkt eines 3-Stufen-Schalters (1500) wird NICHT ausgeloest.
+unsigned long IMU_ZERO_HOLD_MS = 2000;     // so lange muss der Trigger gehalten werden
+unsigned long IMU_ZERO_AVG_MS  = 3000;     // danach wird so lange gemittelt (Luftschiff in dieser Zeit ruhig halten)
+float IMU_ZERO_MAX_DEG     = 20.0;         // Mittelwerte weiter als so viel Grad vom Start-Nullpunkt werden abgelehnt
+float IMU_ZERO_MAX_STD_DEG = 2.0;          // schwankt der Winkel waehrend der Mittelung staerker, wird abgelehnt (Luftschiff bewegt sich)
+
+// Zustand IMU-Nullpunkt (nicht aendern)
+float roll_zero = 0.0;                     //Offset, der von roll_IMU abgezogen wird
+float pitch_zero = 0.0;
+int   zeroState = 0;                       //0 = wartet, 1 = Trigger wird gehalten, 2 = Mittelung, 3 = wartet auf Loslassen
+unsigned long zeroStart = 0;
+double zSumR = 0.0, zSumP = 0.0, zSumR2 = 0.0, zSumP2 = 0.0;
+long  zN = 0;
+bool  imuZeroBusy = false;
+bool  zeroUnlocked = false;                //Trigger war seit dem Start mindestens einmal in Ruhestellung (bei gueltigem Funk)
+bool  zeroMsgShown = false;                //Hinweis wurde fuer diese Betaetigung schon ausgegeben
+
+const float DEG2RAD = 0.017453293f;
+
+
+//========================================================================================================================//
+//                                                     DECLARE PINS                                                       //                           
+//========================================================================================================================//                                          
+
+//NOTE: Pin 13 is reserved for onboard LED, pins 18 and 19 are reserved for the MPU6050 IMU for default setup
+//Radio:
+//Note: If using SBUS, connect to pin 21 (RX5), if using DSM, connect to pin 15 (RX3)
+const int ch1Pin = 15; //throttle
+const int ch2Pin = 16; //ail
+const int ch3Pin = 17; //ele
+const int ch4Pin = 20; //rudd
+const int ch5Pin = 21; //gear (throttle cut)
+const int ch6Pin = 22; //aux1 (free aux channel)
+const int PPM_Pin = 23;
+//OneShot125 ESC pin outputs:
+const int m1Pin = 0;    
+const int m2Pin = 1;    
+const int m3Pin = 2;
+const int m4Pin = 3;
+const int m5Pin = 4;    // mz Motor rechts
+const int m6Pin = 5;    // mz Motor links
+//PWM servo or ESC outputs:
+const int servo1Pin = 7;    // mz LTW unten rechts (in flugrichtung) // ef Motorschwenker links
+const int servo2Pin = 6;    // mz LTW unten links                    // ef Motorschwenker rechts
+const int servo3Pin = 8;    // mz LTW oben (bei Lambda)              // ef Ltw links unten (in flugrichtung)
+const int servo4Pin = 9;    // mz leer                               // ef LItw oben (links bei lambda, mitte oben bei X)
+const int servo5Pin = 10;   // mz frei                               // ef LTW oben (rechts bei X, bei Lambda leer)
+const int servo6Pin = 11;   // mz frei                               // ef LTW unten rechts
+const int servo7Pin = 12;
+PWMServo servo1;  //Create servo objects to control a servo or ESC with PWM
+PWMServo servo2;
+PWMServo servo3;
+PWMServo servo4;
+PWMServo servo5;
+PWMServo servo6;
+PWMServo servo7;
+PWMServo* const servoPtr[8] = {0, &servo1, &servo2, &servo3, &servo4, &servo5, &servo6, &servo7}; //Zeiger auf die Servo-Objekte, Index 1..7 (fuer detach/attach in der Servo-Ruhe)
+const int servoPinArr[8] = {0, servo1Pin, servo2Pin, servo3Pin, servo4Pin, servo5Pin, servo6Pin, servo7Pin}; //Index 1..7
+
+
+
+//========================================================================================================================//
+
+
+
+//DECLARE GLOBAL VARIABLES
+
+//General stuff
+float dt;
+unsigned long current_time, prev_time;
+unsigned long print_counter, serial_counter;
+unsigned long blink_counter, blink_delay;
+bool blinkAlternate;
+
+//Radio communication:
+unsigned long channel_1_pwm, channel_2_pwm, channel_3_pwm, channel_4_pwm, channel_5_pwm, channel_6_pwm, channel_7_pwm, channel_8_pwm, channel_9_pwm, channel_10_pwm, channel_11_pwm, channel_12_pwm, channel_13_pwm, channel_14_pwm, channel_15_pwm, channel_16_pwm;
+unsigned long channel_1_pwm_prev, channel_2_pwm_prev, channel_3_pwm_prev, channel_4_pwm_prev;
+
+#if defined USE_SBUS_RX
+  SBUS sbus(Serial5);
+  uint16_t sbusChannels[16];
+  bool sbusFailSafe;
+  bool sbusLostFrame;
+#endif
+#if defined USE_DSM_RX
+  DSM1024 DSM;
+#endif
+
+//IMU:
+float AccX, AccY, AccZ;
+float AccX_prev, AccY_prev, AccZ_prev;
+float GyroX, GyroY, GyroZ;
+float GyroX_prev, GyroY_prev, GyroZ_prev;
+float MagX, MagY, MagZ;
+float MagX_prev, MagY_prev, MagZ_prev;
+float roll_IMU, pitch_IMU, yaw_IMU;
+float roll_IMU_prev, pitch_IMU_prev;
+float roll_rad, pitch_rad, yaw_rad;  // KommentarEF: winkel in rad
+float q0 = 1.0f; //Initialize quaternion for madgwick filter
+float q1 = 0.0f;
+float q2 = 0.0f;
+float q3 = 0.0f;
+
+//Normalized desired state:
+float thro_des, roll_des, pitch_des, yaw_des, yawLStick_des, CH10_des;
+float roll_passthru, pitch_passthru, yaw_passthru, yawLStick_passthru;
+
+
+//Controller:
+float error_roll, error_roll_prev, roll_des_prev, integral_roll, integral_roll_il, integral_roll_ol, integral_roll_prev, integral_roll_prev_il, integral_roll_prev_ol, derivative_roll, roll_PID = 0;
+float error_pitch, error_pitch_prev, pitch_des_prev, integral_pitch, integral_pitch_il, integral_pitch_ol, integral_pitch_prev, integral_pitch_prev_il, integral_pitch_prev_ol, derivative_pitch, pitch_PID = 0;
+float error_yaw, error_yaw_prev, integral_yaw, integral_yaw_prev, derivative_yaw, yaw_PID = 0;
+float LED_1_des, LED_2_des, LED_3_des ; // Kommentar EF: definition der LED Eingänge
+//Mixer
+float m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, m5_command_scaled, m6_command_scaled;
+int m1_command_PWM, m2_command_PWM, m3_command_PWM, m4_command_PWM, m5_command_PWM, m6_command_PWM;
+float s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled, s6_command_scaled, s7_command_scaled;
+int s1_command_PWM, s2_command_PWM, s3_command_PWM, s4_command_PWM, s5_command_PWM, s6_command_PWM, s7_command_PWM;
+
+//Flight status
+bool armedFly = false;
+
+//Luftschiff-Status
+int  flightMode = 2;                //1 = direkt, 2 = geregelt (starke Roll-Daempfung), 3 = Drehraten-Modus (Nick-/Gierrate per Knueppel)
+float pitchSetpointM3 = 0.0;        //Mode 3: Nick-Sollwinkel in Grad, der mit der Knueppel-Drehrate wandert
+float yawRatePID = 0.0;             //Mode 3: Ausgang des Gier-Drehratenreglers (PID-Einheit, vor den Servo-Gains)
+float yawIntM3 = 0.0;               //Mode 3: Integral des Gierraten-Fehlers (Grad/s * s)
+float yawRatePrevM3 = 0.0;          //Mode 3: Gier-Rate im letzten Loop (fuer den D-Anteil)
+float yawAccFiltM3 = 0.0;           //Mode 3: gefilterte Gier-Drehbeschleunigung (Grad/s^2)
+float yawSwivelScaleM3 = 1.0;       //Mode 3: Faktor fuer den Gier-Schwenk der Motoren (1 = voll), aus dem Schub
+bool radioFailsafe = true;          //true solange kein gueltiges Funksignal vorliegt
+unsigned long lastSbusFrame_ms = 0; //Zeitpunkt des letzten gueltigen SBUS-Pakets
+bool motorsEnabled = false;         //nur true bei gueltigem Funk UND Freigabeschalter an
+bool motorSwitchSeenLow = false;    //Freigabeschalter war seit dem Booten mindestens einmal auf AUS
+bool imuOK = false;                 //MPU6050 hat geantwortet
+float pitch_PID_sp = 0.0;           //Anteil von pitch_PID, der allein vom Pitch-Knueppel (Sollwert) kommt
+
+//========================================================================================================================//
+//                                                      VOID SETUP                                                        //                           
+//========================================================================================================================//
+
+void setup() {
+  Serial.begin(500000); //USB serial
+  delay(STARTUP_DELAY_MS);
+
+  //Initialize all pins
+  pinMode(13, OUTPUT); //Pin 13 LED blinker on board, do not modify 
+  pinMode(m1Pin, OUTPUT);
+  pinMode(m2Pin, OUTPUT);
+  pinMode(m3Pin, OUTPUT);
+  pinMode(m4Pin, OUTPUT);
+  pinMode(m5Pin, OUTPUT);
+  pinMode(m6Pin, OUTPUT);
+  digitalWrite(m1Pin, LOW); //Motorsignale sicher auf LOW
+  digitalWrite(m2Pin, LOW);
+  digitalWrite(m3Pin, LOW);
+  digitalWrite(m4Pin, LOW);
+  digitalWrite(m5Pin, LOW);
+  digitalWrite(m6Pin, LOW);
+  servosAttach(); //Servo-Ausgaenge einrichten (Frequenz, Aufloesung bzw. PWMServo)
+
+  //Servos sofort in Mittelstellung (statt erst nach der Kalibrierung)
+  servoOut(1, s1_center);
+  servoOut(2, s2_center);
+  servoOut(3, s3_center);
+  servoOut(4, s4_center);
+  servoOut(5, s5_center);
+  servoOut(6, 80.0/180.0);
+  servoOut(7, 80.0/180.0);
+
+  //Set built in LED to turn on to signal startup
+  digitalWrite(13, HIGH);
+
+  delay(5);
+
+  //Initialize radio communication (radioSetup() steht in einer anderen Datei/Tab des Sketches)
+  radioSetup();
+  
+  //Set radio channels to default (safe) values before entering main loop
+  channel_1_pwm = channel_1_fs;
+  channel_2_pwm = channel_2_fs;
+  channel_3_pwm = channel_3_fs;
+  channel_4_pwm = channel_4_fs;
+  channel_5_pwm = channel_5_fs;
+  channel_6_pwm = channel_6_fs;
+  channel_7_pwm = channel_7_fs;
+  channel_8_pwm = channel_8_fs;
+  channel_9_pwm = channel_9_fs;
+  channel_10_pwm = channel_10_fs;
+  channel_11_pwm = channel_11_fs;
+  channel_12_pwm = channel_12_fs;
+  channel_13_pwm = channel_13_fs;
+  channel_14_pwm = channel_14_fs;
+  channel_15_pwm = channel_15_fs;
+  channel_16_pwm = channel_16_fs;
+  channel_1_pwm_prev = channel_1_fs; //Tiefpass der Funkkanaele startet auf den Failsafe-Werten
+  channel_2_pwm_prev = channel_2_fs;
+  channel_3_pwm_prev = channel_3_fs;
+  channel_4_pwm_prev = channel_4_fs;
+
+  //Initialize IMU communication (wiederholt den Verbindungsversuch selbst, setzt imuOK)
+  IMUinit();
+  unsigned long t_mpu = millis();
+
+  delay(5);
+
+  //Get IMU error to zero accelerometer and gyro readings, assuming vehicle is level and still when powered up
+  if (imuOK) {
+    calculate_IMU_error(); //Calibration parameters printed to serial monitor. Paste these in the user specified variables section, then comment this out forever.
+  }
+  unsigned long t_cal = millis();
+
+  //calibrateESCs(); //PROPS OFF. Uncomment this to calibrate your ESCs by setting throttle stick to max, powering on, and lowering throttle to zero after the beeps
+  //Code will not proceed past here if this function is uncommented!
+
+  //Arm OneShot125 motors
+  setMotorsToStop(); //ESCs mit Stopp-Signal (Mitte) armen, NICHT mit 125 us (= voll rueckwaerts)
+  armMotors(); //Loop over commandMotors() until ESCs happily arm
+
+  delay(100);
+
+  //Lagefilter vor dem Start einschwingen lassen (verhindert einen Sprung beim ersten Loop)
+  if (imuOK && ATTITUDE_WARMUP_MS > 0) {
+    warmUpAttitude(ATTITUDE_WARMUP_MS);
+  }
+  unsigned long t_warm = millis();
+
+  adaptLoad(); //gespeicherte Mode-3-Werte laden
+  flightMode = 2;
+  applyModeGains();
+
+  //Indicate entering main loop with 3 quick blinks
+  setupBlink(3,160,70); //numBlinks, upTime (ms), downTime (ms)
+
+  Serial.print("Start-Zeiten (ms seit Einschalten): MPU bereit ");
+  Serial.print(t_mpu);
+  Serial.print("  Kalibrierung fertig ");
+  Serial.print(t_cal);
+  Serial.print("  Lagefilter eingeschwungen ");
+  Serial.println(t_warm);
+  Serial.print("Setup fertig nach ms: ");
+  Serial.println(millis());
+
+  current_time = micros(); //Zeitbasis fuer den ersten dt im Loop
+
+  //If using MPU9250 IMU, uncomment for one-time magnetometer calibration (may need to repeat for new locations)
+  //calibrateMagnetometer(); //Generates magentometer error and scale factors to be pasted in user-specified variables section
+
+}
+
+
+
+//========================================================================================================================//
+//                                                       MAIN LOOP                                                        //                           
+//========================================================================================================================//
+                                                  
+void loop() {
+  //Keep track of what time it is and how much time has elapsed since the last loop
+  prev_time = current_time;      
+  current_time = micros();      
+  dt = (current_time - prev_time)/1000000.0;
+
+  loopBlink(); //Indicate we are in main loop with short blink every 1.5 seconds
+
+  //Print data at 100hz (uncomment one at a time for troubleshooting) - SELECT ONE:
+  printRadioData();     //Prints radio pwm values (expected: 1000 to 2000)
+  //printDesiredState();  //Prints desired vehicle state commanded in either degrees or deg/sec (expected: +/- maxAXIS for roll, pitch, yaw; 0 to 1 for throttle)
+  //printGyroData();      //Prints filtered gyro data direct from IMU (expected: ~ -250 to 250, 0 at rest)
+  //printAccelData();     //Prints filtered accelerometer data direct from IMU (expected: ~ -2 to 2; x,y 0 when level, z 1 when level)
+  //printMagData();       //Prints filtered magnetometer data direct from IMU (expected: ~ -300 to 300)
+  //printRollPitchYaw();  //Prints roll, pitch, and yaw angles in degrees from Madgwick filter (expected: degrees, 0 when level)
+  //printPIDoutput();     //Prints computed stabilized PID variables from controller and desired setpoint (expected: ~ -1 to 1)
+  //printMotorCommands(); //Prints the values being written to the motors (expected: 120 to 250)
+  //printServoCommands(); //Prints the values being written to the servos (expected: 0 to 180)
+  //printLoopRate();      //Prints the time between loops in microseconds (expected: microseconds between loop iterations)
+
+  //Modus (Kanal 13) und Motorfreigabe aus den aktuellen Funkwerten bestimmen
+  determineFlightMode();
+  updateMotorEnable();
+  adaptAutosave(); //gelernte Werte am Boden (Motoren aus) speichern
+
+  //Get vehicle state
+  if (imuOK) {
+    getIMUdata(); //Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); //Updates roll_IMU, pitch_IMU, and yaw_IMU angle estimates (degrees)
+    imuZeroUpdate(); //Nullpunkt per SBUS-Trigger setzen und Offset abziehen
+  }
+
+  //Compute desired state
+  getDesState(); //Convert raw commands to normalized values based on saturated control limits
+  rateModeUpdate(); //Mode 3: Knueppel -> Nick-Sollwinkel (Drehrate) und Gier-Drehratenregler
+
+  updateSpeedIndex(); //Fahrt aus dem Schub schaetzen
+  adaptUpdate(); //Mode 2: aus dem Ausschwingen lernen
+  
+  //PID Controller: nur in Mode 2 und 3 und genau EINMAL pro Loop (in Mode 1 bleiben die Regler auf 0)
+  if (flightMode != 1) {
+    controlANGLE(); //Stabilize on angle setpoint
+  }
+
+  //Actuator mixing and scaling to PWM values
+  controlMixer(); //Mixes PID outputs to scaled actuator commands -- custom mixing assignments done here
+  scaleCommands(); //Scales motor commands to 125 to 250 range (oneshot125 protocol) and servo PWM commands to 0 to 180 (for servo library)
+
+  //Motor-Sperre: Failsafe / Schalter aus -> Motoren auf Minimum
+  throttleCut();
+
+  //Diagnose: bei jedem Wechsel der Motorfreigabe einmal ausgeben, was tatsaechlich an die ESCs geht (125 = aus, 250 = Vollgas)
+  static bool motorsEnabled_prev = false;
+  if (motorsEnabled != motorsEnabled_prev) {
+    motorsEnabled_prev = motorsEnabled;
+    Serial.print("Motoren ");
+    Serial.print(motorsEnabled ? "FREI" : "AUS");
+    Serial.print("  m1_PWM: ");
+    Serial.print(m1_command_PWM);
+    Serial.print("  m2_PWM: ");
+    Serial.print(m2_command_PWM);
+    Serial.print("  CH1: ");
+    Serial.print(channel_1_pwm);
+    Serial.print("  CH14: ");
+    Serial.print(channel_14_pwm);
+    Serial.print("  Failsafe: ");
+    Serial.println(radioFailsafe);
+  }
+
+  //Command actuators
+  commandMotors(); //Sends command pulses to each motor pin using OneShot125 protocol
+  servosCommandAll(); //Gibt alle Servo-Befehle aus (in Mode 1 mit Totband und Servo-Ruhe, sonst direkt)
+    
+  //Get vehicle commands for next loop iteration
+  getCommands(); //Pulls current available radio commands
+  failSafe(); //Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
+
+  //Regulate loop rate
+  loopRate(2000); //Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
+}
+
+
+
+//========================================================================================================================//
+//                                                      FUNCTIONS                                                         //                           
+//========================================================================================================================//
+
+
+
+void controlMixer() {
+  //DESCRIPTION: Mixes scaled commands from PID controller to actuator outputs based on vehicle configuration
+  /*
+   * Motoren: m1/m2 = Gas (Kanal 1; Mitte = Stopp, Motoren laufen in beide Richtungen), aber NUR wenn motorsEnabled
+   *   (gueltiger Funk + Freigabeschalter Kanal 14). Sonst Stopp-Wert (MOTOR_STOP_THRO) - NICHT 125 us, das waere voll rueckwaerts!
+   * Servos:  Mode 1 -> Direktsteuerung (kein Regler)
+   *          Mode 2 -> geregelt, Leitwerke + Motorschwenker, Roll staerker gedaempft, Motorschwenker helfen beim Rollen mit
+   *          Mode 3 -> gleiche Daempfung wie Mode 2, Knueppel steuert Nick- und Gierrate (siehe rateModeUpdate)
+   * Alle Servos laufen ueber dasselbe Schema, damit die Vorzeichen in allen Modi gleich sind:
+   *   Motorschwenker:  s = Mitte + dir * ( PitchAnteil * sin(winkel) + YawAnteil * cos(winkel) )
+   *   Leitwerke:       s = Mitte - PitchAnteil * sin(winkel) - YawAnteil * cos(winkel) - RollAnteil
+   * Winkel (Einbaulage um die Laengsachse, plus aktueller Rollwinkel): 60 Grad, 300 Grad, 180 Grad (Lambda-Anordnung)
+   */
+
+  //Motor Mix
+  if (motorsEnabled) {
+    m1_command_scaled = motor1_trim + thro_des;
+    m2_command_scaled = motor2_trim + thro_des;
+  }
+  else {
+    m1_command_scaled = motor1_trim + MOTOR_STOP_THRO; //Motoren AUS = Stopp-Wert (Failsafe, Schalter aus oder noch gesperrt)
+    m2_command_scaled = motor2_trim + MOTOR_STOP_THRO;
+  }
+  m3_command_scaled = MOTOR_STOP_THRO; //nicht belegt, ebenfalls Stopp-Wert
+  m4_command_scaled = MOTOR_STOP_THRO;
+  m5_command_scaled = MOTOR_STOP_THRO;
+  m6_command_scaled = MOTOR_STOP_THRO;
+
+  //Servo Mix
+  if (flightMode == 1) {
+    mixServosDirect();
+  }
+  else if (flightMode == 3) {
+    //Mode 3: Daempfung wie Mode 2; Gier = eigene Vorsteuerung plus Drehratenregler (yawRatePID, skaliert auf Servoweg)
+    mixServosStabilized(tail_pitch_gain_m2, motor_pitch_gain_m2, roll_vs_pitch, motor_roll_gain,
+                        stick_yaw_motor_m3, stick_yaw_tail_m3, yaw_loop_motor_m3*yawRatePID, yaw_loop_tail_m3*yawRatePID);
+  }
+  else {
+    //Mode 2: Gier nur Vorsteuerung vom Knueppel
+    mixServosStabilized(tail_pitch_gain_m2, motor_pitch_gain_m2, roll_vs_pitch, motor_roll_gain,
+                        stick_yaw_motor, stick_yaw_tail, 0.0f, 0.0f);
+  }
+
+  //Gesamt-Ausschlag je Modus (Skalierung um die Mittelstellung)
+  float throwScale = (flightMode == 1) ? servo_throw_m1 : ((flightMode == 3) ? servo_throw_m3 : servo_throw_m2);
+  s1_command_scaled = s1_center + throwScale*(s1_command_scaled - s1_center);
+  s2_command_scaled = s2_center + throwScale*(s2_command_scaled - s2_center);
+  s3_command_scaled = s3_center + throwScale*(s3_command_scaled - s3_center);
+  s4_command_scaled = s4_center + throwScale*(s4_command_scaled - s4_center);
+  s5_command_scaled = s5_center + throwScale*(s5_command_scaled - s5_center);
+
+  /* LEDs sollen immer funktionieren:
+  s5_command_scaled = 0.5 + LED_1_des ;
+  s6_command_scaled = 0.5 + LED_2_des ;
+  s7_command_scaled = 0.5 + LED_3_des ;
+  */
+}
+
+void mixServosDirect() {
+  //DESCRIPTION: Mode 1 - Knueppel direkt auf die Servos, keine Regelung
+  s1_command_scaled = s1_center + motor_servo_dir*( -mode1_stick_pitch_motor*pitch_des + mode1_stick_yaw_motor*yaw_des ); //Motorschwenker (Pin 7)
+  s2_command_scaled = s2_center + motor_servo_dir*( +mode1_stick_pitch_motor*pitch_des + mode1_stick_yaw_motor*yaw_des ); //Motorschwenker (Pin 6)
+  s3_command_scaled = s3_center + mode1_stick_pitch_tail*pitch_des - mode1_stick_yaw_tail*yaw_des;                         //Leitwerk unten (Pin 8)
+  s4_command_scaled = s4_center - mode1_stick_pitch_tail*pitch_des - mode1_stick_yaw_tail*yaw_des;                         //Leitwerk unten (Pin 9)
+  s5_command_scaled = s5_center                                    + mode1_stick_yaw_tail*yaw_des;                         //Leitwerk oben  (Pin 10)
+
+  //Rolle (Kunstflug): linker Knueppel links/rechts (Kanal 7). Das Totband sorgt dafuer, dass nur bei bewusstem Ausschlag gerollt wird.
+  float rollStick = yawLStick_des/maxYaw;                                  //-1 .. 1
+  float rollCmd = 0.0f;
+  if (fabsf(rollStick) > MODE1_ROLL_DEADBAND) {
+    float over = (fabsf(rollStick) - MODE1_ROLL_DEADBAND)/(1.0f - MODE1_ROLL_DEADBAND); //0..1 hinter dem Totband, stetig
+    rollCmd = MODE1_ROLL_SIGN*((rollStick > 0.0f) ? over : -over);
+  }
+  //Wie in der Stabilisierung: positive Rolle (rechts) = alle Leitwerke gleichsinnig nach MINUS, Motorschwenker gleichsinnig (MOTOR_ROLL_SIGN)
+  s3_command_scaled -= mode1_roll_tail*rollCmd;
+  s4_command_scaled -= mode1_roll_tail*rollCmd;
+  s5_command_scaled -= mode1_roll_tail*rollCmd;
+  s1_command_scaled += motor_servo_dir*MOTOR_ROLL_SIGN*mode1_roll_motor*rollCmd;
+  s2_command_scaled += motor_servo_dir*MOTOR_ROLL_SIGN*mode1_roll_motor*rollCmd;
+}
+
+void mixServosStabilized(float tailPitchGain, float motorPitchGain, float rollFactor, float motorRollGain,
+                         float yawStickMotor, float yawStickTail, float yawLoopMotor, float yawLoopTail) {
+  //DESCRIPTION: Mode 2 und 3 - Knueppel-Vorsteuerung plus Regler (Pitch und Roll gleich stark)
+  /*
+   * tailPitchGain  - Servoweg der Leitwerke pro PID-Einheit Pitch
+   * motorPitchGain - Servoweg der Motorschwenker pro PID-Einheit Pitch (0 = Motorschwenker nicht geregelt)
+   * rollFactor     - Roll-Wirkung der Leitwerke relativ zu Pitch (1.0 = gleich stark)
+   * motorRollGain  - Servoweg der Motorschwenker pro PID-Einheit Roll (0 = Motorschwenker rollen nicht mit; Richtung: MOTOR_ROLL_SIGN)
+   * yawStickMotor  - Servoweg der Motorschwenker pro Grad/s Gier-Knueppelwert (Vorsteuerung)
+   * yawStickTail   - Servoweg der Leitwerke pro Grad/s Gier-Knueppelwert (Vorsteuerung)
+   * yawLoopMotor   - Gier-Reglerausgang fuer die Motorschwenker, schon in Servoweg umgerechnet (Mode 3; sonst 0)
+   * yawLoopTail    - Gier-Reglerausgang fuer die Leitwerke, schon in Servoweg umgerechnet (Mode 3; sonst 0)
+   * Der Roll-Anteil der Leitwerke wird aus tailPitchGain abgeleitet (ROLL_AUTH_FACTOR), damit Roll und Pitch gleich viel Stellwirkung haben.
+   *
+   * Zwei Winkelsaetze:
+   *  - Knueppelbefehle (Hoehe = Pitch, Seite = Gier) werden mit den FESTEN Einbauwinkeln verteilt (60/300/180 Grad). Dadurch steuern sie
+   *    unabhaengig von der Rolllage immer dieselben Ruder im selben Verhaeltnis an. Dazu gehoert auch der P-Anteil des Knueppel-Sollwerts
+   *    (pitch_PID_sp) im Pitch-Regler.
+   *  - Der Stabilisierungsanteil des Reglers (pitch_PID ohne Knueppelanteil) wird mit den um den Rollwinkel gedrehten Winkeln verteilt,
+   *    damit eine Lagekorrektur auch bei gerolltem Luftschiff in der richtigen Ebene wirkt (wie im Original).
+   *  Bei Roll = 0 sind beide Winkelsaetze gleich.
+   */
+  float n1 = 60.0f*DEG2RAD;                  //feste Einbauwinkel (Knueppel)
+  float n2 = 300.0f*DEG2RAD;
+  float n5 = 180.0f*DEG2RAD;
+  float a1 = (60.0f  + roll_IMU)*DEG2RAD;    //um den Rollwinkel gedrehte Winkel (Stabilisierung)
+  float a2 = (300.0f + roll_IMU)*DEG2RAD;
+  float a5 = (180.0f + roll_IMU)*DEG2RAD;
+
+  float rollGain = tailPitchGain*ROLL_AUTH_FACTOR*rollFactor;
+
+  float pitchStab = pitch_PID - pitch_PID_sp;                                   //Regleranteil ohne Knueppel
+
+  //NEU 10.11.2026, NUR MODE 3 - Nick-Schutz: Die Vorsteuerung gibt einen festen Ausschlag je Sollwinkel, die Stabilisierung zieht nur
+  //Richtung 0 Grad. Bei gehaltenem Knueppel hielten sich beide erst bei ca. 60 Grad Nick die Waage (Flossen ueberzogen, Schub zeigt nach
+  //oben/unten -> steuerlos). Liegt die Lage ueber MODE3_PITCH_ANGLE_MAX und zeigt der Knueppel in dieselbe Richtung, wird die Vorsteuerung
+  //ueber MODE3_PITCH_PROTECT_BAND linear auf 0 genommen. Gegenrichtung wirkt immer voll, Gas bleibt unberuehrt.
+  float pitchDesFF = pitch_des;
+  float pitchSpFF  = pitch_PID_sp;
+  if (flightMode == 3 && MODE3_PITCH_PROTECT_BAND > 0.0f) {
+    float over = fabsf(pitch_IMU) - MODE3_PITCH_ANGLE_MAX;
+    if (over > 0.0f && pitch_IMU*pitch_des > 0.0f) {
+      float kff = constrain(1.0f - over/MODE3_PITCH_PROTECT_BAND, 0.0f, 1.0f);
+      pitchDesFF *= kff;
+      pitchSpFF  *= kff;                                                         //pitchStab bleibt (enthaelt keinen Knueppelanteil)
+    }
+  }
+
+  float motorPitchStick = stick_pitch_motor*pitchDesFF + motorPitchGain*pitchSpFF;
+  float motorPitchStab  = motorPitchGain*pitchStab;
+  float tailPitchStick  = stick_pitch_tail*pitchDesFF  + tailPitchGain*pitchSpFF;
+  float tailPitchStab   = tailPitchGain*pitchStab;
+  float motorYaw   = yawStickMotor*yaw_des + yawLoopMotor;                     //Gier: Vorsteuerung + (Mode 3) Drehratenregler, fest verteilt
+  float tailYaw    = yawStickTail*yaw_des  + yawLoopTail;
+  float tailRoll   = rollGain*roll_PID;
+  float motorRoll  = MOTOR_ROLL_SIGN*motorRollGain*roll_PID;                   //gleichsinnig an beiden Motorschwenkern (wie Gier)
+
+  //NEU 10.11.2026: in Mode 3 wird der Gier-/Roll-Anteil der Motorschwenker mit dem Schub zurueckgenommen (yawSwivelScaleM3, siehe rateModeUpdate).
+  //Nick ueber die Schwenker bleibt unveraendert. In Mode 2 ist der Faktor immer 1 (erprobter Stand).
+  float swivelScale = (flightMode == 3) ? yawSwivelScaleM3 : 1.0f;
+  s1_command_scaled = s1_center + motor_servo_dir*( motorPitchStick*sin(n2) + motorPitchStab*sin(a2) + swivelScale*(motorYaw*cos(n2) + motorRoll) ); //Motorschwenker (Pin 7)
+  s2_command_scaled = s2_center + motor_servo_dir*( motorPitchStick*sin(n1) + motorPitchStab*sin(a1) + swivelScale*(motorYaw*cos(n1) + motorRoll) ); //Motorschwenker (Pin 6)
+
+  s3_command_scaled = s3_center - tailPitchStick*sin(n2) - tailPitchStab*sin(a2) - tailYaw*cos(n2) - tailRoll; //Leitwerk unten (Pin 8)
+  s4_command_scaled = s4_center - tailPitchStick*sin(n1) - tailPitchStab*sin(a1) - tailYaw*cos(n1) - tailRoll; //Leitwerk unten (Pin 9)
+  s5_command_scaled = s5_center - tailPitchStick*sin(n5) - tailPitchStab*sin(a5) - tailYaw*cos(n5) - tailRoll; //Leitwerk oben  (Pin 10)
+}
+
+void determineFlightMode() {
+  //DESCRIPTION: Liest den 3-Positions-Schalter auf Kanal 13 und wechselt den Modus
+  int newMode;
+  if (!imuOK) {
+    newMode = 1;                                   //ohne IMU nur Direktsteuerung
+  }
+  else if (channel_13_pwm > MODE_THRESH_HIGH_US) {
+    newMode = 1;
+  }
+  else if (channel_13_pwm < MODE_THRESH_LOW_US) {
+    newMode = 3;
+  }
+  else {
+    newMode = 2;
+  }
+
+  if (newMode != flightMode) {
+    resetControllers();                            //keine Integrator-Spruenge beim Umschalten
+    adaptResetDetector();                          //Lern-Erkennung neu starten
+    flightMode = newMode;
+  }
+  applyModeGains();
+}
+
+void applyModeGains() {
+  //DESCRIPTION: Setzt die PID-Gains. Mode 2 und Mode 3 verwenden dieselben Werte (Pitch: Kp/Ki/Kd_m2, Roll: Kp/Ki/Kd_roll_m2),
+  //damit das Luftschiff in Mode 3 ohne Knueppel genauso fliegt wie in Mode 2. Mode 1 nutzt keinen Regler.
+  Kp_pitch_angle = Kp_m2;       Kp_roll_angle = Kp_roll_m2;
+  Ki_pitch_angle = Ki_m2;       Ki_roll_angle = Ki_roll_m2;
+  Kd_pitch_angle = (ADAPT_ENABLE && ad_Kd[1] > 0.0f) ? ad_Kd[1] : Kd_m2; //nur falls die adaptive Daempfung eingeschaltet ist
+  Kd_roll_angle  = Kd_roll_m2;
+}
+
+void resetControllers() {
+  //DESCRIPTION: Setzt Integratoren und Reglerausgaenge zurueck
+  integral_roll_prev = 0;   integral_roll_prev_il = 0;   integral_roll_prev_ol = 0;
+  integral_pitch_prev = 0;  integral_pitch_prev_il = 0;  integral_pitch_prev_ol = 0;
+  integral_yaw_prev = 0;
+  error_yaw_prev = 0;
+  roll_PID = 0;
+  pitch_PID = 0;
+  pitch_PID_sp = 0;
+  yaw_PID = 0;
+}
+
+void updateMotorEnable() {
+  //DESCRIPTION: Motoren nur freigeben bei gueltigem Funksignal UND Freigabeschalter (Kanal 14) an.
+  /*
+   * Failsafe (radioFailsafe) -> Motoren sofort aus. Zusaetzlich muss der Schalter nach dem Booten einmal auf AUS gewesen sein
+   * (REQUIRE_MOTOR_SWITCH_LOW_AFTER_BOOT), damit die Motoren nicht direkt beim Einschalten anlaufen.
+   */
+  if (!radioFailsafe && channel_14_pwm < 1500) {
+    motorSwitchSeenLow = true;
+  }
+  bool switchOn = (channel_14_pwm > MOTOR_SWITCH_ON_US);
+  bool unlocked = motorSwitchSeenLow || !REQUIRE_MOTOR_SWITCH_LOW_AFTER_BOOT;
+  motorsEnabled = (!radioFailsafe) && switchOn && unlocked;
+}
+
+void rateModeUpdate() {
+  //DESCRIPTION: Mode 3 (Drehraten-Modus). Laeuft jeden Loop nach getDesState(), vor controlANGLE(). In den anderen Modi passiert nichts.
+  /*
+   * NICK: pitch_des (Hoehen-Knueppel, +-maxPitch) wird zur Nick-Drehrate. Der Nick-Sollwinkel pitchSetpointM3 wandert mit dieser Rate
+   *       (Knueppel voll = MODE3_PITCH_RATE_MAX_DPS). Er ersetzt danach pitch_des, sodass der vorhandene Winkelregler (gleiche
+   *       Gains wie Mode 2) und die Vorsteuerung im Mixer unveraendert weiterarbeiten. Bei losgelassenem Knueppel faehrt der
+   *       Sollwinkel mit MODE3_PITCH_RETURN_DPS zurueck auf 0. Der Sollwinkel wird auf MODE3_PITCH_ANGLE_MAX begrenzt und darf dem
+   *       echten Winkel nur MODE3_PITCH_LEAD_MAX vorauseilen (Schutz vor Aufwickeln bei wenig Fahrt).
+   * GIER: yaw_des (Seiten-Knueppel, +-maxYaw) wird zur Sollrate (+-MODE3_YAW_RATE_MAX_DPS). Der Drehratenregler (nur P) vergleicht
+   *       sie mit der gemessenen Gier-Rate und liefert yawRatePID, das im Mixer zur Knueppel-Vorsteuerung addiert wird. Hinter dem
+   *       Totband blendet er ueber MODE3_YAW_LOOP_FADE ein, damit er ohne Knueppel keine Gier-Daempfung macht.
+   * STAND 10.11.2026: GIER ist jetzt ein PID-Drehratenregler, immer aktiv (Mitte = Sollrate 0), mit Expo; NICK springt beim Loslassen
+   *       sofort auf 0; Vorlauf-Grenze nur bei bewegtem Knueppel. MODE3_YAW_LOOP_FADE wird nicht mehr verwendet.
+   */
+  if (flightMode != 3) {
+    pitchSetpointM3 = 0.0f;        //beim Verlassen von Mode 3 zuruecksetzen, damit der Einstieg immer bei 0 beginnt
+    yawRatePID = 0.0f;
+    yawIntM3 = 0.0f;               //NEU: Gier-PID ebenfalls zuruecksetzen
+    yawAccFiltM3 = 0.0f;
+    yawRatePrevM3 = YAW_RATE_SIGN*GyroZ;
+    yawSwivelScaleM3 = 1.0f;
+    return;
+  }
+
+  float d = constrain(dt, 0.0f, 0.05f);
+
+  //--- Nick
+  float stickP = pitch_des/maxPitch;                                       //-1 .. 1
+  bool pitchStickMoved = (fabsf(stickP) > MODE3_STICK_DEADBAND);
+  if (pitchStickMoved) {
+    pitchSetpointM3 += stickP*MODE3_PITCH_RATE_MAX_DPS*d;                  //Sollwinkel wandert mit der Knueppel-Drehrate
+  }
+  else if (MODE3_PITCH_RETURN_INSTANT) {
+    pitchSetpointM3 = 0.0f;                                                //NEU 10.11.2026: Knueppel losgelassen -> sofort waagerecht (wie Mode 2)
+  }
+  else {
+    float step = MODE3_PITCH_RETURN_DPS*d;                                 //alter Stand: Sollwinkel mit MODE3_PITCH_RETURN_DPS zurueck auf 0
+    if (fabsf(pitchSetpointM3) <= step) pitchSetpointM3 = 0.0f;
+    else pitchSetpointM3 -= (pitchSetpointM3 > 0.0f) ? step : -step;
+  }
+  //NEU 10.11.2026: Vorlauf-Grenze NUR bei bewegtem Knueppel, danach erst auf +-MODE3_PITCH_ANGLE_MAX begrenzen.
+  //Vorher wirkte sie immer und zog den Sollwinkel mit nach oben, wenn die Nase von selbst stieg (Vollgas in der Kurve).
+  if (pitchStickMoved) {
+    pitchSetpointM3 = constrain(pitchSetpointM3, pitch_IMU - MODE3_PITCH_LEAD_MAX, pitch_IMU + MODE3_PITCH_LEAD_MAX);
+  }
+  pitchSetpointM3 = constrain(pitchSetpointM3, -MODE3_PITCH_ANGLE_MAX, MODE3_PITCH_ANGLE_MAX);
+  pitch_des = pitchSetpointM3;                                             //ab hier arbeitet alles mit diesem Winkel-Sollwert
+
+  //--- Gier (NEU 10.11.2026: PID-Drehratenregler, immer aktiv)
+  float stickY = yaw_des/maxYaw;                                           //-1 .. 1
+  stickY = (1.0f - MODE3_YAW_EXPO)*stickY + MODE3_YAW_EXPO*stickY*stickY*stickY; //Expo: feine Korrekturen um die Mitte
+  yaw_des = stickY*maxYaw;                                                 //auch die Vorsteuerung im Mixer arbeitet mit dem Expo-Wert
+  float yawRateCmd = stickY*MODE3_YAW_RATE_MAX_DPS;                        //Sollrate in Grad/s (Knueppel Mitte = 0 = nicht drehen)
+  float yawRate = YAW_RATE_SIGN*GyroZ;                                     //gemessene Gier-Rate
+  float errYaw = yawRateCmd - yawRate;
+  if (!motorsEnabled) {
+    yawIntM3 = 0.0f;                                                       //ohne Motoren (am Boden) nichts aufsammeln
+  }
+  else {
+    yawIntM3 = constrain(yawIntM3 + errYaw*d, -MODE3_YAW_I_LIMIT, MODE3_YAW_I_LIMIT);
+  }
+  if (d > 0.0f) {                                                          //D: gemessene Drehbeschleunigung, tiefpassgefiltert
+    float acc = (yawRate - yawRatePrevM3)/d;
+    yawAccFiltM3 += (acc - yawAccFiltM3)*constrain(d/MODE3_YAW_D_FILTER_S, 0.0f, 1.0f);
+  }
+  yawRatePrevM3 = yawRate;
+  yawRatePID = 0.01f*(Kp_yaw_m3*errYaw + Ki_yaw_m3*yawIntM3 - Kd_yaw_m3*yawAccFiltM3);
+
+  //--- Gier-Schwenk der Motoren mit dem Schub zuruecknehmen (NEU 10.11.2026)
+  //Der Schwenk entlang der Huelle rollt das Schiff mit einer Kraft proportional zum Schub. Bis MODE3_YAW_SWIVEL_FULL_LEVER voller
+  //Schwenk, darueber Faktor (Grenze/Schub)^2 - so bleibt die seitliche Schubkraft gleich gross (Simulator: Wenderadius bei jedem Gas ca. 2 m).
+  float lever = motorsEnabled ? constrain(fabsf(thro_des - MOTOR_STOP_THRO)*2.0f, 0.0f, 1.0f) : 0.0f; //Schubhebel 0..1 (Mitte = Stopp)
+  if (MODE3_YAW_SWIVEL_FULL_LEVER <= 0.0f || lever <= MODE3_YAW_SWIVEL_FULL_LEVER) yawSwivelScaleM3 = 1.0f;
+  else yawSwivelScaleM3 = (MODE3_YAW_SWIVEL_FULL_LEVER/lever)*(MODE3_YAW_SWIVEL_FULL_LEVER/lever);
+}
+
+void servosAttach() {
+  //DESCRIPTION: Richtet die sieben Servo-Ausgaenge ein
+  #if defined SERVO_USE_RAW_PWM
+    analogWriteResolution(SERVO_PWM_RES_BITS);
+    for (int i = 1; i <= 7; i++) {
+      analogWriteFrequency(servoPinArr[i], SERVO_FREQ_HZ);
+    }
+  #else
+    servo1.attach(servo1Pin, SERVO_PWM_MIN_US, SERVO_PWM_MAX_US); //Pin, min PWM value, max PWM value
+    servo2.attach(servo2Pin, SERVO_PWM_MIN_US, SERVO_PWM_MAX_US);
+    servo3.attach(servo3Pin, SERVO_PWM_MIN_US, SERVO_PWM_MAX_US);
+    servo4.attach(servo4Pin, SERVO_PWM_MIN_US, SERVO_PWM_MAX_US);
+    servo5.attach(servo5Pin, SERVO_PWM_MIN_US, SERVO_PWM_MAX_US);
+    servo6.attach(servo6Pin, 900, 2100);
+    servo7.attach(servo7Pin, 900, 2100);
+  #endif
+}
+
+void servoOut(int idx, float scaled) {
+  //DESCRIPTION: Gibt einen Servo-Befehl aus. scaled 0.0 .. 1.0 entspricht 0 .. 180 Grad bzw. SERVO_PWM_MIN_US .. SERVO_PWM_MAX_US
+  scaled = constrain(scaled, 0.0f, 1.0f);
+  #if defined SERVO_USE_RAW_PWM
+    float minUs = (idx <= 5) ? SERVO_PWM_MIN_US : 900.0f; //Servo 6 und 7 wie bisher 900..2100
+    float maxUs = (idx <= 5) ? SERVO_PWM_MAX_US : 2100.0f;
+    float us = minUs + scaled*(maxUs - minUs);
+    float periodFraction = us*0.000001f*SERVO_FREQ_HZ;    //Anteil der Periode, in dem das Signal HIGH ist
+    uint32_t duty = (uint32_t)(periodFraction*(float)(1UL << SERVO_PWM_RES_BITS) + 0.5f);
+    analogWrite(servoPinArr[idx], duty);
+  #else
+    int angle = (int)(scaled*180.0f);
+    switch (idx) {
+      case 1: servo1.write(angle); break;
+      case 2: servo2.write(angle); break;
+      case 3: servo3.write(angle); break;
+      case 4: servo4.write(angle); break;
+      case 5: servo5.write(angle); break;
+      case 6: servo6.write(angle); break;
+      case 7: servo7.write(angle); break;
+    }
+  #endif
+}
+
+//--- SERVO-RUHE-BEGIN
+//========================================================================================================================//
+//                                  SERVO-RUHE: TOTBAND UND ABSCHALTEN IM STILLSTAND (nur Mode 1)                         //
+//========================================================================================================================//
+/*
+ * Zweck: Ein Servo mit ausgeschlagenem Getriebe findet seine Sollposition nicht mehr genau und regelt im Stillstand hin und her
+ * (Zittern). Zwei Massnahmen, beide nur in Mode 1:
+ *  1) Totband: Liegt der Befehl nur um weniger als SERVO_DEADBAND_US von der Mittelstellung, wird exakt die Mittelstellung ausgegeben.
+ *     Das filtert Rauschen des Funksignals. Ausserhalb des Totbands geht der Weg stetig weiter (kein Sprung).
+ *  2) Ruhe: Aendern sich die Kanaele 1-4 (Gas, Roll, Nick, Gier) SERVO_IDLE_TIME_MS lang nicht, sind die Motoren aus und das Funksignal
+ *     in Ordnung, wird der Servo-Puls abgeschaltet. Das Servo ist dann stromlos und zittert nicht, haelt aber auch keine Position.
+ *     Sobald ein Knueppel bewegt wird, Mode 2/3 gewaehlt wird, die Motoren frei sind oder das Funksignal ausfaellt, laeuft der Puls wieder.
+ */
+
+bool servoReleased[8] = {false, false, false, false, false, false, false, false}; //true = Puls dieses Servos ist gerade abgeschaltet (Index 1..7)
+
+void servoRelease(int idx) {
+  //DESCRIPTION: Schaltet den Servo-Puls eines Servos ab (Servo wird stromlos)
+  if (servoReleased[idx]) return; //schon abgeschaltet, nichts zu tun
+  servoReleased[idx] = true;
+  #if defined SERVO_USE_RAW_PWM
+    analogWrite(servoPinArr[idx], 0); //Dauer-LOW = kein Puls
+  #else
+    servoPtr[idx]->detach();
+  #endif
+}
+
+void servoWake(int idx) {
+  //DESCRIPTION: Macht eine Abschaltung rueckgaengig; der naechste servoOut() schreibt wieder Pulse
+  if (!servoReleased[idx]) return;
+  servoReleased[idx] = false;
+  #if !defined SERVO_USE_RAW_PWM
+    servoPtr[idx]->attach(servoPinArr[idx], (idx <= 5) ? SERVO_PWM_MIN_US : 900, (idx <= 5) ? SERVO_PWM_MAX_US : 2100);
+  #endif
+}
+
+bool servoIdleUpdate() {
+  //DESCRIPTION: Liefert true, wenn die Servos jetzt abgeschaltet sein sollen (Mode 1, Motoren aus, Funk ok, SERVO_IDLE_TIME_MS lang keine Eingabe)
+  static unsigned long ref[4] = {0, 0, 0, 0};   //Referenzwerte der Kanaele 1-4 (zuletzt als "Bewegung" erkannter Stand)
+  static unsigned long lastMoveMs = 0;          //Zeitpunkt der letzten Eingabe bzw. des letzten Ausschlusses
+  unsigned long now = millis();
+  unsigned long cur[4] = {channel_1_pwm, channel_2_pwm, channel_3_pwm, channel_4_pwm};
+
+  //Bewegung erkennen: weicht ein Kanal mehr als SERVO_IDLE_STICK_US von seiner Referenz ab -> Timer neu starten, Referenz nachziehen
+  for (int i = 0; i < 4; i++) {
+    float diff = (float)cur[i] - (float)ref[i];
+    if (diff < 0) diff = -diff;
+    if (diff > SERVO_IDLE_STICK_US) {
+      ref[i] = cur[i];
+      lastMoveMs = now;
+    }
+  }
+  //Unter diesen Bedingungen wird nie abgeschaltet: anderer Modus, Motoren frei, Funk-Failsafe oder Funktion aus
+  if (!SERVO_IDLE_ENABLE || flightMode != 1 || motorsEnabled || radioFailsafe) {
+    lastMoveMs = now;
+    return false;
+  }
+  return (now - lastMoveMs) >= SERVO_IDLE_TIME_MS;
+}
+
+float servoDeadband(float scaled, float center, float bandScaled) {
+  //DESCRIPTION: Totband um die Mitte. bandScaled = Breite je Seite im Bereich 0..1. Stetig: ausserhalb wird das Band abgezogen
+  float d = scaled - center;
+  if (d > bandScaled)  return center + (d - bandScaled);
+  if (d < -bandScaled) return center + (d + bandScaled);
+  return center;
+}
+
+void servosCommandAll() {
+  //DESCRIPTION: Gibt alle sieben Servo-Befehle aus. Servo 1-5 (Schwenker und Leitwerke) in Mode 1 mit Totband und Servo-Ruhe
+  float cmd[6]    = {0.0f, s1_command_scaled, s2_command_scaled, s3_command_scaled, s4_command_scaled, s5_command_scaled}; //Index 1..5
+  float center[6] = {0.0f, s1_center, s2_center, s3_center, s4_center, s5_center};
+  bool idle = servoIdleUpdate();
+  float bandScaled = SERVO_DEADBAND_US / (float)(SERVO_PWM_MAX_US - SERVO_PWM_MIN_US); //us -> Bereich 0..1
+
+  for (int i = 1; i <= 5; i++) {
+    if (idle) {
+      servoRelease(i); //Puls aus, Servo stromlos
+    } else {
+      servoWake(i); //Puls wieder an (falls er aus war)
+      float v = cmd[i];
+      if (flightMode == 1 && SERVO_DEADBAND_ENABLE) v = servoDeadband(v, center[i], bandScaled);
+      servoOut(i, v);
+    }
+  }
+  servoOut(6, s6_command_scaled); //Servo 6 und 7: unveraendert
+  servoOut(7, s7_command_scaled);
+}
+//--- SERVO-RUHE-END
+
+//--- ADAPT-BLOCK-BEGIN
+//========================================================================================================================//
+//                                     ADAPTIVE DAEMPFUNG MODE 2 (lernt aus dem Ausschwingen)                             //
+//========================================================================================================================//
+/*
+ * Idee: Nach einer Stoerung (Boe, Knueppelsprung) schwingt das Luftschiff um Roll bzw. Pitch aus. Aus drei aufeinanderfolgenden
+ * Ausschlaegen (Extrema des Winkels) wird gemessen, wie schnell die Schwingung abklingt (logarithmisches Dekrement -> Daempfungsgrad
+ * zeta) und wie lange eine Schwingung dauert (Tn). Klingt sie zu langsam ab (zeta unter dem Ziel), wird Kd dieser Achse in kleinen
+ * Schritten erhoeht. Waechst die Schwingung an, geht Kd sofort auf den Ausgangswert Kd_m2 zurueck und die Anpassung dieser Achse
+ * ist bis zum Neustart gesperrt. Es wird nur Kd veraendert (Kp und Ki bleiben), nur zwischen Kd_m2 und Kd_m2 * ADAPT_KD_MAX_FACTOR.
+ * Roll und Pitch lernen getrennt. Gelernt wird nur in Mode 2, bei freigegebenen Motoren, mit Schub und neutralem Pitch-Knueppel.
+ */
+
+void adaptResetDetector() {
+  for (int a = 0; a < 2; a++) {
+    ad_dir[a] = 0;
+    ad_haveRef[a] = false;
+    ad_ampCount[a] = 0;
+    ad_growCount[a] = 0;
+  }
+}
+
+void adaptEvaluate(int a) {
+  //DESCRIPTION: Wertet drei aufeinanderfolgende Ausschlaege aus und passt ggf. Kd an
+  float A0 = ad_amp[a][0];
+  float A1 = ad_amp[a][1];
+  float A2 = ad_amp[a][2];
+  if (A2 < ADAPT_MIN_AMP_DEG) {              //zu klein, nur Rauschen/Unruhe
+    ad_growCount[a] = 0;
+    return;
+  }
+
+  bool decaying = (A2 > A1) && (A1 > A0);    //klingt ab
+  bool growing  = (A0 > A1) && (A1 > A2) && (A0 / A2 >= ADAPT_GROWTH_RATIO);
+
+  if (growing) {                             //Schwingung schaukelt sich auf -> Sicherheits-Rueckfall
+    ad_growCount[a]++;
+    if (ad_growCount[a] >= 2 && !ad_frozen[a]) {
+      ad_Kd[a] = Kd_m2;
+      ad_frozen[a] = true;
+      Serial.print("ADAPT ");
+      Serial.print(a == 0 ? "Roll" : "Pitch");
+      Serial.println(": Schwingung waechst an -> zurueck auf Kd_m2, Lernen bis Neustart gesperrt");
+    }
+    return;
+  }
+  ad_growCount[a] = 0;
+  if (!decaying) return;                     //unregelmaessig (z.B. Turbulenz) -> ignorieren
+
+  float ratio = A0 / A2;                     //Verhaeltnis ueber eine volle Schwingung
+  ratio = constrain(ratio, 0.001f, 1.0f);
+  float delta = -logf(ratio);                //logarithmisches Dekrement
+  float zeta = delta / sqrtf(4.0f*3.14159265f*3.14159265f + delta*delta);
+  float Tn = ad_halfT[a][0] + ad_halfT[a][1];
+  ad_zeta[a] = zeta;
+  ad_zetaEma[a] = (ad_zetaEma[a] <= 0.0f) ? zeta : (0.7f*ad_zetaEma[a] + 0.3f*zeta);
+  ad_Tn[a] = (ad_Tn[a] <= 0.0f) ? Tn : (0.7f*ad_Tn[a] + 0.3f*Tn);
+
+  float kdOld = ad_Kd[a];
+  float kdMax = Kd_m2 * ADAPT_KD_MAX_FACTOR;
+  bool needMore = zeta < (ADAPT_ZETA_TARGET - 0.1f);
+  if (!needMore) ad_series[a] = 0;           //Daempfung ausreichend -> Serie beendet
+  if (needMore && !ad_frozen[a] && (millis() - ad_lastChange[a]) >= ADAPT_COOLDOWN_MS) {
+    if (ad_series[a] == 0) {                 //neue Serie beginnt
+      ad_KdSeriesStart[a] = ad_Kd[a];
+      ad_zetaSeriesStart[a] = ad_zetaEma[a];
+    }
+    else if (ad_series[a] >= ADAPT_PROGRESS_STEPS) {
+      if (ad_zetaEma[a] < ad_zetaSeriesStart[a] + ADAPT_MIN_PROGRESS) {   //Fortschrittswaechter: Kd bringt nichts
+        ad_Kd[a] = ad_KdSeriesStart[a];
+        ad_frozen[a] = true;
+        Serial.print("ADAPT ");
+        Serial.print(a == 0 ? "Roll" : "Pitch");
+        Serial.println(": mehr Kd bringt keine bessere Daempfung -> zurueck auf Wert vor der Serie, Lernen bis Neustart gesperrt");
+      }
+      else {                                 //Fortschritt vorhanden -> neue Serie
+        ad_series[a] = 0;
+        ad_KdSeriesStart[a] = ad_Kd[a];
+        ad_zetaSeriesStart[a] = ad_zetaEma[a];
+      }
+    }
+    if (!ad_frozen[a]) {
+      ad_Kd[a] = constrain(ad_Kd[a]*(1.0f + ADAPT_STEP), Kd_m2, kdMax);
+      ad_series[a]++;
+    }
+    ad_lastChange[a] = millis();
+  }
+
+  Serial.print("ADAPT ");
+  Serial.print(a == 0 ? "Roll" : "Pitch");
+  Serial.print("  Tn: ");
+  Serial.print(ad_Tn[a], 1);
+  Serial.print(" s  zeta: ");
+  Serial.print(zeta, 2);
+  Serial.print("  Fahrt: ");
+  Serial.print(speedIndex, 2);
+  Serial.print("  Kd: ");
+  Serial.print(kdOld, 4);
+  Serial.print(" -> ");
+  Serial.println(ad_Kd[a], 4);
+}
+
+void adaptAxis(int a, float angle, float rate) {
+  //DESCRIPTION: Erkennt Extrema des Winkels (Richtungswechsel der Drehrate) und sammelt Ausschlaege und Halbperioden
+  int newDir = ad_dir[a];
+  if (rate > ADAPT_RATE_THRESH) newDir = 1;
+  else if (rate < -ADAPT_RATE_THRESH) newDir = -1;
+  if (newDir == ad_dir[a]) return;
+
+  int prevDir = ad_dir[a];
+  ad_dir[a] = newDir;
+  if (prevDir == 0) return;                  //erste Richtung nach Reset: noch kein Extremum
+
+  unsigned long now = millis();              //Richtungswechsel = Extremum
+  if (!ad_haveRef[a]) {
+    ad_haveRef[a] = true;
+    ad_extAngle[a] = angle;
+    ad_extTime[a] = now;
+    ad_ampCount[a] = 0;
+    return;
+  }
+
+  float amp = fabsf(angle - ad_extAngle[a]);
+  float halfT = (now - ad_extTime[a]) * 0.001f;
+  ad_extAngle[a] = angle;
+  ad_extTime[a] = now;
+
+  if (halfT < ADAPT_MIN_HALF_PERIOD_S || halfT > ADAPT_MAX_HALF_PERIOD_S) {
+    ad_ampCount[a] = 0;                      //unplausible Dauer -> Folge neu beginnen
+    return;
+  }
+
+  ad_amp[a][2] = ad_amp[a][1];
+  ad_amp[a][1] = ad_amp[a][0];
+  ad_amp[a][0] = amp;
+  ad_halfT[a][1] = ad_halfT[a][0];
+  ad_halfT[a][0] = halfT;
+  if (ad_ampCount[a] < 3) ad_ampCount[a]++;
+  if (ad_ampCount[a] >= 3) adaptEvaluate(a);
+}
+
+void updateSpeedIndex() {
+  //DESCRIPTION: Schaetzt die Fahrt des Luftschiffs (0 = Stillstand, 1 = volle Fahrt) aus dem Schub, ohne Fahrtsensor
+  /*
+   * Mit Schub steigt der Index mit der Zeitkonstante ADAPT_SPEED_RISE_S auf den Schubwert. Wird der Schub kleiner (Motoren aus),
+   * rollt das Luftschiff aus: der Index faellt quadratisch, f(t) = f0 * (1 - t/ADAPT_COAST_TIME_S)^2, und erreicht nach
+   * ADAPT_COAST_TIME_S den Schubwert (bei Motoren aus: 0). Wind, Auf- und Abwind kennt die Schaetzung nicht.
+   */
+  float d = constrain(dt, 0.0f, 0.05f);
+  float s = motorsEnabled ? constrain(fabsf(thro_des - MOTOR_STOP_THRO)*2.0f, 0.0f, 1.0f) : 0.0f; //Schub 0..1
+
+  if (s >= speedIndex) {                     //Schub haelt oder erhoeht die Fahrt
+    speedCoasting = false;
+    speedIndex += (s - speedIndex)*d/ADAPT_SPEED_RISE_S;
+  }
+  else {                                     //Schub kleiner als die Fahrt -> Ausrollen
+    if (!speedCoasting) {
+      speedCoasting = true;
+      speedCoastF0 = speedIndex;
+      speedCoastT = 0.0f;
+    }
+    speedCoastT += d;
+    float rest = 1.0f - speedCoastT/ADAPT_COAST_TIME_S;
+    float f = (rest > 0.0f) ? speedCoastF0*rest*rest : 0.0f;
+    speedIndex = (f > s) ? f : s;
+  }
+}
+
+void adaptUpdate() {
+  //DESCRIPTION: Wird jeden Loop aufgerufen; lernt nur unter den oben genannten Bedingungen
+  bool active = ADAPT_ENABLE && imuOK && (flightMode == 2) && !radioFailsafe
+                && (speedIndex > ADAPT_SPEED_MIN)
+                && (fabsf(pitch_des) < ADAPT_MAX_STICK_DEG);
+  if (!active) {
+    adaptResetDetector();
+    return;
+  }
+  adaptAxis(0, roll_IMU, GyroX);
+  adaptAxis(1, pitch_IMU, GyroY);
+}
+
+bool adaptDirty() {
+  for (int a = 0; a < 2; a++) {
+    if (fabsf(ad_Kd[a] - ad_KdSaved[a]) > ADAPT_SAVE_MIN_CHANGE*ad_KdSaved[a]) return true;
+  }
+  return false;
+}
+
+void adaptSave() {
+  //DESCRIPTION: Schreibt die gelernten Kd-Werte in den EEPROM-Bereich (Flash). EEPROM.put schreibt nur geaenderte Bytes.
+  uint32_t kr, kp;
+  memcpy(&kr, &ad_Kd[0], 4);
+  memcpy(&kp, &ad_Kd[1], 4);
+  uint32_t chk = ADAPT_MAGIC ^ kr ^ kp;
+  EEPROM.put(0, ADAPT_MAGIC);
+  EEPROM.put(4, ad_Kd[0]);
+  EEPROM.put(8, ad_Kd[1]);
+  EEPROM.put(12, chk);
+  ad_KdSaved[0] = ad_Kd[0];
+  ad_KdSaved[1] = ad_Kd[1];
+  Serial.print("ADAPT gespeichert: Kd Roll ");
+  Serial.print(ad_Kd[0], 4);
+  Serial.print("  Kd Pitch ");
+  Serial.println(ad_Kd[1], 4);
+}
+
+void adaptLoad() {
+  //DESCRIPTION: Laedt beim Start die gespeicherten Kd-Werte (falls gueltig), sonst Kd_m2
+  ad_Kd[0] = Kd_m2;
+  ad_Kd[1] = Kd_m2;
+  ad_KdSaved[0] = Kd_m2;
+  ad_KdSaved[1] = Kd_m2;
+  for (int a = 0; a < 2; a++) {
+    ad_zeta[a] = 0; ad_Tn[a] = 0; ad_frozen[a] = false; ad_lastChange[a] = 0; ad_series[a] = 0; ad_zetaEma[a] = 0;
+  }
+  adaptResetDetector();
+  if (!ADAPT_ENABLE) return;
+
+  if (ADAPT_RESET_STORED) {
+    adaptSave();
+    Serial.println("ADAPT: gespeicherte Werte zurueckgesetzt (ADAPT_RESET_STORED danach wieder auf false stellen)");
+    return;
+  }
+
+  uint32_t magic = 0, chk = 0;
+  float kr = 0, kp = 0;
+  EEPROM.get(0, magic);
+  EEPROM.get(4, kr);
+  EEPROM.get(8, kp);
+  EEPROM.get(12, chk);
+  uint32_t kri, kpi;
+  memcpy(&kri, &kr, 4);
+  memcpy(&kpi, &kp, 4);
+  float kdMax = Kd_m2 * ADAPT_KD_MAX_FACTOR;
+  bool ok = (magic == ADAPT_MAGIC) && (chk == (magic ^ kri ^ kpi))
+            && kr >= Kd_m2 && kr <= kdMax && kp >= Kd_m2 && kp <= kdMax;
+  if (ok) {
+    ad_Kd[0] = kr;
+    ad_Kd[1] = kp;
+    ad_KdSaved[0] = kr;
+    ad_KdSaved[1] = kp;
+    Serial.print("ADAPT geladen: Kd Roll ");
+    Serial.print(kr, 4);
+    Serial.print("  Kd Pitch ");
+    Serial.println(kp, 4);
+  }
+  else {
+    Serial.println("ADAPT: keine gueltigen gespeicherten Werte, Start mit Kd_m2");
+  }
+}
+
+void adaptAutosave() {
+  //DESCRIPTION: Speichert geaenderte Werte, sobald die Motoren seit ADAPT_SAVE_DELAY_MS aus sind (Flash-Schreiben kann kurz blockieren)
+  static unsigned long disarmedSince = 0;
+  static bool wasEnabled = true;
+  if (motorsEnabled) {
+    wasEnabled = true;
+    return;
+  }
+  if (wasEnabled) {
+    wasEnabled = false;
+    disarmedSince = millis();
+  }
+  if (!ADAPT_ENABLE || !ADAPT_AUTOSAVE || radioFailsafe || !adaptDirty()) return;
+  if (speedIndex >= ADAPT_SPEED_STILL) return; //erst speichern, wenn das Luftschiff steht
+  if ((millis() - disarmedSince) < ADAPT_SAVE_DELAY_MS) return;
+  adaptSave();
+}
+//--- ADAPT-BLOCK-END
+
+//--- IMUZERO-BLOCK-BEGIN
+//========================================================================================================================//
+//                                  IMU-NULLPUNKT PER SBUS-TRIGGER (schief getrimmtes Luftschiff)                         //
+//========================================================================================================================//
+unsigned long getChannelPwm(int n) {
+  //DESCRIPTION: Liefert den aktuellen Wert (us) von SBUS-Kanal n (1..16)
+  switch (n) {
+    case 1:  return channel_1_pwm;
+    case 2:  return channel_2_pwm;
+    case 3:  return channel_3_pwm;
+    case 4:  return channel_4_pwm;
+    case 5:  return channel_5_pwm;
+    case 6:  return channel_6_pwm;
+    case 7:  return channel_7_pwm;
+    case 8:  return channel_8_pwm;
+    case 9:  return channel_9_pwm;
+    case 10: return channel_10_pwm;
+    case 11: return channel_11_pwm;
+    case 12: return channel_12_pwm;
+    case 13: return channel_13_pwm;
+    case 14: return channel_14_pwm;
+    case 15: return channel_15_pwm;
+    case 16: return channel_16_pwm;
+  }
+  return 1500;
+}
+
+void imuZeroUpdate() {
+  //DESCRIPTION: Wird direkt nach Madgwick() aufgerufen. Setzt per Trigger einen neuen Nullpunkt und zieht den Offset von roll_IMU/pitch_IMU ab.
+  /*
+   * Ablauf: Trigger-Kanal ueber IMU_ZERO_THRESHOLD_US bei ausgeschalteten Motoren fuer IMU_ZERO_HOLD_MS gehalten
+   * -> IMU_ZERO_AVG_MS lang Roll und Pitch mitteln (der Trigger darf dabei losgelassen werden) -> Mittelwert = neuer Nullpunkt.
+   * Abbruch/Ablehnung: Motoren werden frei, Funk weg, Winkel weiter als IMU_ZERO_MAX_DEG vom Start-Nullpunkt, oder der Winkel
+   * schwankt waehrend der Mittelung staerker als IMU_ZERO_MAX_STD_DEG. Danach muss der Trigger erst losgelassen werden.
+   */
+  float rawRoll = roll_IMU;                  //Ausgabe des Lagefilters, noch ohne Offset
+  float rawPitch = pitch_IMU;
+  unsigned long now = millis();
+  int chv = (int)getChannelPwm(IMU_ZERO_CHANNEL);
+  bool inBand = (chv > IMU_ZERO_THRESHOLD_US);   //Trigger aktiv: Kanalwert ueber der Schwelle, egal wie hoch
+  bool allowed = !motorsEnabled && !radioFailsafe;
+
+  if (!inBand && !radioFailsafe) {           //Ruhestellung bei gueltigem Funk gesehen
+    zeroUnlocked = true;
+    zeroMsgShown = false;
+  }
+
+  switch (zeroState) {
+    case 0:                                  //wartet auf Trigger
+      if (inBand) {
+        if (!zeroUnlocked) {                 //Schalter war beim Start schon in Trigger-Stellung: erst zurueck in Ruhestellung
+          if (!zeroMsgShown) {
+            zeroMsgShown = true;
+            Serial.print("IMU-Nullpunkt: Trigger-Kanal ");
+            Serial.print(IMU_ZERO_CHANNEL);
+            Serial.print(" steht auf ");
+            Serial.print(chv);
+            Serial.println(" - erst einmal in Ruhestellung bringen, dann erneut ausloesen");
+          }
+        }
+        else if (allowed) {
+          zeroState = 1;
+          zeroStart = now;
+          Serial.print("IMU-Nullpunkt: Trigger erkannt (Kanal ");
+          Serial.print(IMU_ZERO_CHANNEL);
+          Serial.print(" = ");
+          Serial.print(chv);
+          Serial.println("), bitte halten");
+        }
+        else if (!zeroMsgShown) {            //noch nicht erlaubt: warten, nicht abbrechen
+          zeroMsgShown = true;
+          Serial.println(motorsEnabled ? "IMU-Nullpunkt: nicht moeglich, Motoren sind freigegeben (Kanal 14 auf AUS stellen)"
+                                       : "IMU-Nullpunkt: nicht moeglich, kein gueltiges Funksignal");
+        }
+      }
+      break;
+
+    case 1:                                  //Trigger wird gehalten
+      if (!inBand) {
+        zeroState = 0;                       //zu frueh losgelassen
+      }
+      else if (!allowed) {
+        Serial.println("IMU-Nullpunkt: abgebrochen, Motoren muessen aus sein");
+        zeroState = 3;
+      }
+      else if ((now - zeroStart) >= IMU_ZERO_HOLD_MS) {
+        zeroState = 2;
+        zeroStart = now;
+        zN = 0;
+        zSumR = 0.0; zSumP = 0.0; zSumR2 = 0.0; zSumP2 = 0.0;
+        Serial.println("IMU-Nullpunkt: Mittelung laeuft, Luftschiff ruhig halten");
+      }
+      break;
+
+    case 2:                                  //Mittelung
+      if (!allowed) {
+        Serial.println("IMU-Nullpunkt: abgebrochen (Motoren frei oder Funk weg)");
+        zeroState = 3;
+        break;
+      }
+      zSumR += rawRoll;
+      zSumP += rawPitch;
+      zSumR2 += (double)rawRoll*rawRoll;
+      zSumP2 += (double)rawPitch*rawPitch;
+      zN++;
+      if ((now - zeroStart) >= IMU_ZERO_AVG_MS && zN > 0) {
+        double mR = zSumR / zN;
+        double mP = zSumP / zN;
+        double vR = zSumR2 / zN - mR*mR;
+        double vP = zSumP2 / zN - mP*mP;
+        float sR = sqrtf(vR > 0.0 ? (float)vR : 0.0f);
+        float sP = sqrtf(vP > 0.0 ? (float)vP : 0.0f);
+        if (fabs(mR) > IMU_ZERO_MAX_DEG || fabs(mP) > IMU_ZERO_MAX_DEG) {
+          Serial.println("IMU-Nullpunkt: abgelehnt, Lage zu weit vom Start-Nullpunkt");
+        }
+        else if (sR > IMU_ZERO_MAX_STD_DEG || sP > IMU_ZERO_MAX_STD_DEG) {
+          Serial.print("IMU-Nullpunkt: abgelehnt, Luftschiff bewegt sich (Schwankung Roll ");
+          Serial.print(sR, 1);
+          Serial.print(" / Pitch ");
+          Serial.print(sP, 1);
+          Serial.println(" Grad)");
+        }
+        else {
+          roll_zero = (float)mR;
+          pitch_zero = (float)mP;
+          resetControllers();                //keine Integrator-Spruenge durch den neuen Nullpunkt
+          adaptResetDetector();
+          Serial.print("IMU-Nullpunkt gesetzt: Roll-Offset ");
+          Serial.print(roll_zero, 2);
+          Serial.print("  Pitch-Offset ");
+          Serial.println(pitch_zero, 2);
+        }
+        zeroState = 3;
+      }
+      break;
+
+    case 3:                                  //wartet, bis der Trigger losgelassen wird
+      if (!inBand) zeroState = 0;
+      break;
+  }
+
+  imuZeroBusy = (zeroState == 1) || (zeroState == 2);
+  roll_IMU = rawRoll - roll_zero;            //ab hier gelten Winkel relativ zum Nullpunkt
+  pitch_IMU = rawPitch - pitch_zero;
+}
+//--- IMUZERO-BLOCK-END
+
+int readMpuWhoAmI() {
+  //DESCRIPTION: Liest das WHO_AM_I-Register des Sensors an Adresse 0x68. Rueckgabe -1 = keine Antwort.
+  Wire.beginTransmission(0x68);
+  Wire.write(0x75);
+  if (Wire.endTransmission(false) != 0) return -1;
+  if (Wire.requestFrom(0x68, 1) != 1) return -1;
+  return Wire.read();
+}
+
+bool mpuIdAccepted(int id) {
+  //DESCRIPTION: Welche Sensor-Kennungen gelten als "passender Sensor"?
+  /*
+   * 0x68 = MPU6050 (Original)
+   * 0x70 = MPU6500 (wird oft als "MPU6050" verkauft; Gyro/Beschleunigung sind registerkompatibel)
+   * 0x71 = MPU9250, 0x73 = MPU9255 (ebenfalls kompatibel fuer Gyro/Beschleunigung)
+   * Die MPU6050-Bibliothek akzeptiert in testConnection() nur 0x68, daher wurde ein MPU6500 immer als "fehlgeschlagen" gemeldet.
+   */
+  return (id == 0x68 || id == 0x70 || id == 0x71 || id == 0x73);
+}
+
+void IMUinit() {
+  //DESCRIPTION: Initialize IMU
+  /*
+   * MPU6050: Es wird so lange erneut versucht, bis der Sensor antwortet (max. MPU_GIVE_UP_MS). Die Startzeit passt sich dadurch
+   * von selbst an. Die Zeiten oben bei den LUFTSCHIFF-EINSTELLUNGEN (MPU_POWERUP_MS usw.) dienen zum Optimieren.
+   */
+  #if defined USE_MPU6050_I2C
+    Wire.begin();
+    Wire.setClock(I2C_CLOCK_HZ);
+
+    delay(MPU_POWERUP_MS); //Sensor nach dem Einschalten kurz in Ruhe lassen
+
+    unsigned long t_start = millis();
+    int tries = 0;
+    imuOK = false;
+
+    while (!imuOK && (millis() - t_start) < MPU_GIVE_UP_MS) {
+      //MPU explizit aus dem Sleep-Modus holen (PWR_MGMT_1 = 0), dann normal initialisieren
+      Wire.beginTransmission(0x68);
+      Wire.write(0x6B);
+      Wire.write(0x00);
+      Wire.endTransmission(true);
+
+      mpu6050.initialize();
+      imuOK = mpu6050.testConnection() || mpuIdAccepted(readMpuWhoAmI());
+      tries++;
+
+      if (!imuOK) {
+        //Diagnose: antwortet ueberhaupt etwas auf Adresse 0x68, und welche Kennung (WHO_AM_I) meldet es?
+        Wire.beginTransmission(0x68);
+        Wire.write(0x75);                          //WHO_AM_I-Register
+        byte i2cErr = Wire.endTransmission(false); //0 = Sensor antwortet, 2 = keine Antwort auf der Adresse, 5 = Timeout (Bus haengt)
+        int whoAmI = -1;
+        if (i2cErr == 0 && Wire.requestFrom(0x68, 1) == 1) {
+          whoAmI = Wire.read();                    //Original MPU6050 meldet 0x68
+        }
+        Serial.print("MPU6050: Verbindung fehlgeschlagen, Versuch ");
+        Serial.print(tries);
+        Serial.print("  I2C-Code: ");
+        Serial.print(i2cErr);
+        Serial.print("  WHO_AM_I: ");
+        Serial.println(whoAmI, HEX);               //-1 = keine Antwort
+        digitalWrite(13, tries % 2);
+        delay(MPU_RETRY_MS);
+      }
+    }
+
+    if (imuOK) {
+      Serial.print("MPU6050 verbunden nach ms: ");
+      Serial.print(millis() - t_start + MPU_POWERUP_MS);
+      Serial.print("  Versuche: ");
+      Serial.print(tries);
+      Serial.print("  Chip-ID (WHO_AM_I): 0x");
+      Serial.println(readMpuWhoAmI(), HEX);
+
+      //From the reset state all registers should be 0x00, so we should be at
+      //max sample rate with digital low pass filter(s) off.  All we need to
+      //do is set the desired fullscale ranges
+      mpu6050.setFullScaleGyroRange(GYRO_SCALE);
+      mpu6050.setFullScaleAccelRange(ACCEL_SCALE);
+      delay(MPU_SETTLE_MS);
+    }
+    else {
+      Serial.println("MPU6050 initialization unsuccessful - nur Mode 1 (Direktsteuerung) aktiv!");
+      Serial.println("Check MPU6050 wiring or try cycling power");
+    }
+
+  #elif defined USE_MPU9250_SPI
+    int status = mpu9250.begin();    
+
+    if (status < 0) {
+      Serial.println("MPU9250 initialization unsuccessful");
+      Serial.println("Check MPU9250 wiring or try cycling power");
+      Serial.print("Status: ");
+      Serial.println(status);
+      while(1) {}
+    }
+
+    //From the reset state all registers should be 0x00, so we should be at
+    //max sample rate with digital low pass filter(s) off.  All we need to
+    //do is set the desired fullscale ranges
+    mpu9250.setGyroRange(GYRO_SCALE);
+    mpu9250.setAccelRange(ACCEL_SCALE);
+    mpu9250.setMagCalX(MagErrorX, MagScaleX);
+    mpu9250.setMagCalY(MagErrorY, MagScaleY);
+    mpu9250.setMagCalZ(MagErrorZ, MagScaleZ);
+    mpu9250.setSrd(0); //sets gyro and accel read to 1khz, magnetometer read to 100hz
+  #endif
+}
+
+void getIMUdata() {
+  //DESCRIPTION: Request full dataset from IMU and LP filter gyro, accelerometer, and magnetometer data
+  /*
+   * Reads accelerometer, gyro, and magnetometer data from IMU as AccX, AccY, AccZ, GyroX, GyroY, GyroZ, MagX, MagY, MagZ. 
+   * These values are scaled according to the IMU datasheet to put them into correct units of g's, deg/sec, and uT. A simple first-order
+   * low-pass filter is used to get rid of high frequency noise in these raw signals. Generally you want to cut
+   * off everything past 80Hz, but if your loop rate is not fast enough, the low pass filter will cause a lag in
+   * the readings. The filter parameters B_gyro and B_accel are set to be good for a 2kHz loop rate. Finally,
+   * the constant errors found in calculate_IMU_error() on startup are subtracted from the accelerometer and gyro readings.
+   */
+  int16_t AcX,AcY,AcZ,GyX,GyY,GyZ,MgX,MgY,MgZ;
+
+  #if defined USE_MPU6050_I2C
+    mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
+  #elif defined USE_MPU9250_SPI
+    mpu9250.getMotion9(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ, &MgX, &MgY, &MgZ);
+  #endif
+
+ //Accelerometer
+  AccX = AcX / ACCEL_SCALE_FACTOR; //G's
+  AccY = AcY / ACCEL_SCALE_FACTOR;
+  AccZ = AcZ / ACCEL_SCALE_FACTOR;
+  //Correct the outputs with the calculated error values
+  AccX = AccX - AccErrorX;
+  AccY = AccY - AccErrorY;
+  AccZ = AccZ - AccErrorZ;
+  //LP filter accelerometer data
+  AccX = (1.0 - B_accel)*AccX_prev + B_accel*AccX;
+  AccY = (1.0 - B_accel)*AccY_prev + B_accel*AccY;
+  AccZ = (1.0 - B_accel)*AccZ_prev + B_accel*AccZ;
+  AccX_prev = AccX;
+  AccY_prev = AccY;
+  AccZ_prev = AccZ;
+
+  //Gyro
+  GyroX = GyX / GYRO_SCALE_FACTOR; //deg/sec
+  GyroY = GyY / GYRO_SCALE_FACTOR;
+  GyroZ = GyZ / GYRO_SCALE_FACTOR;
+  //Correct the outputs with the calculated error values
+  GyroX = GyroX - GyroErrorX;
+  GyroY = GyroY - GyroErrorY;
+  GyroZ = GyroZ - GyroErrorZ;
+  //LP filter gyro data
+  GyroX = (1.0 - B_gyro)*GyroX_prev + B_gyro*GyroX;
+  GyroY = (1.0 - B_gyro)*GyroY_prev + B_gyro*GyroY;
+  GyroZ = (1.0 - B_gyro)*GyroZ_prev + B_gyro*GyroZ;
+  GyroX_prev = GyroX;
+  GyroY_prev = GyroY;
+  GyroZ_prev = GyroZ;
+
+  //Magnetometer
+  MagX = MgX/6.0; //uT
+  MagY = MgY/6.0;
+  MagZ = MgZ/6.0;
+  //Correct the outputs with the calculated error values
+  MagX = (MagX - MagErrorX)*MagScaleX;
+  MagY = (MagY - MagErrorY)*MagScaleY;
+  MagZ = (MagZ - MagErrorZ)*MagScaleZ;
+  //LP filter magnetometer data
+  MagX = (1.0 - B_mag)*MagX_prev + B_mag*MagX;
+  MagY = (1.0 - B_mag)*MagY_prev + B_mag*MagY;
+  MagZ = (1.0 - B_mag)*MagZ_prev + B_mag*MagZ;
+  MagX_prev = MagX;
+  MagY_prev = MagY;
+  MagZ_prev = MagZ;
+}
+
+void calculate_IMU_error() {
+  //DESCRIPTION: Computes IMU accelerometer and gyro error on startup. Note: vehicle should be powered up on flat surface
+  /*
+   * Don't worry too much about what this is doing. The error values it computes are applied to the raw gyro and 
+   * accelerometer values AccX, AccY, AccZ, GyroX, GyroY, GyroZ in getIMUdata(). This eliminates drift in the
+   * measurement. 
+   */
+  int16_t AcX,AcY,AcZ,GyX,GyY,GyZ,MgX,MgY,MgZ;
+  AccErrorX = 0.0;
+  AccErrorY = 0.0;
+  AccErrorZ = 0.0;
+  GyroErrorX = 0.0;
+  GyroErrorY= 0.0;
+  GyroErrorZ = 0.0;
+  
+  //Read IMU values IMU_CAL_SAMPLES times (siehe LUFTSCHIFF-EINSTELLUNGEN)
+  int c = 0;
+  while (c < IMU_CAL_SAMPLES) {
+    #if defined USE_MPU6050_I2C
+      mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
+    #elif defined USE_MPU9250_SPI
+      mpu9250.getMotion9(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ, &MgX, &MgY, &MgZ);
+    #endif
+    
+    AccX  = AcX / ACCEL_SCALE_FACTOR;
+    AccY  = AcY / ACCEL_SCALE_FACTOR;
+    AccZ  = AcZ / ACCEL_SCALE_FACTOR;
+    GyroX = GyX / GYRO_SCALE_FACTOR;
+    GyroY = GyY / GYRO_SCALE_FACTOR;
+    GyroZ = GyZ / GYRO_SCALE_FACTOR;
+    
+    //Sum all readings
+    AccErrorX  = AccErrorX + AccX;
+    AccErrorY  = AccErrorY + AccY;
+    AccErrorZ  = AccErrorZ + AccZ;
+    GyroErrorX = GyroErrorX + GyroX;
+    GyroErrorY = GyroErrorY + GyroY;
+    GyroErrorZ = GyroErrorZ + GyroZ;
+    c++;
+  }
+  //Divide the sum by the number of samples to get the error value
+  AccErrorX  = AccErrorX / c;
+  AccErrorY  = AccErrorY / c;
+  AccErrorZ  = AccErrorZ / c - 1.0;
+  GyroErrorX = GyroErrorX / c;
+  GyroErrorY = GyroErrorY / c;
+  GyroErrorZ = GyroErrorZ / c;
+
+  Serial.print("float AccErrorX = ");
+  Serial.print(AccErrorX);
+  Serial.println(";");
+  Serial.print("float AccErrorY = ");
+  Serial.print(AccErrorY);
+  Serial.println(";");
+  Serial.print("float AccErrorZ = ");
+  Serial.print(AccErrorZ);
+  Serial.println(";");
+  
+  Serial.print("float GyroErrorX = ");
+  Serial.print(GyroErrorX);
+  Serial.println(";");
+  Serial.print("float GyroErrorY = ");
+  Serial.print(GyroErrorY);
+  Serial.println(";");
+  Serial.print("float GyroErrorZ = ");
+  Serial.print(GyroErrorZ);
+  Serial.println(";");
+
+  Serial.println("Paste these values in user specified variables section and comment out calculate_IMU_error() in void setup.");
+}
+
+void warmUpAttitude(unsigned long warmupMs) {
+  //DESCRIPTION: Laesst den Madgwick-Filter vor dem Start einschwingen (Fahrzeug muss dabei ruhig und waagerecht stehen)
+  /*
+   * Kuerzer als die alte calibrateAttitude(): laeuft nur warmupMs lang und nutzt dabei ein erhoehtes B_madgwick
+   * (ATTITUDE_WARMUP_BETA), damit der Filter schnell konvergiert. Danach wird B_madgwick wieder zurueckgesetzt.
+   */
+  float beta_backup = B_madgwick;
+  B_madgwick = ATTITUDE_WARMUP_BETA;
+  unsigned long t_start = millis();
+  current_time = micros();
+
+  while ((millis() - t_start) < warmupMs) {
+    prev_time = current_time;      
+    current_time = micros();      
+    dt = (current_time - prev_time)/1000000.0; 
+    getIMUdata();
+    Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt);
+    loopRate(2000); //do not exceed 2000Hz
+  }
+
+  B_madgwick = beta_backup;
+  current_time = micros();
+}
+
+void Madgwick(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz, float invSampleFreq) {
+  //DESCRIPTION: Attitude estimation through sensor fusion - 9DOF
+  /*
+   * This function fuses the accelerometer gyro, and magnetometer readings AccX, AccY, AccZ, GyroX, GyroY, GyroZ, MagX, MagY, and MagZ for attitude estimation.
+   * Don't worry about the math. There is a tunable parameter B_madgwick in the user specified variable section which basically
+   * adjusts the weight of gyro data in the state estimate. Higher beta leads to noisier estimate, lower 
+   * beta leads to slower to respond estimate. It is currently tuned for 2kHz loop rate. This function updates the roll_IMU,
+   * pitch_IMU, and yaw_IMU variables which are in degrees. If magnetometer data is not available, this function calls Madgwick6DOF() instead.
+   */
+  float recipNorm;
+  float s0, s1, s2, s3;
+  float qDot1, qDot2, qDot3, qDot4;
+  float hx, hy;
+  float _2q0mx, _2q0my, _2q0mz, _2q1mx, _2bx, _2bz, _4bx, _4bz, _2q0, _2q1, _2q2, _2q3, _2q0q2, _2q2q3, q0q0, q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
+
+  //use 6DOF algorithm if MPU6050 is being used
+  #if defined USE_MPU6050_I2C 
+    Madgwick6DOF(gx, gy, gz, ax, ay, az, invSampleFreq);
+    return;
+  #endif
+  
+  //Use 6DOF algorithm if magnetometer measurement invalid (avoids NaN in magnetometer normalisation)
+  if((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) {
+    Madgwick6DOF(gx, gy, gz, ax, ay, az, invSampleFreq);
+    return;
+  }
+
+  //Convert gyroscope degrees/sec to radians/sec
+  gx *= 0.0174533f;
+  gy *= 0.0174533f;
+  gz *= 0.0174533f;
+
+  //Rate of change of quaternion from gyroscope
+  qDot1 = 0.5f * (-q1 * gx - q2 * gy - q3 * gz);
+  qDot2 = 0.5f * (q0 * gx + q2 * gz - q3 * gy);
+  qDot3 = 0.5f * (q0 * gy - q1 * gz + q3 * gx);
+  qDot4 = 0.5f * (q0 * gz + q1 * gy - q2 * gx);
+
+  //Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
+  if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
+
+    //Normalise accelerometer measurement
+    recipNorm = invSqrt(ax * ax + ay * ay + az * az);
+    ax *= recipNorm;
+    ay *= recipNorm;
+    az *= recipNorm;
+
+    //Normalise magnetometer measurement
+    recipNorm = invSqrt(mx * mx + my * my + mz * mz);
+    mx *= recipNorm;
+    my *= recipNorm;
+    mz *= recipNorm;
+
+    //Auxiliary variables to avoid repeated arithmetic
+    _2q0mx = 2.0f * q0 * mx;
+    _2q0my = 2.0f * q0 * my;
+    _2q0mz = 2.0f * q0 * mz;
+    _2q1mx = 2.0f * q1 * mx;
+    _2q0 = 2.0f * q0;
+    _2q1 = 2.0f * q1;
+    _2q2 = 2.0f * q2;
+    _2q3 = 2.0f * q3;
+    _2q0q2 = 2.0f * q0 * q2;
+    _2q2q3 = 2.0f * q2 * q3;
+    q0q0 = q0 * q0;
+    q0q1 = q0 * q1;
+    q0q2 = q0 * q2;
+    q0q3 = q0 * q3;
+    q1q1 = q1 * q1;
+    q1q2 = q1 * q2;
+    q1q3 = q1 * q3;
+    q2q2 = q2 * q2;
+    q2q3 = q2 * q3;
+    q3q3 = q3 * q3;
+
+    //Reference direction of Earth's magnetic field
+    hx = mx * q0q0 - _2q0my * q3 + _2q0mz * q2 + mx * q1q1 + _2q1 * my * q2 + _2q1 * mz * q3 - mx * q2q2 - mx * q3q3;
+    hy = _2q0mx * q3 + my * q0q0 - _2q0mz * q1 + _2q1mx * q2 - my * q1q1 + my * q2q2 + _2q2 * mz * q3 - my * q3q3;
+    _2bx = sqrtf(hx * hx + hy * hy);
+    _2bz = -_2q0mx * q2 + _2q0my * q1 + mz * q0q0 + _2q1mx * q3 - mz * q1q1 + _2q2 * my * q3 - mz * q2q2 + mz * q3q3;
+    _4bx = 2.0f * _2bx;
+    _4bz = 2.0f * _2bz;
+
+    //Gradient decent algorithm corrective step
+    s0 = -_2q2 * (2.0f * q1q3 - _2q0q2 - ax) + _2q1 * (2.0f * q0q1 + _2q2q3 - ay) - _2bz * q2 * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (-_2bx * q3 + _2bz * q1) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + _2bx * q2 * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
+    s1 = _2q3 * (2.0f * q1q3 - _2q0q2 - ax) + _2q0 * (2.0f * q0q1 + _2q2q3 - ay) - 4.0f * q1 * (1 - 2.0f * q1q1 - 2.0f * q2q2 - az) + _2bz * q3 * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (_2bx * q2 + _2bz * q0) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + (_2bx * q3 - _4bz * q1) * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
+    s2 = -_2q0 * (2.0f * q1q3 - _2q0q2 - ax) + _2q3 * (2.0f * q0q1 + _2q2q3 - ay) - 4.0f * q2 * (1 - 2.0f * q1q1 - 2.0f * q2q2 - az) + (-_4bx * q2 - _2bz * q0) * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (_2bx * q1 + _2bz * q3) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + (_2bx * q0 - _4bz * q2) * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
+    s3 = _2q1 * (2.0f * q1q3 - _2q0q2 - ax) + _2q2 * (2.0f * q0q1 + _2q2q3 - ay) + (-_4bx * q3 + _2bz * q1) * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (-_2bx * q0 + _2bz * q2) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + _2bx * q1 * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);
+    recipNorm = invSqrt(s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3); // normalise step magnitude
+    s0 *= recipNorm;
+    s1 *= recipNorm;
+    s2 *= recipNorm;
+    s3 *= recipNorm;
+
+    //Apply feedback step
+    qDot1 -= B_madgwick * s0;
+    qDot2 -= B_madgwick * s1;
+    qDot3 -= B_madgwick * s2;
+    qDot4 -= B_madgwick * s3;
+  }
+
+  //Integrate rate of change of quaternion to yield quaternion
+  q0 += qDot1 * invSampleFreq;
+  q1 += qDot2 * invSampleFreq;
+  q2 += qDot3 * invSampleFreq;
+  q3 += qDot4 * invSampleFreq;
+
+  //Normalize quaternion
+  recipNorm = invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+  q0 *= recipNorm;
+  q1 *= recipNorm;
+  q2 *= recipNorm;
+  q3 *= recipNorm;
+  
+  //compute angles - NWU
+  roll_IMU = atan2(q0*q1 + q2*q3, 0.5f - q1*q1 - q2*q2)*57.29577951; //degrees
+  pitch_IMU = -asin(constrain(-2.0f * (q1*q3 - q0*q2),-0.999999,0.999999))*57.29577951; //degrees
+  yaw_IMU = -atan2(q1*q2 + q0*q3, 0.5f - q2*q2 - q3*q3)*57.29577951; //degrees
+}
+
+void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, float invSampleFreq) {
+  //DESCRIPTION: Attitude estimation through sensor fusion - 6DOF
+  /*
+   * See description of Madgwick() for more information. This is a 6DOF implimentation for when magnetometer data is not
+   * available (for example when using the recommended MPU6050 IMU for the default setup).
+   */
+  float recipNorm;
+  float s0, s1, s2, s3;
+  float qDot1, qDot2, qDot3, qDot4;
+  float _2q0, _2q1, _2q2, _2q3, _4q0, _4q1, _4q2 ,_8q1, _8q2, q0q0, q1q1, q2q2, q3q3;
+
+  //Convert gyroscope degrees/sec to radians/sec
+  gx *= 0.0174533f;
+  gy *= 0.0174533f;
+  gz *= 0.0174533f;
+
+  //Rate of change of quaternion from gyroscope
+  qDot1 = 0.5f * (-q1 * gx - q2 * gy - q3 * gz);
+  qDot2 = 0.5f * (q0 * gx + q2 * gz - q3 * gy);
+  qDot3 = 0.5f * (q0 * gy - q1 * gz + q3 * gx);
+  qDot4 = 0.5f * (q0 * gz + q1 * gy - q2 * gx);
+
+  //Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
+  if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
+    //Normalise accelerometer measurement
+    recipNorm = invSqrt(ax * ax + ay * ay + az * az);
+    ax *= recipNorm;
+    ay *= recipNorm;
+    az *= recipNorm;
+
+    //Auxiliary variables to avoid repeated arithmetic
+    _2q0 = 2.0f * q0;
+    _2q1 = 2.0f * q1;
+    _2q2 = 2.0f * q2;
+    _2q3 = 2.0f * q3;
+    _4q0 = 4.0f * q0;
+    _4q1 = 4.0f * q1;
+    _4q2 = 4.0f * q2;
+    _8q1 = 8.0f * q1;
+    _8q2 = 8.0f * q2;
+    q0q0 = q0 * q0;
+    q1q1 = q1 * q1;
+    q2q2 = q2 * q2;
+    q3q3 = q3 * q3;
+
+    //Gradient decent algorithm corrective step
+    s0 = _4q0 * q2q2 + _2q2 * ax + _4q0 * q1q1 - _2q1 * ay;
+    s1 = _4q1 * q3q3 - _2q3 * ax + 4.0f * q0q0 * q1 - _2q0 * ay - _4q1 + _8q1 * q1q1 + _8q1 * q2q2 + _4q1 * az;
+    s2 = 4.0f * q0q0 * q2 + _2q0 * ax + _4q2 * q3q3 - _2q3 * ay - _4q2 + _8q2 * q1q1 + _8q2 * q2q2 + _4q2 * az;
+    s3 = 4.0f * q1q1 * q3 - _2q1 * ax + 4.0f * q2q2 * q3 - _2q2 * ay;
+    recipNorm = invSqrt(s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3); //normalise step magnitude
+    s0 *= recipNorm;
+    s1 *= recipNorm;
+    s2 *= recipNorm;
+    s3 *= recipNorm;
+
+    //Apply feedback step
+    qDot1 -= B_madgwick * s0;
+    qDot2 -= B_madgwick * s1;
+    qDot3 -= B_madgwick * s2;
+    qDot4 -= B_madgwick * s3;
+  }
+
+  //Integrate rate of change of quaternion to yield quaternion
+  q0 += qDot1 * invSampleFreq;
+  q1 += qDot2 * invSampleFreq;
+  q2 += qDot3 * invSampleFreq;
+  q3 += qDot4 * invSampleFreq;
+
+  //Normalise quaternion
+  recipNorm = invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+  q0 *= recipNorm;
+  q1 *= recipNorm;
+  q2 *= recipNorm;
+  q3 *= recipNorm;
+
+  //Compute angles
+  roll_IMU = atan2(q0*q1 + q2*q3, 0.5f - q1*q1 - q2*q2)*57.29577951; //degrees
+  pitch_IMU = -asin(constrain(-2.0f * (q1*q3 - q0*q2),-0.999999,0.999999))*57.29577951; //degrees
+  yaw_IMU = -atan2(q1*q2 + q0*q3, 0.5f - q2*q2 - q3*q3)*57.29577951; //degrees
+}
+
+void getDesState() {
+  //DESCRIPTION: Normalizes desired control values to appropriate values
+  /*
+   * Updates the desired state variables thro_des, roll_des, pitch_des, and yaw_des. These are computed by using the raw
+   * RC pwm commands and scaling them to be within our limits defined in setup. thro_des stays within 0 to 1 range.
+   * roll_des and pitch_des are scaled to be within max roll/pitch amount in either degrees (angle mode) or degrees/sec
+   * (rate mode). yaw_des is scaled to be within max yaw in degrees/sec. Also creates roll_passthru, pitch_passthru, and
+   * yaw_passthru variables, to be used in commanding motors/servos with direct unstabilized commands in controlMixer().
+   */
+  thro_des  = (channel_1_pwm - 1000.0)/1000.0; //Between 0 and 1 //Kommentar EF:  auf Taranis Throttle
+  roll_des  = USE_ROLL_STICK ? (channel_2_pwm - 1500.0)/500.0 : 0.0; //Between -1 and 1; ohne Roll-Knueppel immer 0 (siehe USE_ROLL_STICK)
+  pitch_des = (channel_5_pwm - 1500.0)/500.0; //Between -1 and 1 // Kommentar EF: auf Taranis Ele
+  yaw_des   = (channel_6_pwm - 1500.0)/500.0; //Between -1 and 1 // Kommentar EF: auf Taranis Ail (für uns aber Rud / Yaw)
+  yawLStick_des   = (channel_7_pwm - 1500.0)/500.0; //Between -1 and 1 // Kommentar EF: auf Taranis Rud stick links (für uns zusätzliches Rud / yaw)
+  //CH10_des  = (channel_10_pwm - 1500.0)/500.0; //Between -1 and 1 // Kommentar EF: auf Taranis Ail
+  LED_1_des = (channel_14_pwm - 1500.0)/500.0; //Between -1 and 1 // Kommentar EF:
+  LED_2_des = (channel_15_pwm - 1500.0)/500.0;//Between -1 and 1 // Kommentar EF:
+  LED_3_des = (channel_16_pwm - 1500.0)/500.0;//Between -1 and 1 // Kommentar EF:
+  roll_passthru = roll_des/2.0; //Between -0.5 and 0.5
+  pitch_passthru = pitch_des/2.0; //Between -0.5 and 0.5
+  yaw_passthru = yaw_des/2.0; //Between -0.5 and 0.5
+  yawLStick_passthru = yawLStick_des/2.0; //Between -0.5 and 0.5
+  
+  //Constrain within normalized bounds
+  thro_des = constrain(thro_des, 0.0, 1.0); //Between 0 and 1
+  roll_des = constrain(roll_des, -1.0, 1.0)*maxRoll; //Between -maxRoll and +maxRoll
+  pitch_des = constrain(pitch_des, -1.0, 1.0)*maxPitch; //Between -maxPitch and +maxPitch
+  yaw_des = constrain(yaw_des, -1.0, 1.0)*maxYaw; //Between -maxYaw and +maxYaw
+  yawLStick_des = constrain(yawLStick_des, -1.0, 1.0)*maxYaw; //Between -maxYaw and +maxYaw
+  roll_passthru = constrain(roll_passthru, -0.5, 0.5);
+  pitch_passthru = constrain(pitch_passthru, -0.5, 0.5);
+  yaw_passthru = constrain(yaw_passthru, -0.5, 0.5);
+  yawLStick_passthru = constrain(yawLStick_passthru, -0.5, 0.5);
+}
+
+void controlANGLE() {
+  //DESCRIPTION: Computes control commands based on state error (angle)
+  /*
+   * Basic PID control to stablize on angle setpoint based on desired states roll_des, pitch_des, and yaw_des computed in 
+   * getDesState(). Error is simply the desired state minus the actual state (ex. roll_des - roll_IMU). Two safety features
+   * are implimented here regarding the I terms. The I terms are saturated within specified limits on startup to prevent 
+   * excessive buildup. This can be seen by holding the vehicle at an angle and seeing the motors ramp up on one side until
+   * they've maxed out throttle...saturating I to a specified limit fixes this. The second feature defaults the I terms to 0
+   * if the throttle is at the minimum setting. This means the motors will not start spooling up on the ground, and the I 
+   * terms will always start from 0 on takeoff. This function updates the variables roll_PID, pitch_PID, and yaw_PID which
+   * can be thought of as 1-D stablized signals. They are mixed to the configuration of the vehicle in controlMixer().
+   */
+  
+  //Roll
+  error_roll = roll_des - roll_IMU;
+  integral_roll = integral_roll_prev + error_roll*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_roll = 0;
+  }
+  integral_roll = constrain(integral_roll, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_roll = GyroX;
+  roll_PID = 0.01*(Kp_roll_angle*error_roll + Ki_roll_angle*integral_roll - Kd_roll_angle*derivative_roll); //Scaled by .01 to bring within -1 to 1 range
+
+  //Pitch
+  error_pitch = pitch_des - pitch_IMU;
+  integral_pitch = integral_pitch_prev + error_pitch*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_pitch = 0;
+  }
+  integral_pitch = constrain(integral_pitch, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_pitch = GyroY;
+  pitch_PID = .01*(Kp_pitch_angle*error_pitch + Ki_pitch_angle*integral_pitch - Kd_pitch_angle*derivative_pitch); //Scaled by .01 to bring within -1 to 1 range
+  pitch_PID_sp = .01*Kp_pitch_angle*pitch_des; //P-Anteil des Knueppel-Sollwerts allein (wird im Mixer lageunabhaengig verteilt)
+
+  //Yaw, stablize on rate from GyroZ
+  error_yaw = yaw_des - GyroZ;
+  integral_yaw = integral_yaw_prev + error_yaw*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_yaw = 0;
+  }
+  integral_yaw = constrain(integral_yaw, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_yaw = (error_yaw - error_yaw_prev)/dt; 
+  yaw_PID = .01*(Kp_yaw*error_yaw + Ki_yaw*integral_yaw + Kd_yaw*derivative_yaw); //Scaled by .01 to bring within -1 to 1 range
+
+  //Update roll variables
+  integral_roll_prev = integral_roll;
+  //Update pitch variables
+  integral_pitch_prev = integral_pitch;
+  //Update yaw variables
+  error_yaw_prev = error_yaw;
+  integral_yaw_prev = integral_yaw;
+}
+
+void controlANGLE2() {
+  //DESCRIPTION: Computes control commands based on state error (angle) in cascaded scheme
+  /*
+   * Gives better performance than controlANGLE() but requires much more tuning. Not reccommended for first-time setup.
+   * See the documentation for tuning this controller.
+   */
+  //Outer loop - PID on angle
+  float roll_des_ol, pitch_des_ol;
+  //Roll
+  error_roll = roll_des - roll_IMU;
+  integral_roll_ol = integral_roll_prev_ol + error_roll*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_roll_ol = 0;
+  }
+  integral_roll_ol = constrain(integral_roll_ol, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_roll = (roll_IMU - roll_IMU_prev)/dt; 
+  roll_des_ol = Kp_roll_angle*error_roll + Ki_roll_angle*integral_roll_ol;// - Kd_roll_angle*derivative_roll;
+
+  //Pitch
+  error_pitch = pitch_des - pitch_IMU;
+  integral_pitch_ol = integral_pitch_prev_ol + error_pitch*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_pitch_ol = 0;
+  }
+  integral_pitch_ol = constrain(integral_pitch_ol, -i_limit, i_limit); //saturate integrator to prevent unsafe buildup
+  derivative_pitch = (pitch_IMU - pitch_IMU_prev)/dt;
+  pitch_des_ol = Kp_pitch_angle*error_pitch + Ki_pitch_angle*integral_pitch_ol;// - Kd_pitch_angle*derivative_pitch;
+
+  //Apply loop gain, constrain, and LP filter for artificial damping
+  float Kl = 30.0;
+  roll_des_ol = Kl*roll_des_ol;
+  pitch_des_ol = Kl*pitch_des_ol;
+  roll_des_ol = constrain(roll_des_ol, -240.0, 240.0);
+  pitch_des_ol = constrain(pitch_des_ol, -240.0, 240.0);
+  roll_des_ol = (1.0 - B_loop_roll)*roll_des_prev + B_loop_roll*roll_des_ol;
+  pitch_des_ol = (1.0 - B_loop_pitch)*pitch_des_prev + B_loop_pitch*pitch_des_ol;
+
+  //Inner loop - PID on rate
+  //Roll
+  error_roll = roll_des_ol - GyroX;
+  integral_roll_il = integral_roll_prev_il + error_roll*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_roll_il = 0;
+  }
+  integral_roll_il = constrain(integral_roll_il, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_roll = (error_roll - error_roll_prev)/dt; 
+  roll_PID = .01*(Kp_roll_rate*error_roll + Ki_roll_rate*integral_roll_il + Kd_roll_rate*derivative_roll); //Scaled by .01 to bring within -1 to 1 range
+
+  //Pitch
+  error_pitch = pitch_des_ol - GyroY;
+  integral_pitch_il = integral_pitch_prev_il + error_pitch*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_pitch_il = 0;
+  }
+  integral_pitch_il = constrain(integral_pitch_il, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_pitch = (error_pitch - error_pitch_prev)/dt; 
+  pitch_PID = .01*(Kp_pitch_rate*error_pitch + Ki_pitch_rate*integral_pitch_il + Kd_pitch_rate*derivative_pitch); //Scaled by .01 to bring within -1 to 1 range
+  
+  //Yaw
+  error_yaw = yaw_des - GyroZ;
+  integral_yaw = integral_yaw_prev + error_yaw*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_yaw = 0;
+  }
+  integral_yaw = constrain(integral_yaw, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_yaw = (error_yaw - error_yaw_prev)/dt; 
+  yaw_PID = .01*(Kp_yaw*error_yaw + Ki_yaw*integral_yaw + Kd_yaw*derivative_yaw); //Scaled by .01 to bring within -1 to 1 range
+  
+  //Update roll variables
+  integral_roll_prev_ol = integral_roll_ol;
+  integral_roll_prev_il = integral_roll_il;
+  error_roll_prev = error_roll;
+  roll_IMU_prev = roll_IMU;
+  roll_des_prev = roll_des_ol;
+  //Update pitch variables
+  integral_pitch_prev_ol = integral_pitch_ol;
+  integral_pitch_prev_il = integral_pitch_il;
+  error_pitch_prev = error_pitch;
+  pitch_IMU_prev = pitch_IMU;
+  pitch_des_prev = pitch_des_ol;
+  //Update yaw variables
+  error_yaw_prev = error_yaw;
+  integral_yaw_prev = integral_yaw;
+
+}
+
+void controlRATE() {
+  //DESCRIPTION: Computes control commands based on state error (rate)
+  /*
+   * See explanation for controlANGLE(). Everything is the same here except the error is now the desired rate - raw gyro reading.
+   */
+  //Roll
+  error_roll = roll_des - GyroX;
+  integral_roll = integral_roll_prev + error_roll*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_roll = 0;
+  }
+  integral_roll = constrain(integral_roll, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_roll = (error_roll - error_roll_prev)/dt; 
+  roll_PID = .01*(Kp_roll_rate*error_roll + Ki_roll_rate*integral_roll + Kd_roll_rate*derivative_roll); //Scaled by .01 to bring within -1 to 1 range
+
+  //Pitch
+  error_pitch = pitch_des - GyroY;
+  integral_pitch = integral_pitch_prev + error_pitch*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_pitch = 0;
+  }
+  integral_pitch = constrain(integral_pitch, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_pitch = (error_pitch - error_pitch_prev)/dt; 
+  pitch_PID = .01*(Kp_pitch_rate*error_pitch + Ki_pitch_rate*integral_pitch + Kd_pitch_rate*derivative_pitch); //Scaled by .01 to bring within -1 to 1 range
+
+  //Yaw, stablize on rate from GyroZ
+  error_yaw = yaw_des - GyroZ;
+  integral_yaw = integral_yaw_prev + error_yaw*dt;
+  if (channel_1_pwm < 1060) {   //Don't let integrator build if throttle is too low
+    integral_yaw = 0;
+  }
+  integral_yaw = constrain(integral_yaw, -i_limit, i_limit); //Saturate integrator to prevent unsafe buildup
+  derivative_yaw = (error_yaw - error_yaw_prev)/dt; 
+  yaw_PID = .01*(Kp_yaw*error_yaw + Ki_yaw*integral_yaw + Kd_yaw*derivative_yaw); //Scaled by .01 to bring within -1 to 1 range
+
+  //Update roll variables
+  error_roll_prev = error_roll;
+  integral_roll_prev = integral_roll;
+  GyroX_prev = GyroX;
+  //Update pitch variables
+  error_pitch_prev = error_pitch;
+  integral_pitch_prev = integral_pitch;
+  GyroY_prev = GyroY;
+  //Update yaw variables
+  error_yaw_prev = error_yaw;
+  integral_yaw_prev = integral_yaw;
+}
+
+void scaleCommands() {
+  //DESCRIPTION: Scale normalized actuator commands to values for ESC/Servo protocol
+  /*
+   * mX_command_scaled variables from the mixer function are scaled to 125-250us for OneShot125 protocol. sX_command_scaled variables from
+   * the mixer function are scaled to 0-180 for the servo library using standard PWM.
+   * mX_command_PWM are updated here which are used to command the motors in commandMotors(). sX_command_PWM are updated 
+   * which are used to command the servos.
+   */
+  //Scaled to 125us - 250us for oneshot125 protocol
+  m1_command_PWM = m1_command_scaled*125 + 125;
+  m2_command_PWM = m2_command_scaled*125 + 125;
+  m3_command_PWM = m3_command_scaled*125 + 125;
+  m4_command_PWM = m4_command_scaled*125 + 125;
+  m5_command_PWM = m5_command_scaled*125 + 125;
+  m6_command_PWM = m6_command_scaled*125 + 125;
+  //Constrain commands to motors within oneshot125 bounds
+  m1_command_PWM = constrain(m1_command_PWM, 125, 250);
+  m2_command_PWM = constrain(m2_command_PWM, 125, 250);
+  m3_command_PWM = constrain(m3_command_PWM, 125, 250);
+  m4_command_PWM = constrain(m4_command_PWM, 125, 250);
+  m5_command_PWM = constrain(m5_command_PWM, 125, 250);
+  m6_command_PWM = constrain(m6_command_PWM, 125, 250);
+
+  //Scaled to 0-180 for servo library
+  s1_command_PWM = s1_command_scaled*180;
+  s2_command_PWM = s2_command_scaled*180;
+  s3_command_PWM = s3_command_scaled*180;
+  s4_command_PWM = s4_command_scaled*180;
+  s5_command_PWM = s5_command_scaled*180;
+  s6_command_PWM = s6_command_scaled*180;
+  s7_command_PWM = s7_command_scaled*180;
+  //Constrain commands to servos within servo library bounds
+  s1_command_PWM = constrain(s1_command_PWM, 0, 180);
+  s2_command_PWM = constrain(s2_command_PWM, 0, 180);
+  s3_command_PWM = constrain(s3_command_PWM, 0, 180);
+  s4_command_PWM = constrain(s4_command_PWM, 0, 180);
+  s5_command_PWM = constrain(s5_command_PWM, -0, 180);
+  s6_command_PWM = constrain(s6_command_PWM, 0, 180);
+  s7_command_PWM = constrain(s7_command_PWM, 0, 180);
+
+}
+
+void getCommands() {
+  //DESCRIPTION: Get raw PWM values for every channel from the radio
+  /*
+   * Updates radio PWM commands in loop based on current available commands. channel_x_pwm is the raw command used in the rest of 
+   * the loop. If using a PWM or PPM receiver, the radio commands are retrieved from a function in the readPWM file separate from this one which 
+   * is running a bunch of interrupts to continuously update the radio readings. If using an SBUS receiver, the alues are pulled from the SBUS library directly.
+   * The raw radio commands are filtered with a first order low-pass filter to eliminate any really high frequency noise. 
+   */
+
+  #if defined USE_PPM_RX || defined USE_PWM_RX
+    channel_1_pwm = getRadioPWM(1);
+    channel_2_pwm = getRadioPWM(2);
+    channel_3_pwm = getRadioPWM(3);
+    channel_4_pwm = getRadioPWM(4);
+    channel_5_pwm = getRadioPWM(5);
+    channel_6_pwm = getRadioPWM(6);
+    channel_7_pwm = getRadioPWM(7);
+    channel_8_pwm = getRadioPWM(8);
+    channel_9_pwm = getRadioPWM(9);
+    channel_10_pwm = getRadioPWM(10);
+    channel_11_pwm = getRadioPWM(11);
+    channel_12_pwm = getRadioPWM(12);
+    channel_13_pwm = getRadioPWM(13);
+    channel_14_pwm = getRadioPWM(14);
+    channel_15_pwm = getRadioPWM(15);
+    channel_16_pwm = getRadioPWM(16);
+    radioFailsafe = false; //PWM/PPM: Plausibilitaetspruefung in failSafe()
+    
+
+  #elif defined USE_SBUS_RX
+    if (sbus.read(&sbusChannels[0], &sbusFailSafe, &sbusLostFrame))
+    {
+      lastSbusFrame_ms = millis();
+      radioFailsafe = sbusFailSafe; //Empfaenger meldet Failsafe (einzelne verlorene Pakete werden bewusst ignoriert)
+
+      //Skalierung: sbus_scale / sbus_bias (siehe LUFTSCHIFF-EINSTELLUNGEN)
+      float scale = sbus_scale;
+      float bias  = sbus_bias;
+      channel_1_pwm = sbusChannels[0] * scale + bias;
+      channel_2_pwm = sbusChannels[1] * scale + bias;
+      channel_3_pwm = sbusChannels[2] * scale + bias;
+      channel_4_pwm = sbusChannels[3] * scale + bias;
+      channel_5_pwm = sbusChannels[4] * scale + bias;
+      channel_6_pwm = sbusChannels[5] * scale + bias; 
+      channel_7_pwm = sbusChannels[6] * scale + bias; 
+      channel_8_pwm = sbusChannels[7] * scale + bias; 
+      channel_9_pwm = sbusChannels[8] * scale + bias; 
+      channel_10_pwm = sbusChannels[9] * scale + bias; 
+      channel_11_pwm = sbusChannels[10] * scale + bias; 
+      channel_12_pwm = sbusChannels[11] * scale + bias;
+      channel_13_pwm = sbusChannels[12] * scale + bias;
+      channel_14_pwm = sbusChannels[13] * scale + bias;
+      channel_15_pwm = sbusChannels[14] * scale + bias;
+      channel_16_pwm = sbusChannels[15] * scale + bias; 
+    }
+
+    //Kein gueltiges SBUS-Paket mehr (Empfaenger aus, Kabel ab, "keine Pulse"-Failsafe) -> Failsafe
+    if ((millis() - lastSbusFrame_ms) > SBUS_TIMEOUT_MS) {
+      radioFailsafe = true;
+    }
+
+  #elif defined USE_DSM_RX
+    if (DSM.timedOut(micros())) {
+        radioFailsafe = true; //Serial.println("*** DSM RX TIMED OUT ***");
+    }
+    else if (DSM.gotNewFrame()) {
+        uint16_t values[num_DSM_channels];
+        DSM.getChannelValues(values, num_DSM_channels);
+        radioFailsafe = false;
+
+        channel_1_pwm = values[0];
+        channel_2_pwm = values[1];
+        channel_3_pwm = values[2];
+        channel_4_pwm = values[3];
+        channel_5_pwm = values[4];
+        channel_6_pwm = values[5];
+        channel_7_pwm = values[6];
+        channel_8_pwm = values[7];
+        channel_9_pwm = values[8];
+        channel_10_pwm = values[9];
+        channel_11_pwm = values[10];
+        channel_12_pwm = values[11];
+        channel_13_pwm = values[12];
+        channel_14_pwm = values[13];
+        channel_15_pwm = values[14];
+        channel_16_pwm = values[15];
+        
+    }
+  #endif
+  
+  //Low-pass the critical commands and update previous values
+  float b = 0.7; //Lower=slower, higher=noiser
+  channel_1_pwm = (1.0 - b)*channel_1_pwm_prev + b*channel_1_pwm;
+  channel_2_pwm = (1.0 - b)*channel_2_pwm_prev + b*channel_2_pwm;
+  channel_3_pwm = (1.0 - b)*channel_3_pwm_prev + b*channel_3_pwm;
+  channel_4_pwm = (1.0 - b)*channel_4_pwm_prev + b*channel_4_pwm;
+  channel_1_pwm_prev = channel_1_pwm;
+  channel_2_pwm_prev = channel_2_pwm;
+  channel_3_pwm_prev = channel_3_pwm;
+  channel_4_pwm_prev = channel_4_pwm;
+}
+
+void failSafe() {
+  //DESCRIPTION: If radio gives garbage values or the receiver reports failsafe, set all commands to default values
+  /*
+   * Greift in drei Faellen: (1) Empfaenger meldet Failsafe bzw. es kommt kein SBUS-Paket mehr (radioFailsafe, siehe getCommands()),
+   * (2) irgendein Kanal liegt ausserhalb 800..2200 us. Dann werden ALLE Kanaele auf die Failsafe-Werte gesetzt:
+   * Gas = 1500 (Stopp), Motor-Freigabe (Kanal 14) = 1000 -> Motoren AUS (zusaetzlich sperrt updateMotorEnable() bei radioFailsafe direkt),
+   * Modusschalter = 1500 -> Mode 2 (Luftschiff wird stabilisiert), Knueppel mittig.
+   * Comment out this function when troubleshooting your radio connection in case any extreme values are triggering this function.
+   */
+  unsigned long minVal = 800;
+  unsigned long maxVal = 2200;
+
+  unsigned long* ch[16] = {
+    &channel_1_pwm, &channel_2_pwm, &channel_3_pwm, &channel_4_pwm,
+    &channel_5_pwm, &channel_6_pwm, &channel_7_pwm, &channel_8_pwm,
+    &channel_9_pwm, &channel_10_pwm, &channel_11_pwm, &channel_12_pwm,
+    &channel_13_pwm, &channel_14_pwm, &channel_15_pwm, &channel_16_pwm };
+  unsigned long fs[16] = {
+    channel_1_fs, channel_2_fs, channel_3_fs, channel_4_fs,
+    channel_5_fs, channel_6_fs, channel_7_fs, channel_8_fs,
+    channel_9_fs, channel_10_fs, channel_11_fs, channel_12_fs,
+    channel_13_fs, channel_14_fs, channel_15_fs, channel_16_fs };
+
+  bool failed = radioFailsafe;
+  for (int i = 0; i < 16; i++) {
+    if (*ch[i] > maxVal || *ch[i] < minVal) failed = true;
+  }
+
+  //If any failures, set to default failsafe values
+  if (failed) {
+    radioFailsafe = true;
+    for (int i = 0; i < 16; i++) {
+      *ch[i] = fs[i];
+    }
+  }
+}
+
+void commandMotors() {
+  //DESCRIPTION: Send pulses to motor pins, oneshot125 protocol
+  /*
+   * My crude implimentation of OneShot125 protocol which sends 125 - 250us pulses to the ESCs (mXPin). The pulselengths being
+   * sent are mX_command_PWM, computed in scaleCommands(). This may be replaced by something more efficient in the future.
+   */
+  int wentLow = 0;
+  int pulseStart, timer;
+  int flagM1 = 0;
+  int flagM2 = 0;
+  int flagM3 = 0;
+  int flagM4 = 0;
+  int flagM5 = 0;
+  int flagM6 = 0;
+  
+  //Write all motor pins high
+  digitalWrite(m1Pin, HIGH);
+  digitalWrite(m2Pin, HIGH);
+  digitalWrite(m3Pin, HIGH);
+  digitalWrite(m4Pin, HIGH);
+  digitalWrite(m5Pin, HIGH);
+  digitalWrite(m6Pin, HIGH);
+  pulseStart = micros();
+
+  //Write each motor pin low as correct pulse length is reached
+  while (wentLow < 6 ) { //Keep going until final (6th) pulse is finished, then done
+    timer = micros();
+    if ((m1_command_PWM <= timer - pulseStart) && (flagM1==0)) {
+      digitalWrite(m1Pin, LOW);
+      wentLow = wentLow + 1;
+      flagM1 = 1;
+    }
+    if ((m2_command_PWM <= timer - pulseStart) && (flagM2==0)) {
+      digitalWrite(m2Pin, LOW);
+      wentLow = wentLow + 1;
+      flagM2 = 1;
+    }
+    if ((m3_command_PWM <= timer - pulseStart) && (flagM3==0)) {
+      digitalWrite(m3Pin, LOW);
+      wentLow = wentLow + 1;
+      flagM3 = 1;
+    }
+    if ((m4_command_PWM <= timer - pulseStart) && (flagM4==0)) {
+      digitalWrite(m4Pin, LOW);
+      wentLow = wentLow + 1;
+      flagM4 = 1;
+    } 
+    if ((m5_command_PWM <= timer - pulseStart) && (flagM5==0)) {
+      digitalWrite(m5Pin, LOW);
+      wentLow = wentLow + 1;
+      flagM5 = 1;
+    } 
+    if ((m6_command_PWM <= timer - pulseStart) && (flagM6==0)) {
+      digitalWrite(m6Pin, LOW);
+      wentLow = wentLow + 1;
+      flagM6 = 1;
+    } 
+  }
+}
+
+void armMotors() {
+  //DESCRIPTION: Sends many command pulses to the motors, to be used to arm motors in the void setup()
+  /*  
+   *  Loops over the commandMotors() function 50 times with a delay in between, simulating how the commandMotors()
+   *  function is used in the main loop. Ensures motors arm within the void setup() where there are some delays
+   *  for other processes that sometimes prevent motors from arming.
+   */
+  for (int i = 0; i <= 50; i++) {
+    commandMotors();
+    delay(2);
+  }
+}
+
+void calibrateESCs() {
+  //DESCRIPTION: Used in void setup() to allow standard ESC calibration procedure with the radio to take place.
+  /*  
+   *  Simulates the void loop(), but only for the purpose of providing throttle pass through to the motors, so that you can
+   *  power up with throttle at full, let ESCs begin arming sequence, and lower throttle to zero. This function should only be
+   *  uncommented when performing an ESC calibration.
+   */
+   while (true) {
+      prev_time = current_time;      
+      current_time = micros();      
+      dt = (current_time - prev_time)/1000000.0;
+    
+      digitalWrite(13, HIGH); //LED on to indicate we are not in main loop
+
+      getCommands(); //Pulls current available radio commands
+      failSafe(); //Prevent failures in event of bad receiver connection, defaults to failsafe values assigned in setup
+      getDesState(); //Convert raw commands to normalized values based on saturated control limits
+      getIMUdata(); //Pulls raw gyro, accelerometer, and magnetometer data from IMU and LP filters to remove noise
+      Madgwick(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, MagY, -MagX, MagZ, dt); //Updates roll_IMU, pitch_IMU, and yaw_IMU (degrees)
+      getDesState(); //Convert raw commands to normalized values based on saturated control limits
+      
+      m1_command_scaled = thro_des;
+      m2_command_scaled = thro_des;
+      m3_command_scaled = thro_des;
+      m4_command_scaled = thro_des;
+      m5_command_scaled = thro_des;
+      m6_command_scaled = thro_des;
+      s1_command_scaled = thro_des;
+      s2_command_scaled = thro_des;
+      s3_command_scaled = thro_des;
+      s4_command_scaled = thro_des;
+      s5_command_scaled = thro_des;
+      s6_command_scaled = thro_des;
+      s7_command_scaled = thro_des;
+      scaleCommands(); //Scales motor commands to 125 to 250 range (oneshot125 protocol) and servo PWM commands to 0 to 180 (for servo library)
+    
+      //throttleCut(); //Directly sets motor commands to low based on state of ch5
+      
+      servoOut(1, s1_command_scaled); 
+      servoOut(2, s2_command_scaled);
+      servoOut(3, s3_command_scaled);
+      servoOut(4, s4_command_scaled);
+      servoOut(5, s5_command_scaled);
+      servoOut(6, s6_command_scaled);
+      servoOut(7, s7_command_scaled);
+      commandMotors(); //Sends command pulses to each motor pin using OneShot125 protocol
+      
+      //printRadioData(); //Radio pwm values (expected: 1000 to 2000)
+      
+      loopRate(2000); //Do not exceed 2000Hz, all filter parameters tuned to 2000Hz by default
+   }
+}
+
+float floatFaderLinear(float param, float param_min, float param_max, float fadeTime, int state, int loopFreq){
+  //DESCRIPTION: Linearly fades a float type variable between min and max bounds based on desired high or low state and time
+  /*  
+   *  Takes in a float variable, desired minimum and maximum bounds, fade time, high or low desired state, and the loop frequency 
+   *  and linearly interpolates that param variable between the maximum and minimum bounds. This function can be called in controlMixer()
+   *  and high/low states can be determined by monitoring the state of an auxillarly radio channel. For example, if channel_6_pwm is being 
+   *  monitored to switch between two dynamic configurations (hover and forward flight), this function can be called within the logical 
+   *  statements in order to fade controller gains, for example between the two dynamic configurations. The 'state' (1 or 0) can be used
+   *  to designate the two final options for that control gain based on the dynamic configuration assignment to the auxillary radio channel.
+   *  
+   */
+  float diffParam = (param_max - param_min)/(fadeTime*loopFreq); //Difference to add or subtract from param for each loop iteration for desired fadeTime
+
+  if (state == 1) { //Maximum param bound desired, increase param by diffParam for each loop iteration
+    param = param + diffParam;
+  }
+  else if (state == 0) { //Minimum param bound desired, decrease param by diffParam for each loop iteration
+    param = param - diffParam;
+  }
+
+  param = constrain(param, param_min, param_max); //Constrain param within max bounds
+  
+  return param;
+}
+
+float floatFaderLinear2(float param, float param_des, float param_lower, float param_upper, float fadeTime_up, float fadeTime_down, int loopFreq){
+  //DESCRIPTION: Linearly fades a float type variable from its current value to the desired value, up or down
+  /*  
+   *  Takes in a float variable to be modified, desired new position, upper value, lower value, fade time, and the loop frequency 
+   *  and linearly fades that param variable up or down to the desired value. This function can be called in controlMixer()
+   *  to fade up or down between flight modes monitored by an auxillary radio channel. For example, if channel_6_pwm is being 
+   *  monitored to switch between two dynamic configurations (hover and forward flight), this function can be called within the logical 
+   *  statements in order to fade controller gains, for example between the two dynamic configurations. 
+   *  
+   */
+  if (param > param_des) { //Need to fade down to get to desired
+    float diffParam = (param_upper - param_des)/(fadeTime_down*loopFreq);
+    param = param - diffParam;
+  }
+  else if (param < param_des) { //Need to fade up to get to desired
+    float diffParam = (param_des - param_lower)/(fadeTime_up*loopFreq);
+    param = param + diffParam;
+  }
+
+  param = constrain(param, param_lower, param_upper); //Constrain param within max bounds
+  
+  return param;
+}
+
+void switchRollYaw(int reverseRoll, int reverseYaw) {
+  //DESCRIPTION: Switches roll_des and yaw_des variables for tailsitter-type configurations
+  /*
+   * Takes in two integers (either 1 or -1) corresponding to the desired reversing of the roll axis and yaw axis, respectively.
+   * Reversing of the roll or yaw axis may be needed when switching between the two for some dynamic configurations. Inputs of 1, 1 does not 
+   * reverse either of them, while -1, 1 will reverse the output corresponding to the new roll axis. 
+   * This function may be replaced in the future by a function that switches the IMU data instead (so that angle can also be estimated with the 
+   * IMU tilted 90 degrees from default level).
+   */
+  float switch_holder;
+
+  switch_holder = yaw_des;
+  yaw_des = reverseYaw*roll_des;
+  roll_des = reverseRoll*switch_holder;
+}
+
+void setMotorsToStop() {
+  //DESCRIPTION: Setzt alle Motorsignale auf den Stopp-Wert (bei bidirektionalen ESCs die Mitte, nicht das Minimum)
+  m1_command_PWM = constrain((int)((motor1_trim + MOTOR_STOP_THRO)*125 + 125), 125, 250);
+  m2_command_PWM = constrain((int)((motor2_trim + MOTOR_STOP_THRO)*125 + 125), 125, 250);
+  int stopPWM = constrain((int)(MOTOR_STOP_THRO*125 + 125), 125, 250);
+  m3_command_PWM = stopPWM;
+  m4_command_PWM = stopPWM;
+  m5_command_PWM = stopPWM;
+  m6_command_PWM = stopPWM;
+}
+
+void throttleCut() {
+  //DESCRIPTION: Directly set motor outputs to the stop value if motors are not enabled
+  /*
+   * Letzte Funktion vor commandMotors(): Sind die Motoren nicht freigegeben (Failsafe, Freigabeschalter Kanal 14 aus oder nach dem
+   * Booten noch gesperrt, siehe updateMotorEnable()), werden alle Motorsignale hart auf den Stopp-Wert gesetzt, egal was der Mixer berechnet hat.
+   * Wichtig: Die ESCs laufen in beide Richtungen, Stopp = Mitte (ca. 187 us). Das Minimum (125 us) waere VOLL RUECKWAERTS.
+   */
+  if (!motorsEnabled) {
+    setMotorsToStop();
+  }
+}
+
+void calibrateMagnetometer() {
+  #if defined USE_MPU9250_SPI 
+    float success;
+    Serial.println("Beginning magnetometer calibration in");
+    Serial.println("3...");
+    delay(1000);
+    Serial.println("2...");
+    delay(1000);
+    Serial.println("1...");
+    delay(1000);
+    Serial.println("Rotate the IMU about all axes until complete.");
+    Serial.println(" ");
+    success = mpu9250.calibrateMag();
+    if(success) {
+      Serial.println("Calibration Successful!");
+      Serial.println("Please comment out the calibrateMagnetometer() function and copy these values into the code:");
+      Serial.print("float MagErrorX = ");
+      Serial.print(mpu9250.getMagBiasX_uT());
+      Serial.println(";");
+      Serial.print("float MagErrorY = ");
+      Serial.print(mpu9250.getMagBiasY_uT());
+      Serial.println(";");
+      Serial.print("float MagErrorZ = ");
+      Serial.print(mpu9250.getMagBiasZ_uT());
+      Serial.println(";");
+      Serial.print("float MagScaleX = ");
+      Serial.print(mpu9250.getMagScaleFactorX());
+      Serial.println(";");
+      Serial.print("float MagScaleY = ");
+      Serial.print(mpu9250.getMagScaleFactorY());
+      Serial.println(";");
+      Serial.print("float MagScaleZ = ");
+      Serial.print(mpu9250.getMagScaleFactorZ());
+      Serial.println(";");
+      Serial.println(" ");
+      Serial.println("If you are having trouble with your attitude estimate at a new flying location, repeat this process as needed.");
+    }
+    else {
+      Serial.println("Calibration Unsuccessful. Please reset the board and try again.");
+    }
+  
+    while(1); //Halt code so it won't enter main loop until this function commented out
+  #endif
+  Serial.println("Error: MPU9250 not selected. Cannot calibrate non-existent magnetometer.");
+  while(1); //Halt code so it won't enter main loop until this function commented out
+}
+
+void loopRate(int freq) {
+  //DESCRIPTION: Regulate main loop rate to specified frequency in Hz
+  /*
+   * It's good to operate at a constant loop rate for filters to remain stable and whatnot. Interrupt routines running in the
+   * background cause the loop rate to fluctuate. This function basically just waits at the end of every loop iteration until 
+   * the correct time has passed since the start of the current loop for the desired loop rate in Hz. 2kHz is a good rate to 
+   * be at because the loop nominally will run between 2.8kHz - 4.2kHz. This lets us have a little room to add extra computations
+   * and remain above 2kHz, without needing to retune all of our filtering parameters.
+   */
+  float invFreq = 1.0/freq*1000000.0;
+  unsigned long checker = micros();
+  
+  //Sit in loop until appropriate time has passed
+  while (invFreq > (checker - current_time)) {
+    checker = micros();
+  }
+}
+
+void loopBlink() {
+  //DESCRIPTION: Blink LED on board to indicate main loop is running
+  /*
+   * It looks cool.
+   */
+  if (current_time - blink_counter > blink_delay) {
+    blink_counter = micros();
+    digitalWrite(13, blinkAlternate); //Pin 13 is built in LED
+    
+    if (blinkAlternate == 1) {
+      blinkAlternate = 0;
+      blink_delay = 100000;
+      }
+    else if (blinkAlternate == 0) {
+      blinkAlternate = 1;
+      blink_delay = !imuOK ? 100000 : (imuZeroBusy ? 40000 : 1000000); //ohne IMU schnell, beim IMU-Nullpunkt sehr schnell
+      }
+  }
+}
+
+void setupBlink(int numBlinks,int upTime, int downTime) {
+  //DESCRIPTION: Simple function to make LED on board blink as desired
+  for (int j = 1; j<= numBlinks; j++) {
+    digitalWrite(13, LOW);
+    delay(downTime);
+    digitalWrite(13, HIGH);
+    delay(upTime);
+  }
+}
+
+void printRadioData() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F(" CH1:"));
+    Serial.print(channel_1_pwm);
+    Serial.print(F(" CH2:"));
+    Serial.print(channel_2_pwm);
+    Serial.print(F(" CH3:"));
+    Serial.print(channel_3_pwm);
+    Serial.print(F(" CH4:"));
+    Serial.print(channel_4_pwm);
+    Serial.print(F(" CH5:"));
+    Serial.print(channel_5_pwm);
+    Serial.print(F(" CH6:"));
+    Serial.print(channel_6_pwm);
+    Serial.print(F(" CH7:"));
+    Serial.print(channel_7_pwm);
+    Serial.print(F(" CH8:"));
+    Serial.print(channel_8_pwm);
+    Serial.print(F(" CH9:"));
+    Serial.print(channel_9_pwm);
+    Serial.print(F(" CH10:"));
+    Serial.print(channel_10_pwm);
+    Serial.print(F(" CH11:"));
+    Serial.print(channel_11_pwm);
+    Serial.print(F(" CH12:"));
+    Serial.print(channel_12_pwm);
+    Serial.print(F(" CH13:"));
+    Serial.println(channel_13_pwm);
+    Serial.print(F(" CH14:"));
+    Serial.println(channel_14_pwm);
+  }
+}
+
+void printDesiredState() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("thro_des:"));
+    Serial.print(thro_des);
+    Serial.print(F(" roll_des:"));
+    Serial.print(roll_des);
+    Serial.print(F(" pitch_des:"));
+    Serial.print(pitch_des);
+    Serial.print(F(" yaw_des:"));
+    Serial.println(yaw_des);
+    Serial.print(F(" LED_1_des:"));
+    Serial.println(LED_1_des);
+    Serial.print(F(" s4_command_scaled:"));
+    Serial.print(s4_command_scaled);
+    Serial.print(F(" s4_command_PWM:"));
+    Serial.println(s4_command_PWM);
+    Serial.print(F(" s5_command_scaled:"));
+    Serial.print(s5_command_scaled);
+    Serial.print(F(" s5_command_PWM:"));
+    Serial.println(s5_command_PWM);
+
+  }
+}
+
+void printGyroData() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("GyroX:"));
+    Serial.print(GyroX);
+    Serial.print(F(" GyroY:"));
+    Serial.print(GyroY);
+    Serial.print(F(" GyroZ:"));
+    Serial.println(GyroZ);
+  }
+}
+
+void printAccelData() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("AccX:"));
+    Serial.print(AccX);
+    Serial.print(F(" AccY:"));
+    Serial.print(AccY);
+    Serial.print(F(" AccZ:"));
+    Serial.println(AccZ);
+  }
+}
+
+void printMagData() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("MagX:"));
+    Serial.print(MagX);
+    Serial.print(F(" MagY:"));
+    Serial.print(MagY);
+    Serial.print(F(" MagZ:"));
+    Serial.println(MagZ);
+  }
+}
+
+void printRollPitchYaw() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("roll:"));
+    Serial.print(roll_IMU);
+    Serial.print(F(" pitch:"));
+    Serial.print(pitch_IMU);
+    Serial.print(F(" yaw:"));
+    Serial.println(yaw_IMU);
+  }
+}
+
+void printPIDoutput() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("roll_PID:"));
+    Serial.print(roll_PID);
+    Serial.print(F(" pitch_PID:"));
+    Serial.print(pitch_PID);
+    Serial.print(F(" yaw_PID:"));
+    Serial.println(yaw_PID);
+  }
+}
+
+void printMotorCommands() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("m1_command:"));
+    Serial.print(m1_command_PWM);
+    Serial.print(F(" m2_command:"));
+    Serial.print(m2_command_PWM);
+    Serial.print(F(" m3_command:"));
+    Serial.print(m3_command_PWM);
+    Serial.print(F(" m4_command:"));
+    Serial.print(m4_command_PWM);
+    Serial.print(F(" m5_command:"));
+    Serial.print(m5_command_PWM);
+    Serial.print(F(" m6_command:"));
+    Serial.println(m6_command_PWM);
+  }
+}
+
+void printServoCommands() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("s1_command:"));
+    Serial.print(s1_command_PWM);
+    Serial.print(F(" s2_command:"));
+    Serial.print(s2_command_PWM);
+    Serial.print(F(" s3_command:"));
+    Serial.print(s3_command_PWM);
+    Serial.print(F(" s4_command:"));
+    Serial.print(s4_command_PWM);
+    Serial.print(F(" s5_command:"));
+    Serial.print(s5_command_PWM);
+    Serial.print(F(" s6_command:"));
+    Serial.print(s6_command_PWM);
+    Serial.print(F(" s7_command:"));
+    Serial.println(s7_command_PWM);
+  }
+}
+
+void printLoopRate() {
+  if (current_time - print_counter > 10000) {
+    print_counter = micros();
+    Serial.print(F("dt:"));
+    Serial.println(dt*1000000.0);
+  }
+}
+
+//=========================================================================================//
+
+//HELPER FUNCTIONS
+
+float invSqrt(float x) {
+  //Fast inverse sqrt for madgwick filter
+  /*
+  float halfx = 0.5f * x;
+  float y = x;
+  long i = *(long*)&y;
+  i = 0x5f3759df - (i>>1);
+  y = *(float*)&i;
+  y = y * (1.5f - (halfx * y * y));
+  y = y * (1.5f - (halfx * y * y));
+  return y;
+  */
+  /*
+  //alternate form:
+  unsigned int i = 0x5F1F1412 - (*(unsigned int*)&x >> 1);
+  float tmp = *(float*)&i;
+  float y = tmp * (1.69000231f - 0.714158168f * x * tmp * tmp);
+  return y;
+  */
+  return 1.0/sqrtf(x); //Teensy is fast enough to just take the compute penalty lol suck it arduino nano
+}
