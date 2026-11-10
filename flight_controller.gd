@@ -1,3 +1,4 @@
+# 2026-11-10 11:45 – Mode 3: maximale Gierrate 110 °/s statt 180 °/s (Wunsch Nutzer); gespeicherte 180 werden beim Laden auf 110 umgestellt
 # 2026-11-09 16:00 – SIM_OPT neu für Mode 3 mit Gier-PID
 # 2026-11-09 15:20 – Mode 3: Gier als vollständiger PID-Drehratenregler (Kp/Ki/Kd_yaw_m3, immer aktiv, Sollrate 0 bei Knüppel Mitte ⇒ hält die Richtung; ersetzt Einblenden und Gierdämpfer); Höhenknüppel loslassen ⇒ Sollwinkel sofort 0 (wie Mode 2); Einstellungen Version 11
 # 2026-11-09 14:35 – Nick-Schutz (Mode 2/3): geht die Lage über maxPitch hinaus, wird die Knüppel-Vorsteuerung in diese Richtung über pitch_protect_band_deg (10°) ausgeblendet – vorher stellte sich bei gehaltenem Höhenknüppel ≈ 60° Nick ein (Flossen überzogen, „steuerlos“); Gas bleibt unberührt
@@ -165,7 +166,7 @@ var params := {
 	Axis.ROLL:  {"Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "roll_vs_pitch": 1.5},
 	Axis.YAW:   {"stick_yaw_motor": 0.016, "stick_yaw_tail": 0.005,
 				 "stick_yaw_motor_m3": 0.0125, "stick_yaw_tail_m3": 0.00625,
-				 "Kp_yaw_m3": 1.8, "Ki_yaw_m3": 0.8, "Kd_yaw_m3": 0.03, "yaw_rate_max": 180.0, "yaw_loop_motor_m3": 0.6, "yaw_loop_tail_m3": 0.5},
+				 "Kp_yaw_m3": 1.8, "Ki_yaw_m3": 0.8, "Kd_yaw_m3": 0.03, "yaw_rate_max": 110.0, "yaw_loop_motor_m3": 0.6, "yaw_loop_tail_m3": 0.5},
 }
 
 ## Schieberegler-Tabelle fürs PID-Menü (je Achse); das UI baut sich daraus auf.
@@ -676,3 +677,6 @@ func load_settings() -> void:
 	for k in GENERAL_KEYS:
 		set(k, cfg.get_value("general", k, get(k)))
 	preset = str(cfg.get_value("general", "preset", "teensy"))
+	# 10.11.2026: alte Werkseinstellung 180 °/s → neue 110 °/s (eigene andere Werte bleiben)
+	if is_equal_approx(float(params[Axis.YAW].yaw_rate_max), 180.0):
+		params[Axis.YAW].yaw_rate_max = 110.0
