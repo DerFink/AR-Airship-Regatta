@@ -1,3 +1,4 @@
+# 2026-11-11 14:00 – Kanalzuordnung einstellbar (Funktion → Kanal 1…8, wird mit der Kalibrierung gespeichert) und Anlernen per Bewegung; Belegung geht auf Wunsch in den .ino-Export
 # 2026-11-09 14:20 – Kalibrierung je Kanal (Min/Mitte/Max, Richtung umkehren), gespeichert in user://sender_kalibrierung.cfg; während der Kalibrierung keine Schalter-Signale
 # 2026-11-08 17:15 – Sender automatisch unter mehreren Geräten finden (Name FrSky/Taranis/EdgeTX oder ausgelenkte Schalterkanäle), alle 0,5 s neu prüfen
 # 2026-11-08 15:40 – Arming andersherum: SF oben = scharf, SF unten = aus
@@ -51,8 +52,20 @@ const AXIS_RESET := 6      ## CH7 Schalter SH (oben = zurücksetzen)
 const INVERT_PITCH := false
 const INVERT_THROTTLE := false
 
-## Anzahl ausgewerteter Kanäle (CH1…CH7)
-const CHANNELS := 7
+## Anzahl ausgewerteter Kanäle (CH1…CH8, klassischer EdgeTX-Joystick)
+const CHANNELS := 8
+## Funktionen und ihre Standard-Kanäle (1-basiert) – Belegung des Simulator-Modells
+const FUNCS := ["yaw", "pitch", "thr", "roll", "arm", "mode", "reset"]
+const FUNC_NAMES := {"yaw": "Gier (Seite)", "pitch": "Nick (Höhe)", "thr": "Gas", "roll": "Rolle (linker Knüppel)",
+	"arm": "Armed / Motorfreigabe", "mode": "Modus-Schalter", "reset": "Zurücksetzen (nur Simulator)"}
+const DEFAULT_MAP := {"yaw": 1, "pitch": 2, "thr": 3, "roll": 4, "arm": 5, "mode": 6, "reset": 7}
+## Aktuelle Zuordnung Funktion → Kanal (1-basiert)
+static var fmap := DEFAULT_MAP.duplicate()
+
+
+## Achse (0-basiert) einer Funktion
+static func axis(fn: String) -> int:
+	return int(fmap.get(fn, DEFAULT_MAP[fn])) - 1
 const CAL_PATH := "user://sender_kalibrierung.cfg"
 ## Kalibrierung je Kanal (Index = Kanal − 1), Rohwerte wie vom Sender gemeldet:
 ##   min / center / max  → werden auf −1 / 0 / +1 umgerechnet
@@ -138,17 +151,17 @@ func _process(dt: float) -> void:
 	if device < 0:
 		return
 	# Alle Kanäle über die Kalibrierung (Min/Mitte/Max, Umkehr) auf −1…+1
-	var yaw := value(AXIS_YAW)
-	var pitch := value(AXIS_PITCH) * (-1.0 if INVERT_PITCH else 1.0)
-	var thr := value(AXIS_THROTTLE) * (-1.0 if INVERT_THROTTLE else 1.0)
-	var roll := value(AXIS_ROLL)
+	var yaw := value(axis("yaw"))
+	var pitch := value(axis("pitch")) * (-1.0 if INVERT_PITCH else 1.0)
+	var thr := value(axis("thr")) * (-1.0 if INVERT_THROTTLE else 1.0)
+	var roll := value(axis("roll"))
 	left = Vector2(_dz(roll), _dz(thr))                # Gas: Mitte = Stopp
 	right = Vector2(_dz(yaw), _dz(pitch))
 
 	if calibrating:
 		return                                       # Kalibrierung: Schalter lösen nichts aus
 	# Schalter SF: oben (Kanal < −50 %) = scharf, unten = aus (Wunsch Nutzer 08.11.2026)
-	var a := 1 if value(AXIS_ARM) < -0.5 else 0
+	var a := 1 if value(axis("arm")) < -0.5 else 0
 	if a != _arm_state:
 		var first := _arm_state < 0
 		_arm_state = a
@@ -158,14 +171,14 @@ func _process(dt: float) -> void:
 		elif _arm_seen_off:
 			arm_switched.emit(true)                  # nur nach echtem Umlegen von unten nach oben
 	# Schalter SC: oben / Mitte / unten
-	var mv := value(AXIS_MODE)
+	var mv := value(axis("mode"))
 	var m := 0 if mv < -0.5 else (2 if mv > 0.5 else 1)
 	if m != _mode_state:
 		_mode_state = m
 		mode_switched.emit(m)
 	# Schalter SH: Zurücksetzen nur beim Umlegen nach oben (Kanal < −50 %), nicht
 	# dauernd und nicht beim Einstecken, wenn SH schon oben steht
-	var rs := 1 if value(AXIS_RESET) < -0.5 else 0
+	var rs := 1 if value(axis("reset")) < -0.5 else 0
 	if rs != _reset_state:
 		if _reset_state == 0 and rs == 1:
 			reset_switched.emit()
@@ -195,6 +208,25 @@ func raw(ch: int) -> float:
 	return Input.get_joy_axis(device, ch) if device >= 0 else 0.0
 
 
+## Zuordnung für den .ino-Export: Funktion → [Kanal, umgekehrt]
+## (Rolle, Gas, Nick, Gier, Motorfreigabe, Modus; „Zurücksetzen“ gibt es im Teensy nicht)
+static func channels_for_ino(cal_list: Array = []) -> Dictionary:
+	if cal_list.is_empty():                       # gespeicherte Kalibrierung lesen
+		cal_list = default_cal()
+		var f := ConfigFile.new()
+		if f.load(CAL_PATH) == OK:
+			for i in CHANNELS:
+				cal_list[i].inv = bool(f.get_value("ch%d" % (i + 1), "inv", false))
+			for fn in FUNCS:
+				fmap[fn] = clampi(int(f.get_value("zuordnung", fn, fmap[fn])), 1, CHANNELS)
+	var out := {}
+	for fn in ["thr", "pitch", "yaw", "roll", "arm", "mode"]:
+		var ch: int = int(fmap[fn])
+		var inv: bool = cal_list[ch - 1].inv if ch - 1 < cal_list.size() else false
+		out[fn] = [ch, inv]
+	return out
+
+
 ## Kalibrierter Wert eines Kanals (−1…+1) mit den gespeicherten Werten.
 func value(ch: int) -> float:
 	return apply_cal(raw(ch), cal[ch])
@@ -218,6 +250,8 @@ static func apply_cal(v: float, c: Dictionary) -> float:
 
 func save_cal() -> void:
 	var f := ConfigFile.new()
+	for fn in FUNCS:
+		f.set_value("zuordnung", fn, int(fmap[fn]))
 	for i in CHANNELS:
 		for k in ["min", "center", "max", "inv"]:
 			f.set_value("ch%d" % (i + 1), k, cal[i][k])
@@ -228,7 +262,11 @@ func load_cal() -> void:
 	var f := ConfigFile.new()
 	if f.load(CAL_PATH) != OK:
 		return
+	for fn in FUNCS:
+		fmap[fn] = clampi(int(f.get_value("zuordnung", fn, DEFAULT_MAP[fn])), 1, CHANNELS)
 	for i in CHANNELS:
 		var sec := "ch%d" % (i + 1)
+		if not f.has_section(sec):
+			continue                                 # alte Datei mit nur 7 Kanälen
 		for k in ["min", "center", "max", "inv"]:
 			cal[i][k] = f.get_value(sec, k, cal[i][k])

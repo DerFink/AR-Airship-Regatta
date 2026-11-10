@@ -1,3 +1,4 @@
+# 2026-11-11 13:00 – actuator_table(): Stellglieder mit Einbauwinkel und Richtungen für den parametrischen .ino-Export
 # 2026-11-11 10:00 – Modell-Regler aus dem Modell-String (gen = Mischer/Vorsteuerung) übernehmen; Stick-Mode bleibt beim Piloten
 # 2026-11-10 23:45 – Ohne eingebauten Teensy (Baukasten) gilt immer „Direkt“
 # 2026-11-10 11:45 – Mode 3: maximale Gierrate 110 °/s statt 180 °/s (Wunsch Nutzer); gespeicherte 180 werden beim Laden auf 110 umgestellt
@@ -604,6 +605,38 @@ func _calibrate() -> void:
 			else:
 				c.n = 0.0; c.s = signf(-mr.y); c.wp = 0.0
 		_mot_cal.append(c)
+
+
+## Stellglieder für den .ino-Export (Teensy-Schreibweise), Reihenfolge wie im
+## Chewie-Sketch: Schwenker links, rechts, dann Flossen links, rechts, Mitte.
+## Je Eintrag: {"kind": "motor"|"fin", "name", "n" (Einbauwinkel Teensy, °),
+## "rot" (+1/−1: Drehsinn mit dem Rollwinkel), "s" (Einbaurichtung ±1),
+## "r" (Rollrichtung, Flossen), "wp"/"wy" (Nick-/Gier-Anteil, Motoren)}
+func actuator_table() -> Array:
+	_calibrate()
+	var mots := []
+	for i in airship.motors.size():
+		var m: VectorMotor = airship.motors[i]
+		var c: Dictionary = _mot_cal[i]
+		if m.max_swivel_deg <= 0.0:
+			continue                                  # starrer Motor: kein Schwenkservo
+		mots.append({"kind": "motor", "name": m.display_name, "x": m.position.x, "y": m.position.y,
+			"n": c.n, "rot": -c.m, "s": c.s, "wp": c.wp, "wy": c.wy})
+	var fins := []
+	for i in airship.surfaces.size():
+		var c: Dictionary = _fin_cal[i]
+		if not c.active:
+			continue
+		var srf: ControlSurface = airship.surfaces[i]
+		fins.append({"kind": "fin", "name": "Flosse %d°" % roundi(srf.hull_angle_deg), "x": srf.position.x, "y": srf.position.y,
+			"n": c.n, "rot": -c.m, "s": c.s, "r": c.r})
+	# links (x < 0) zuerst, dann rechts, dann Mitte; innerhalb unten vor oben
+	var key := func(e: Dictionary) -> float:
+		var side: float = 0.0 if e.x < -0.01 else (1.0 if e.x > 0.01 else 2.0)
+		return side * 100.0 + e.y
+	mots.sort_custom(func(a, b): return key.call(a) < key.call(b))
+	fins.sort_custom(func(a, b): return key.call(a) < key.call(b))
+	return mots + fins
 
 
 func _reset_integrators() -> void:

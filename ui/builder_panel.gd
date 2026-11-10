@@ -1,3 +1,4 @@
+# 2026-11-11 14:20 – .ino-Export: Mischer aus dem Modell (an/aus), Kanalzuordnung des Senders (an/aus), Hinweise zur Ausgangsbelegung
 # 2026-11-11 12:00 – Flight Controller: Bausteine an/aus, Signalfluss-Bild, Export als Teensy-Sketch (.ino, dRehmFlight)
 # 2026-11-11 11:00 – Antrieb: Schubrichtung als Vektor (x vorn, y rechts, z unten), im Paar gespiegelt
 # 2026-11-11 10:10 – Eigene Massen: je Leitwerksflosse, je Canard, Flugcontroller; Ausschlag bis 80°
@@ -61,6 +62,8 @@ var _teensy_check: CheckBox       ## Teensy-Flugcontroller eingebaut
 var _flow_win: PanelContainer     ## Fenster Signalfluss
 var _flow: FlowDiagram
 var _ino_info: Label              ## Ergebnis des .ino-Exports
+var _ino_mixer: CheckBox          ## Mischer parametrisch erzeugen
+var _ino_ch: CheckBox             ## Kanalzuordnung des Senders übernehmen
 var _cells_row: Control           ## Akku-Zellen (Stepper)
 var _ballast_auto: CheckBox        ## Restmasse automatisch austrimmen
 var _mass_info: Label              ## Anzeige Akku + Ballast / Übergewicht
@@ -493,6 +496,14 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	col.add_child(bf)
 	# --- Export als Teensy-Sketch (dRehmFlight, Vorlage Chewie BETA 1.4) ---
 	col.add_child(UITheme.make_title("Teensy-Sketch"))
+	_ino_mixer = CheckBox.new()
+	_ino_mixer.text = "Mischer aus Leitwerk und Antrieb des Modells erzeugen"
+	_ino_mixer.button_pressed = true
+	col.add_child(_ino_mixer)
+	_ino_ch = CheckBox.new()
+	_ino_ch.text = "Kanalzuordnung des Senders übernehmen (Sender kalibrieren)"
+	_ino_ch.button_pressed = false
+	col.add_child(_ino_ch)
 	var be := UITheme.make_button("Als .ino exportieren")
 	be.pressed.connect(_export_ino)
 	col.add_child(be)
@@ -532,15 +543,18 @@ func _export_ino() -> void:
 	var fc := ModelCodec._find_fc(ship)
 	if fc == null:
 		return
-	var warn := InoExport.check(ship)
-	var r := InoExport.build(fc, ship.model_name)
+	var warn := InoExport.check(ship, fc)
+	var opts := {"mixer": _ino_mixer.button_pressed}
+	if _ino_ch.button_pressed:
+		opts["channels"] = JoystickInput.channels_for_ino()
+	var r := InoExport.build(fc, ship.model_name, opts)
 	if r.text == "":
 		_ino_info.text = "Vorlage nicht gefunden."
 		return
 	var stamp := Time.get_datetime_string_from_system(false, true).replace(":", "").replace("-", "").replace("T", "_").left(13)
 	var fname := "%s_dRehmFlight_%s.ino" % [ship.model_name.replace(" ", "_").replace("(", "").replace(")", ""), stamp]
 	var where := InoExport.save(r.text, fname)
-	_ino_info.text = "%s\n%d Werte geändert%s%s" % [where, r.changed.size(),
+	_ino_info.text = "%s\n%d Werte geändert\n%s%s%s" % [where, r.changed.size(), "\n".join(r.notes),
 		("\nNicht gefunden: " + ", ".join(r.missing)) if not r.missing.is_empty() else "", ("\n" + warn) if warn != "" else ""]
 	ui_action.emit("ok")
 

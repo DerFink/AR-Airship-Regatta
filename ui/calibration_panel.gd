@@ -1,3 +1,4 @@
+# 2026-11-11 14:10 – Kanalzuordnung: je Funktion Kanal wählen oder „Anlernen“ (Knüppel/Schalter bewegen → Kanal wird erkannt); Kanalnamen folgen der Zuordnung; 8 Kanäle
 # 2026-11-09 14:10 – Auch Sender mit kleinem Ausschlag (z. B. nur ±60 %) werden erfasst: Knüppel gelten als bewegt, sobald sie je Seite ≥ 30 % über die Mitte hinaus waren; der erreichte Anschlag wird zu 100 %
 # 2026-11-09 14:20 – Erstversion: Fenster „Sender kalibrieren“ nach freigegebenem Entwurf (beide Knüppelfelder, Kanalliste mit Min/Mitte/Max, Status und Richtungsumkehr, Schalterstellungen; Motoren aus, solange offen)
 # =============================================================================
@@ -27,8 +28,9 @@ signal closed
 ## ±100 % – auch wenn der Sender selbst nur z. B. ±60 % ausgibt.
 const STICK_SIDE_OK := 0.3          ## Knüppel: je Seite mindestens 30 % über die Mitte hinaus
 const SWITCH_RANGE_OK := 0.5        ## Schalter: mindestens zwei Stellungen (max − min)
-## Kanalnamen (Index = Kanal − 1) und ob es ein Knüppel ist
-const NAMES := ["Seite", "Höhe", "Gas", "Rolle", "SF Scharf", "SC Modus", "SH Zurücks."]
+## Kurzname je Funktion (Kanalliste)
+const SHORT := {"yaw": "Seite", "pitch": "Höhe", "thr": "Gas", "roll": "Rolle", "arm": "Armed", "mode": "Modus", "reset": "Zurücks."}
+const STICKS := ["yaw", "pitch", "thr", "roll"]
 
 var joy: JoystickInput
 
@@ -40,6 +42,12 @@ var _rows: Array = []                ## je Kanal {values: Label, status: Label, 
 var _switches: Label
 var _work: Array = []                ## Arbeitskopie der Kalibrierung (wird erst beim Speichern übernommen)
 var _cap: Array = []                 ## erfasster Rohbereich je Kanal {min, max}
+var _wmap := {}                      ## Arbeitskopie der Zuordnung Funktion → Kanal
+var _map_opts := {}                  ## Funktion → OptionButton
+var _learn := ""                     ## Funktion, die gerade angelernt wird ("" = keine)
+var _learn_base: Array = []          ## Rohwerte beim Start des Anlernens
+var _learn_btns := {}
+var _names: Array = []               ## Kanalname-Labels
 
 
 func _ready() -> void:
@@ -75,9 +83,9 @@ func _ready() -> void:
 	var mid := UITheme.make_hbox("lg")
 	box.add_child(mid)
 	_left = StickField.new()
-	_left.title = "Linker Knüppel"; _left.x_label = "CH4 Rolle"; _left.y_label = "CH3 Gas"
+	_left.title = "Linker Knüppel"; _left.x_label = "Rolle"; _left.y_label = "Gas"
 	_right = StickField.new()
-	_right.title = "Rechter Knüppel"; _right.x_label = "CH1 Seite"; _right.y_label = "CH2 Höhe"
+	_right.title = "Rechter Knüppel"; _right.x_label = "Seite"; _right.y_label = "Höhe"
 	mid.add_child(_left)
 	mid.add_child(_right)
 
@@ -91,7 +99,8 @@ func _ready() -> void:
 	grid.add_theme_constant_override("v_separation", 2)
 	right_box.add_child(grid)
 	for i in JoystickInput.CHANNELS:
-		var name_l := UITheme.make_label("CH%d %s" % [i + 1, NAMES[i]])
+		var name_l := UITheme.make_label("CH%d" % (i + 1))
+		_names.append(name_l)
 		name_l.custom_minimum_size.x = 150
 		var val_l := UITheme.make_label("", "MutedLabel")
 		val_l.custom_minimum_size.x = 150
@@ -107,6 +116,27 @@ func _ready() -> void:
 		_rows.append({"values": val_l, "status": st_l, "inv": inv})
 	_switches = UITheme.make_label("")
 	right_box.add_child(_switches)
+
+	# --- Kanalzuordnung: Funktion → Kanal, mit Anlernen ---------------------------
+	box.add_child(UITheme.make_label("Kanalzuordnung (gilt auch für den Teensy-Export): Kanal wählen oder „Anlernen“ drücken und den Knüppel/Schalter bewegen", "MutedLabel"))
+	var mgrid := GridContainer.new()
+	mgrid.columns = 6
+	mgrid.add_theme_constant_override("h_separation", UITheme.space("sm"))
+	mgrid.add_theme_constant_override("v_separation", 2)
+	box.add_child(mgrid)
+	for fn in JoystickInput.FUNCS:
+		var l := UITheme.make_label(JoystickInput.FUNC_NAMES[fn])
+		l.custom_minimum_size.x = 230
+		var ob := OptionButton.new()
+		for c in JoystickInput.CHANNELS:
+			ob.add_item("CH%d" % (c + 1), c + 1)
+		var f: String = fn
+		ob.item_selected.connect(func(idx: int): _wmap[f] = idx + 1)
+		var lb := UITheme.make_button("Anlernen")
+		lb.pressed.connect(func(): _start_learn(f))
+		_map_opts[fn] = ob
+		_learn_btns[fn] = lb
+		for c in [l, ob, lb]: mgrid.add_child(c)
 
 	# --- Legende und Knöpfe -----------------------------------------------------
 	box.add_child(UITheme.make_label("Knüppelfelder: blau = erfasster Bereich · weißes Kreuz = Mitte · gelber Punkt = jetzige Stellung (mit Umkehr)", "MutedLabel"))
@@ -130,6 +160,11 @@ func _ready() -> void:
 ## Fenster öffnen: Arbeitskopie anlegen, Erfassung neu beginnen.
 func show_panel() -> void:
 	_work = joy.cal.duplicate(true)
+	_wmap = JoystickInput.fmap.duplicate()
+	_learn = ""
+	for fn in _map_opts:
+		_map_opts[fn].select(int(_wmap[fn]) - 1)
+		_learn_btns[fn].text = "Anlernen"
 	_cap = []
 	for i in JoystickInput.CHANNELS:
 		var r := joy.raw(i)
@@ -149,9 +184,27 @@ func hide_panel() -> void:
 	closed.emit()
 
 
+## Liegt auf Kanal i (0-basiert) ein Knüppel? (nach der Arbeits-Zuordnung)
+func _is_stick(i: int) -> bool:
+	for fn in STICKS:
+		if int(_wmap.get(fn, 0)) - 1 == i:
+			return true
+	return false
+
+
+## Anlernen: Rohwerte merken; der erste Kanal, der sich deutlich bewegt, wird zugeordnet.
+func _start_learn(fn: String) -> void:
+	_learn = fn
+	_learn_base = []
+	for i in JoystickInput.CHANNELS:
+		_learn_base.append(joy.raw(i))
+	for f in _learn_btns:
+		_learn_btns[f].text = "bewegen …" if f == fn else "Anlernen"
+
+
 ## Ist ein Kanal weit genug bewegt worden?
 func _captured(i: int) -> bool:
-	if i < 4:
+	if _is_stick(i):
 		var mid: float = _work[i].center
 		return _cap[i].max - mid >= STICK_SIDE_OK and mid - _cap[i].min >= STICK_SIDE_OK
 	return _cap[i].max - _cap[i].min >= SWITCH_RANGE_OK
@@ -164,7 +217,7 @@ func _effective(i: int) -> Dictionary:
 	if _captured(i):
 		c.min = _cap[i].min
 		c.max = _cap[i].max
-		if i >= 4:
+		if not _is_stick(i):
 			c.center = (c.min + c.max) * 0.5
 	c.center = clampf(c.center, c.min + 0.05, c.max - 0.05)   # Mitte muss innerhalb liegen
 	return c
@@ -175,6 +228,22 @@ func _process(_dt: float) -> void:
 		return
 	var on := joy.active()
 	_dev.text = ("● %s · Motoren aus" % Input.get_joy_name(joy.device)) if on else "Kein Sender angeschlossen"
+	# Anlernen: erster Kanal mit deutlicher Bewegung (> 60 %) gehört zur Funktion
+	if _learn != "":
+		for i in JoystickInput.CHANNELS:
+			if absf(joy.raw(i) - _learn_base[i]) > 0.6:
+				_wmap[_learn] = i + 1
+				_map_opts[_learn].select(i)
+				_learn_btns[_learn].text = "Anlernen"
+				_learn = ""
+				break
+	# Kanalnamen nach der Zuordnung
+	for i in JoystickInput.CHANNELS:
+		var nm := []
+		for fn in JoystickInput.FUNCS:
+			if int(_wmap.get(fn, 0)) - 1 == i: nm.append(SHORT[fn])
+		var t := "CH%d %s" % [i + 1, " + ".join(nm) if not nm.is_empty() else "frei"]
+		if _names[i].text != t: _names[i].text = t
 	# Erfassung: jeder Rohwert erweitert den Bereich seines Kanals
 	for i in JoystickInput.CHANNELS:
 		var r := joy.raw(i)
@@ -183,16 +252,16 @@ func _process(_dt: float) -> void:
 		var c := _effective(i)
 		var ok := _captured(i)
 		_rows[i].values.text = "%d / %s / %d %%" % [roundi(c.min * 100.0),
-			("%d" % roundi(c.center * 100.0)) if i < 4 else "–", roundi(c.max * 100.0)]
+			("%d" % roundi(c.center * 100.0)) if _is_stick(i) else "–", roundi(c.max * 100.0)]
 		_rows[i].status.text = "✓" if ok else "noch bewegen"
 		_rows[i].status.modulate = UITheme.color("success") if ok else UITheme.color("warning")
 	# Knüppelfelder (Rohwerte; bei Umkehr gespiegelt, damit man die Richtung sieht)
-	_fill_field(_left, JoystickInput.AXIS_ROLL, JoystickInput.AXIS_THROTTLE)
-	_fill_field(_right, JoystickInput.AXIS_YAW, JoystickInput.AXIS_PITCH)
+	_fill_field(_left, _wax("roll"), _wax("thr"))
+	_fill_field(_right, _wax("yaw"), _wax("pitch"))
 	# Schalterstellungen im Klartext (mit der Arbeitskopie umgerechnet)
-	var sf := JoystickInput.apply_cal(joy.raw(JoystickInput.AXIS_ARM), _effective(JoystickInput.AXIS_ARM))
-	var sc := JoystickInput.apply_cal(joy.raw(JoystickInput.AXIS_MODE), _effective(JoystickInput.AXIS_MODE))
-	var sh := JoystickInput.apply_cal(joy.raw(JoystickInput.AXIS_RESET), _effective(JoystickInput.AXIS_RESET))
+	var sf := JoystickInput.apply_cal(joy.raw(_wax("arm")), _effective(_wax("arm")))
+	var sc := JoystickInput.apply_cal(joy.raw(_wax("mode")), _effective(_wax("mode")))
+	var sh := JoystickInput.apply_cal(joy.raw(_wax("reset")), _effective(_wax("reset")))
 	_switches.text = "SF: %s     SC: %s     SH: %s" % [
 		"oben · scharf" if sf < -0.5 else "unten · aus",
 		"oben · Direkt" if sc < -0.5 else ("unten · Mode 3" if sc > 0.5 else "Mitte · Mode 2"),
@@ -212,10 +281,16 @@ func _fill_field(f: StickField, cx: int, cy: int) -> void:
 	f.queue_redraw()
 
 
-## „Mitte übernehmen“: jetzige Knüppelstellung (CH1–CH4) als Mitte merken.
+## Achse (0-basiert) einer Funktion nach der Arbeits-Zuordnung
+func _wax(fn: String) -> int:
+	return int(_wmap.get(fn, JoystickInput.DEFAULT_MAP[fn])) - 1
+
+
+## „Mitte übernehmen“: jetzige Stellung der Knüppel-Kanäle als Mitte merken.
 func _on_center() -> void:
-	for i in 4:
-		_work[i].center = joy.raw(i)
+	for i in JoystickInput.CHANNELS:
+		if _is_stick(i):
+			_work[i].center = joy.raw(i)
 
 
 ## „Werkseinstellung“: −1 / 0 / +1, nichts umgekehrt; Erfassung neu beginnen.
@@ -232,6 +307,7 @@ func _on_defaults() -> void:
 func _on_save() -> void:
 	for i in JoystickInput.CHANNELS:
 		joy.cal[i] = _effective(i)
+	JoystickInput.fmap = _wmap.duplicate()
 	joy.save_cal()
 	hide_panel()
 
