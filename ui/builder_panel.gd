@@ -1,3 +1,4 @@
+# 2026-11-11 19:45 – Bug-/Hecklastigkeit: Ansicht pendelt auf den Hängewinkel, roter Hinweis ab 2°; Stabilitätsmaß und Leitwerkswarnung nur im Reiter Leitwerk, Kennwerte rechts nur Maße und Masse
 # 2026-11-11 17:50 – Knopf „⚙ Einstellungen“ über „Teilen“
 # 2026-11-11 17:45 – Alle Texte übersetzt (I18n.t), Kennwerte und Profilangaben mit Dezimalzeichen je Sprache, Sketch-Hinweise übersetzt (Kopfzeile im Sketch bleibt Deutsch)
 # 2026-11-11 08:25 – Profil-Kennwerte bei 3 und 9 m/s mit Reynoldszahl
@@ -59,6 +60,10 @@ var _editor_box: VBoxContainer     ## Motor-Editor
 var _look_box: VBoxContainer
 var _stats: Label
 var _banner: PanelContainer
+var _trim_banner: PanelContainer          ## rot: „Hecklastig“ / „Buglastig“ (Schwerpunkt nicht unter dem Auftriebspunkt)
+var _tabs: TabContainer
+const TAB_TAIL := 1                       ## Reiter „Leitwerk“: nur dort Stabilitätsmaß und Leitwerkswarnung
+const TRIM_WARN_DEG := 2.0                ## ab diesem Hängewinkel gilt das Schiff als bug-/hecklastig
 var _hint: Label
 var _view_btn: Button
 var _preview: TailPreview
@@ -98,8 +103,12 @@ func _ready() -> void:
 	tabs.add_child(_scroll_page("Antrieb", _build_drive_page))
 	tabs.add_child(_scroll_page("Flight Controller", _build_fc_page))
 	tabs.add_child(_scroll_page("Optik", _build_look_page))
-	tabs.current_tab = 1
-	tabs.tab_changed.connect(func(_i): ui_action.emit("select"))
+	tabs.current_tab = TAB_TAIL
+	_tabs = tabs
+	tabs.tab_changed.connect(func(_i):
+		ui_action.emit("select")
+		_banner.visible = tabs.current_tab == TAB_TAIL    # Stabilität nur im Reiter Leitwerk
+		_layout.call_deferred())
 
 	# ===================== rechte Spalte: Kennwerte ==========================
 	_right = UITheme.make_panel(200)
@@ -148,6 +157,9 @@ func _ready() -> void:
 	add_child(_preview)
 	_banner = UITheme.make_banner(420)
 	add_child(_banner)
+	_trim_banner = UITheme.make_banner(420)
+	_trim_banner.visible = false
+	add_child(_trim_banner)
 
 	# Dateiauswahl für das Logo (nutzt den Systemdialog, wo verfügbar)
 	_file_dialog = FileDialog.new()
@@ -181,6 +193,8 @@ func _layout() -> void:
 	_hint.position = Vector2(cx0, m + _view_btn.size.y + 4.0)      # unter dem Knopf (schmale Mitte)
 	_preview.size = _preview.custom_minimum_size
 	_preview.position = Vector2(cx0, size.y - _preview.size.y - m)
+	_trim_banner.size = _trim_banner.get_combined_minimum_size()
+	_trim_banner.position = Vector2((cx0 + cx1 - _trim_banner.size.x) * 0.5, _hint.position.y + _hint.size.y + m)
 	_banner.size = _banner.get_combined_minimum_size()
 	var bx0 := cx0 + _preview.size.x + m
 	if cx1 - bx0 >= _banner.size.x:
@@ -864,14 +878,16 @@ func _refresh() -> void:
 	var r := TailValidator.validate(ship.hull, ship.surfaces, ship.cg_offset)
 	var h := ship.hull
 	# Modellname getrennt, damit Punkte im Namen nicht zu Kommas werden
-	_stats.text = ship.model_name + "\n" + I18n.dec(I18n.t("%.2f × %.2f m\nV_T Nick %.2f\nV_T Gier %.2f\nStabilität Nick %.2f\nStabilität Gier %.2f\nMasse %.0f g (ohne Helium)") % [
-		h.length_m, h.diameter_m, r.vt_pitch, r.vt_yaw, r.ratio_pitch, r.ratio_yaw,
-		ship.structure_mass_kg * 1000.0])
+	# Kennwerte rechts: nur Maße und Masse (Stabilität steht im Reiter Leitwerk)
+	_stats.text = ship.model_name + "\n" + I18n.dec(I18n.t("%.2f × %.2f m\nMasse %.0f g (ohne Helium)") % [
+		h.length_m, h.diameter_m, ship.structure_mass_kg * 1000.0])
 	_update_mass_info()
 	var level := "success"
 	if r.level == TailValidator.Level.UNSTABLE: level = "danger"
 	elif r.level == TailValidator.Level.MARGINAL: level = "warning"
-	UITheme.set_banner(_banner, I18n.t(r.message) + ("  " + r.detail if r.detail != "" else ""), level)
+	UITheme.set_banner(_banner, I18n.t(r.message) + ("  " + r.detail if r.detail != "" else "")
+		+ "\n" + I18n.dec(I18n.t("V_T Nick %.2f · Gier %.2f · Stabilität Nick %.2f · Gier %.2f") % [r.vt_pitch, r.vt_yaw, r.ratio_pitch, r.ratio_yaw]), level)
+	_banner.visible = _tabs.current_tab == TAB_TAIL
 	if r.level == TailValidator.Level.UNSTABLE and _last_level != r.level and _last_level != -1:
 		ui_action.emit("warn")                        # leiser Hinweiston beim Kippen ins Instabile
 	_last_level = r.level
@@ -943,9 +959,34 @@ func _update_mass_info() -> void:
 			_mass_info.text = I18n.t("Akku zu schwer: %d g mehr, als der Auftrieb trägt (Rest nur %d g).") % [
 				roundi(-ship.ballast_kg * 1000.0), roundi(ship.rest_mass_kg * 1000.0)]
 			_mass_info.add_theme_color_override("font_color", UITheme.color("danger"))
+	_update_trim()
 	var bx: HSlider = _hull_rows.bx.get_meta("slider")
 	bx.set_value_no_signal(ship.ballast_x)
 	(_hull_rows.bx.get_meta("out") as Label).text = "%.2f" % ship.ballast_x
+
+
+## Bug-/Hecklastigkeit: Winkel, unter dem das Schiff hängt (Schwerpunkt genau
+## unter dem Auftriebspunkt). Die 3D-Ansicht pendelt langsam dorthin, ab
+## TRIM_WARN_DEG erscheint ein roter Hinweis.
+func _update_trim() -> void:
+	var cg := ship.cg_offset                          # Körpersystem: +z = hinten, +y = oben
+	var deg := 0.0
+	if cg.y < -0.001:
+		deg = rad_to_deg(atan2(cg.z, -cg.y))          # > 0: Schwerpunkt hinten → Heck sinkt, Nase hoch
+	if visual:
+		visual.trim_target_deg = deg
+	if absf(deg) < TRIM_WARN_DEG or ship.overweight:
+		_trim_banner.visible = false
+		return
+	var cm := roundi(absf(cg.z) * 100.0)
+	var txt: String
+	if deg > 0.0:
+		txt = I18n.t("Hecklastig (Nase %+d°)") % roundi(deg) + "\n" + I18n.t("Schwerpunkt %d cm hinter dem Auftriebspunkt") % cm
+	else:
+		txt = I18n.t("Buglastig (Nase %+d°)") % roundi(deg) + "\n" + I18n.t("Schwerpunkt %d cm vor dem Auftriebspunkt") % cm
+	UITheme.set_banner(_trim_banner, txt, "danger")
+	_trim_banner.visible = true
+	_layout.call_deferred()
 
 
 func _on_preset(idx: int) -> void:

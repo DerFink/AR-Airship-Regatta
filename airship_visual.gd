@@ -1,3 +1,4 @@
+# 2026-11-11 19:45 – Baukasten: Schiff pendelt auf seinen Hängewinkel (Bug-/Hecklastigkeit sichtbar)
 # 2026-11-11 14:30 – Flossen drehen jetzt in die richtige Richtung (Vorzeichen war vertauscht); Hülle federt beim Stoß sichtbar nach; geplatzte Hülle: Riss entlang der oberen Längsnaht am Heck, Gaswolke, Hülle fällt vom Heck zur Nase hin in sich zusammen, Kollisionsform schrumpft mit
 # 2026-11-11 07:00 – Motoren als Flachmotor (Glocke, Ring, Halter, Welle) mit Schwenkservo statt langer Gondel; Größe aus dem Propellerdurchmesser
 # 2026-11-11 03:10 – Warnfarbe der Flossen (Validator) nur im Baukasten, im Flug echte Leitwerksfarbe
@@ -36,6 +37,10 @@ var _workshop := false
 var _sail_mat := StandardMaterial3D.new() ## Turm in Hüllenfarbe
 var _hull_mat := StandardMaterial3D.new()
 var _payload_node := MeshInstance3D.new() ## Nutzlast (Block außen an der Hülle)
+## Baukasten: Winkel, unter dem das Schiff hängt (+ = Nase hoch / hecklastig)
+var trim_target_deg := 0.0
+var _trim_deg := 0.0                     ## aktuelle Pendelstellung
+var _trim_rate := 0.0
 var _squash := 0.0                       ## Nachfedern nach einem Stoß (0 … 1, klingt ab)
 var _drawn_front := 1.0                  ## zuletzt gezeichneter Stand der geplatzten Hülle
 
@@ -350,6 +355,7 @@ func set_validation_level(level: int) -> void:
 # =============================================================================
 func _process(_dt: float) -> void:
 	_update_hull_state(_dt)
+	_update_trim_pendulum(_dt)
 	for p in _fin_nodes:
 		var s: ControlSurface = p.get_meta("surface")
 		var defl := deg_to_rad(s._flex_deg)
@@ -386,6 +392,23 @@ func _update_hull_state(dt: float) -> void:
 		_squash = maxf(0.0, _squash - dt * 4.0)
 	elif _hull_mesh.scale != Vector3.ONE:
 		_hull_mesh.scale = Vector3.ONE
+
+
+## Baukasten: das Schiff pendelt langsam auf seinen Hängewinkel (gedämpfte
+## Schwingung, Periode ≈ 3 s), damit Bug-/Hecklastigkeit sichtbar wird.
+## Im Flug liegt die Lage allein bei der Physik → keine Drehung.
+func _update_trim_pendulum(dt: float) -> void:
+	if not _workshop:
+		if rotation != Vector3.ZERO:
+			rotation = Vector3.ZERO
+			_trim_deg = 0.0; _trim_rate = 0.0
+		return
+	const W := TAU / 3.0                    # Eigenfrequenz
+	const ZETA := 0.25                      # Dämpfung (schwingt sichtbar ein paar Mal)
+	var acc := -W * W * (_trim_deg - trim_target_deg) - 2.0 * ZETA * W * _trim_rate
+	_trim_rate += acc * dt
+	_trim_deg += _trim_rate * dt
+	rotation.x = deg_to_rad(_trim_deg)      # + = Nase hoch (Nase zeigt nach −Z)
 
 
 func _on_burst_changed(on: bool) -> void:
