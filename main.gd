@@ -1,3 +1,4 @@
+# 2026-11-11 20:05 – Online-Bestenliste, „gespielt mit“ (Gerät · Steuerung)
 # 2026-11-11 18:55 – Sender bedient keine Menüs mehr (Joypad aus allen ui_*-Aktionen entfernt) – Ursache für Stickmode 1 / Gas rechts
 # 2026-11-11 18:05 – Geplatzte Hülle wird beim Wechsel in Baukasten/Menü/Startseite ersetzt
 # 2026-11-11 17:50 – ⚙ in Flug und Baukasten, Bestenliste von der Startseite; Einstellungen kehren zur vorigen Ansicht zurück
@@ -295,6 +296,12 @@ func _build_ui() -> void:
 	root.add_child(course_panel)
 	leader_panel = LeaderboardPanel.new()
 	leader_panel.setup(course, ship)
+	# Online-Bestenliste (flinkfink.de); ohne Netz zeigt die Liste das Gerät
+	var lb_online := LeaderboardOnline.new()
+	add_child(lb_online)
+	leader_panel.online = lb_online
+	leader_panel.fingerprint_source = func(): return ModelCodec.fingerprint(ship)
+	leader_panel.platform_source = _platform_text
 	root.add_child(leader_panel)
 	# Startseite, Modell & Bau, Grundlagen
 	hub = ModelHub.new()
@@ -406,6 +413,16 @@ func _no_joypad_ui() -> void:
 				InputMap.action_erase_event(action, ev)
 
 
+## „gespielt mit“: Gerät · Steuerung, z. B. "PC · Sender", "Handy · Touch", "Browser · Tastatur".
+func _platform_text() -> String:
+	var dev := "PC"
+	if OS.has_feature("web"):
+		dev = "Browser"
+	elif OS.has_feature("android") or OS.has_feature("ios"):
+		dev = "Handy"
+	return dev + " · " + hud.dominant_input()
+
+
 func _apply_burst_settings() -> void:
 	if is_instance_valid(ship):
 		ship.burst_enabled = AppSettings.burst_on
@@ -430,6 +447,7 @@ func reset_ship() -> void:
 		autopilot.stop()                              # Zurücksetzen beendet den Autopiloten
 	hud.autopilot_active = false
 	ship.reset_to(course.start_transform(ship))
+	for k in hud.input_frames: hud.input_frames[k] = 0      # „gespielt mit“ gilt je Rennen
 	fc._reset_integrators()
 	course.reset_race()
 	if battery:

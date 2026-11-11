@@ -1,3 +1,4 @@
+# 2026-11-11 20:20 – Paket für flinkfink.de (rc-airship-web.zip im Release) und optionaler automatischer Upload per SFTP (Job strato)
 # 2026-11-11 15:50 – Test stickmode_test aufgenommen
 # 2026-11-11 14:55 – Test crash_test aufgenommen
 # 2026-11-11 17:55 – Übersetzungs-Prüfung als eigener Job (im Godot-Container fehlt python3)
@@ -80,7 +81,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test; do
+          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
             rc=0; timeout 120 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
@@ -115,6 +116,24 @@ jobs:
         with:
           path: build/web
 
+      - name: Paket für flinkfink.de (Browser-Version + Online-Bestenliste)
+        run: |
+          # Alles, was in den Strato-Ordner rc-airship gehört – OHNE config.php
+          # (die Zugangsdaten legt man einmalig selbst an, siehe server/ANLEITUNG.md)
+          command -v zip > /dev/null || (apt-get update -qq && apt-get install -y -qq zip > /dev/null)
+          mkdir -p build/strato
+          cp -r build/web/. build/strato/
+          cp server/rc-airship/api.php server/rc-airship/admin.php server/rc-airship/lib.php \
+             server/rc-airship/models.json server/rc-airship/config.sample.php server/rc-airship/.htaccess build/strato/
+          (cd build/strato && zip -qr ../rc-airship-web.zip .)
+          ls -la build/rc-airship-web.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rc-airship-strato
+          path: build/strato
+          include-hidden-files: true
+
       - uses: actions/upload-artifact@v4
         with:
           name: ar-airship-regatta-apk
@@ -126,7 +145,9 @@ jobs:
           tag_name: android-build-${{ github.run_number }}
           name: Android-Build ${{ github.run_number }}
           body: Debug-APK vom Commit ${{ github.sha }}. Auf dem Handy herunterladen und installieren (Installation aus unbekannten Quellen erlauben).
-          files: build/ar-airship-regatta.apk
+          files: |
+            build/ar-airship-regatta.apk
+            build/rc-airship-web.zip
           make_latest: true
 
   # Browser-Version veröffentlichen: https://<Konto>.github.io/<Repo>/
@@ -142,3 +163,27 @@ jobs:
     steps:
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # Browser-Version und Bestenliste automatisch auf flinkfink.de/rc-airship/ hochladen.
+  # Läuft nur, wenn im Repository die Variable STRATO_UPLOAD = ja gesetzt ist und die
+  # Geheimnisse STRATO_SFTP_HOST / STRATO_SFTP_USER / STRATO_SFTP_PASS hinterlegt sind
+  # (Settings → Secrets and variables → Actions). config.php auf dem Server bleibt unberührt.
+  strato:
+    needs: android
+    if: ${{ vars.STRATO_UPLOAD == 'ja' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: rc-airship-strato
+          path: strato
+      - name: Per SFTP hochladen
+        env:
+          HOST: ${{ secrets.STRATO_SFTP_HOST }}
+          USER: ${{ secrets.STRATO_SFTP_USER }}
+          PASS: ${{ secrets.STRATO_SFTP_PASS }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp > /dev/null
+          # Spiegeln: neue Dateien hoch, alte Builds weg – config.php und Datenbank-Dateien bleiben
+          lftp -u "$USER,$PASS" "sftp://$HOST" -e "set sftp:auto-confirm yes; set net:max-retries 2; mkdir -fp rc-airship; mirror -R --delete --exclude config.php --exclude-glob '*.sqlite' strato rc-airship; bye"
+          echo "Hochgeladen: https://flinkfink.de/rc-airship/" >> "$GITHUB_STEP_SUMMARY"

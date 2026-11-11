@@ -157,3 +157,8 @@ Erichfink@gmx.de
 Angle
 Horizon
 Angle/Horizon
+?action=list&course=
+?action=forever&course=
+Content-Type: application/json
+online · flinkfink.de
+Best Forever

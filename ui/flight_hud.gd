@@ -1,3 +1,4 @@
+# 2026-11-11 20:05 – Zählt, womit gesteuert wird (Sender/Tastatur/Touch) für „gespielt mit“ in der Bestenliste
 # 2026-11-11 17:50 – Knopf ⚙ (Einstellungen) neben „Menü“
 # 2026-11-11 16:35 – Rundenzeiten rechts oben (RacePanel) mit Gesamtzeit und gewerteter Zeit (F7B); oben links nur noch nächster Kontrollpunkt
 # 2026-11-11 16:00 – Knopf „Autopilot“ heißt „Demo“
@@ -63,6 +64,8 @@ var _pill_speed: Button
 var _pill_alpha: Button
 var _pill_race: Button                    ## Runde / Zeit
 var _laps: Label                          ## Hinweis unter der Telemetrie (vor dem Start)
+## Womit wurde gesteuert? (Bildzahl je Eingabe, für „gespielt mit“ in der Bestenliste)
+var input_frames := {"Sender": 0, "Tastatur": 0, "Touch": 0}
 var race_panel: RacePanel                 ## Rundenzeiten, Gesamt- und gewertete Zeit (rechts oben)
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
@@ -354,6 +357,14 @@ func show_notice(text: String, level := "warning", seconds := 3.0) -> void:
 	_banner_timer = seconds
 
 
+## Meistgenutzte Steuerung seit dem letzten Zurücksetzen ("Sender", "Tastatur", "Touch").
+func dominant_input() -> String:
+	var best := "Touch"
+	for k in input_frames:
+		if input_frames[k] > input_frames[best]: best = k
+	return best
+
+
 ## Rundenanzeige (Runde, Zeit, nächster Punkt) und Rundenzeiten – kommt
 ## jeden Physikschritt von der Strecke.
 func set_race_text(text: String, laps := "") -> void:
@@ -439,14 +450,17 @@ func _process(dt: float) -> void:
 		elif autopilot_active:
 			pass                                      # Autopilot steuert über die Knüppel
 		elif _keyboard(dt):
-			pass                                      # Tastatur steuert (Bildschirmknüppel zeigen sie)
+			input_frames.Tastatur += 1                # Tastatur steuert (Bildschirmknüppel zeigen sie)
 		elif _joy and _joy.active():
 			# Sender angeschlossen: er liefert Funktionen, der Stickmode legt fest,
 			# auf welchem Bildschirmknüppel sie angezeigt werden
+			input_frames.Sender += 1
 			var js := fc.set_stick_functions(_joy.f_thr, _joy.f_pitch, _joy.f_yaw, _joy.f_roll)
 			stick_left.show_external(js[0])
 			stick_right.show_external(js[1])
 		else:
+			if stick_left.value != Vector2.ZERO or stick_right.value != Vector2.ZERO:
+				input_frames.Touch += 1
 			fc.set_sticks(stick_left.value, stick_right.value)
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
 		if _btn_arm.button_pressed != fc.armed:
