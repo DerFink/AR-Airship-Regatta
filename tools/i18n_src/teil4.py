@@ -16,4 +16,5 @@ E = [
 ("Gesamt", "Total", "Total", "Total", "Totale", "Celkem", "Razem", "總計"),
 ("Gewertet", "Scored", "Classé", "Puntuado", "Valutato", "Hodnoceno", "Wynik", "計分"),
 ("= Gesamt × V_Box^(1/3) (Box %.2f × %.2f × %.2f m)", "= total × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= total × V_boîte^(1/3) (boîte %.2f × %.2f × %.2f m)", "= total × V_caja^(1/3) (caja %.2f × %.2f × %.2f m)", "= totale × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= celkem × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= razem × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= 總計 × V_box^(1/3)（box %.2f × %.2f × %.2f m）"),
+("gespeichert ✓", "saved ✓", "enregistré ✓", "guardado ✓", "salvato ✓", "uloženo ✓", "zapisano ✓", "已儲存 ✓"),
 ]

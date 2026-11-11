@@ -1,3 +1,4 @@
+# 2026-11-11 17:00 – Erster Start: Sprache des Geräts/Browsers übernehmen (nicht unterstützte → Englisch); selbst gewählte Sprache bleibt gespeichert
 # 2026-11-11 16:00 – „Autopilot“ → „Demo“
 # 2026-11-11 14:40 – Alle übrigen Anzeige-Texte aus i18n/ui_texte.txt; I18n.t() für zusammengesetzte Texte, I18n.dec() für das Dezimalzeichen je Sprache
 # 2026-11-10 22:10 – Weitere Texte (Einstellungen, Autopilot, Modell & Bau, Kalibrieren)
@@ -132,10 +133,22 @@ static func setup() -> void:
 			TranslationServer.add_translation(tr_res)
 		_built = true
 	var cfg := ConfigFile.new()
-	var lang := "de"
+	var lang := system_language()                 # erster Start: Sprache des Geräts/Browsers
 	if cfg.load(SETTINGS_PATH) == OK:
-		lang = str(cfg.get_value("sprache", "code", "de"))
+		lang = str(cfg.get_value("sprache", "code", lang))   # selbst gewählte Sprache gewinnt
 	set_language(lang, false)
+
+
+## Sprache des Geräts bzw. Browsers (z. B. „fr_FR“ → „fr“). Nicht unterstützte
+## Sprachen → Englisch; Chinesisch (alle Varianten) → traditionelles Chinesisch.
+static func system_language() -> String:
+	var loc := OS.get_locale()                    # z. B. "de_DE", "pt_BR", "zh_TW"
+	var code := OS.get_locale_language()          # z. B. "de", "pt", "zh"
+	if code == "zh":
+		return "zh_TW"
+	if code in LANGS:
+		return code
+	return "en" if loc != "" else "de"
 
 
 ## Tabelle UI_TABLE einlesen (Zeilen mit # am Anfang sind Kommentare).

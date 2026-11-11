@@ -1,3 +1,4 @@
+# 2026-11-11 17:00 – Bereits gespeicherte Kanäle zeigen „gespeichert ✓“ statt „noch bewegen“
 # 2026-11-11 16:00 – Knöpfe ohne Fokus – Sender-Schalter drückten über die Joypad-Navigation versehentlich „Mode 1“
 # 2026-11-11 15:30 – Stickmode 1–4 wählbar (Standard Mode 4); Knüppelfelder zeigen die Funktionen nach dem Stickmode
 # 2026-11-11 17:45 – Anleitung als ein Text (übersetzbar); Knüppelfelder-Beschriftung übersetzt
@@ -272,8 +273,11 @@ func _process(_dt: float) -> void:
 		var ok := _captured(i)
 		_rows[i].values.text = "%d / %s / %d %%" % [roundi(c.min * 100.0),
 			("%d" % roundi(c.center * 100.0)) if _is_stick(i) else "–", roundi(c.max * 100.0)]
-		_rows[i].status.text = "✓" if ok else "noch bewegen"
-		_rows[i].status.modulate = UITheme.color("success") if ok else UITheme.color("warning")
+		# Schon früher gespeichert (Anschläge nicht mehr −1/+1)? Dann ist der Kanal
+		# kalibriert – „noch bewegen“ hieße nur: in diesem Durchgang nicht erfasst.
+		var saved := not ok and (absf(_work[i].min + 1.0) > 0.01 or absf(_work[i].max - 1.0) > 0.01)
+		_rows[i].status.text = "✓" if ok else ("gespeichert ✓" if saved else "noch bewegen")
+		_rows[i].status.modulate = UITheme.color("success") if (ok or saved) else UITheme.color("warning")
 	# Knüppelfelder (Rohwerte; bei Umkehr gespiegelt, damit man die Richtung sieht)
 	var lay: Array = _stick_layout()
 	_fill_field(_left, _wax(lay[0]), _wax(lay[1]))
