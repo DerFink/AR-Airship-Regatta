@@ -1,3 +1,4 @@
+; 2026-11-11 17:55 – Browser: Audio-Latenz 80 ms (vorher 30 ms) gegen abgehackten Motorklang
 ; 2026-11-11 02:40 – App-Icon E1 (Luftschiff fliegt die Acht)
 ; 2026-11-10 22:40 – Rückfallsprache Deutsch (Quelltexte), sonst zeigte „Deutsch“ die englischen Texte
 ; 2026-11-10 22:15 – Name „RC Airship Regatta“; Nutzerdaten-Ordner bleibt „AR-Airship Regatta“ (gespeicherte Einstellungen und Modelle gehen nicht verloren)
@@ -39,7 +40,7 @@ textures/vram_compression/import_etc2_astc=true
 
 [audio]
 
-driver/output_latency.web=30
+driver/output_latency.web=80
 
 [internationalization]
 

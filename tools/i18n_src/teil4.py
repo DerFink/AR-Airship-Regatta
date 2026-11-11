@@ -17,4 +17,9 @@ E = [
 ("Gewertet", "Scored", "Classé", "Puntuado", "Valutato", "Hodnoceno", "Wynik", "計分"),
 ("= Gesamt × V_Box^(1/3) (Box %.2f × %.2f × %.2f m)", "= total × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= total × V_boîte^(1/3) (boîte %.2f × %.2f × %.2f m)", "= total × V_caja^(1/3) (caja %.2f × %.2f × %.2f m)", "= totale × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= celkem × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= razem × V_box^(1/3) (box %.2f × %.2f × %.2f m)", "= 總計 × V_box^(1/3)（box %.2f × %.2f × %.2f m）"),
 ("gespeichert ✓", "saved ✓", "enregistré ✓", "guardado ✓", "salvato ✓", "uloženo ✓", "zapisano ✓", "已儲存 ✓"),
+("Bestenliste", "Leaderboard", "Classement", "Clasificación", "Classifica", "Žebříček", "Ranking", "排行榜"),
+("Support", "Support", "Soutien", "Apoyo", "Supporto", "Podpora", "Wsparcie", "支持"),
+("Dir gefällt der Simulator? Spendier mir ein Bier – per PayPal:", "Enjoying the simulator? Buy me a beer – via PayPal:", "Le simulateur te plaît ? Offre-moi une bière – par PayPal :", "¿Te gusta el simulador? Invítame a una cerveza por PayPal:", "Ti piace il simulatore? Offrimi una birra – con PayPal:", "Líbí se ti simulátor? Kup mi pivo – přes PayPal:", "Podoba ci się symulator? Postaw mi piwo – przez PayPal:", "喜歡這個模擬器嗎？請我喝杯啤酒——透過 PayPal："),
+("PayPal öffnen", "Open PayPal", "Ouvrir PayPal", "Abrir PayPal", "Apri PayPal", "Otevřít PayPal", "Otwórz PayPal", "開啟 PayPal"),
+("Schließen", "Close", "Fermer", "Cerrar", "Chiudi", "Zavřít", "Zamknij", "關閉"),
 ]

@@ -1,3 +1,4 @@
+# 2026-11-11 17:20 – Albacore: ein Heckmotor wie das Original (statt Chewies Bugmotoren), Hülle und Leitwerk schwarz, Schriftzug weiß (Lage 0,21, Größe 0,17)
 # 2026-11-11 07:35 – Chewie: Flossenprofil NACA 0020
 # 2026-11-11 17:15 – Presets setzen alle Bau-Werte zurück (_reset_common), sonst blieben Werte des vorigen Modells stehen
 # 2026-11-11 16:55 – Bestenliste: standard_model_of() erkennt unveränderte Modelle aus Standard und Sammlung
@@ -46,7 +47,7 @@ const META := {
 	"Chewie": {"author": "Erich Fink", "team": "aerarium e.V.",
 		"desc": "Rennluftschiff für die Halle: 0,25 m³ Helium, 260 g, drei Pendelflossen in λ-Anordnung und zwei entlang der Hülle schwenkbare Motoren. Wendet unter 2 m Radius."},
 	"Albacore Standard": {"author": "Simulator-Team", "team": "RC Airship Regatta",
-		"desc": "Standardhülle nach dem U-Boot USS Albacore (Gertler-Form), Kreuzleitwerk, Antrieb wie Chewie. Gutmütiges Lernmodell."},
+		"desc": "Standardhülle nach dem U-Boot USS Albacore (Gertler-Form), schwarz wie das Vorbild, Kreuzleitwerk mit Ruderklappen und ein Heckmotor wie beim Original."},
 }
 
 
@@ -149,8 +150,15 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.model_name = "Albacore Standard"
 	ship.livery = Livery.new()
 	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
-	ship.livery.material = "folie"            # Silberfolie
-	ship.livery.fin_material = "weiss"
+	# Schwarz wie das Vorbild (Wunsch Nutzer 11.11.2026): Hülle und Leitwerk schwarz,
+	# Schriftzug weiß, vorn (Lage 0,21), Größe 0,17
+	ship.livery.material = "farbe"
+	ship.livery.hull_color = Color("16181b")
+	ship.livery.fin_material = "farbe"
+	ship.livery.fin_color = Color("16181b")
+	ship.livery.text_color = Color.WHITE
+	ship.livery.text_pos = 0.21
+	ship.livery.text_size = 0.17
 	# Turm wie beim Original, aber an der Unterseite (Optik + Wirkung als feste Flosse)
 	ship.sail_enabled = false              # Turm standardmäßig aus (im Baukasten zuschaltbar)
 	# Maße aus dem Bauplan abgemessen (Genauigkeit ca. ±10 %)
@@ -184,9 +192,23 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.fc_gains = {}
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
-	# Antrieb wie bei Chewie (Wunsch Nutzer 08.11.2026): zwei schwenkbare Bugmotoren
-	# seitlich unten statt des Heckmotors
-	ship.motors = chewie_motor_pair()
+	# Antrieb wie beim Original (Wunsch Nutzer 11.11.2026): EIN Heckmotor auf der
+	# Längsachse hinter dem Kreuzleitwerk, nicht schwenkbar – gesteuert wird nur
+	# über die Ruderklappen. Motor/Propeller wie bei Chewie (GEPRC 1804, 4").
+	var heck := make_motor("Heckmotor", 1.0, 180.0, 7.0, 0.0)
+	heck.standoff_m = 0.0                 # sitzt auf der Längsachse an der Heckspitze
+	heck.pair_id = ""
+	heck.spin_dir = 1
+	heck.reverse_allowed = true
+	heck.reverse_efficiency = 0.55
+	heck.prop_diameter_in = 4.0
+	heck.prop_pitch_in = 3.0
+	heck.prop_blades = 2
+	heck.max_rpm = 27000.0
+	heck.spool_time_s = 0.03
+	heck.mass_kg = 0.025                  # Motor + Propeller, ohne Schwenkservo (Annahme)
+	var mots: Array[VectorMotor] = [heck]
+	ship.motors = mots
 	ship.rebuild_mass_properties()
 
 

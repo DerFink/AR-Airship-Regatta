@@ -152,3 +152,5 @@ s%d=Pin %d %s (%d Grad)
 ^(\\d+) Motoren auf ESC-Pins (.*)$
  Grad)
 Vorlage fehlt
+Heckmotor
+Erichfink@gmx.de

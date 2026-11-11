@@ -1,3 +1,4 @@
+# 2026-11-11 17:50 – Knopf „⚙ Einstellungen“ über „Teilen“
 # 2026-11-11 17:45 – Alle Texte übersetzt (I18n.t), Kennwerte und Profilangaben mit Dezimalzeichen je Sprache, Sketch-Hinweise übersetzt (Kopfzeile im Sketch bleibt Deutsch)
 # 2026-11-11 08:25 – Profil-Kennwerte bei 3 und 9 m/s mit Reynoldszahl
 # 2026-11-11 07:40 – Leitwerk und Canards: Profil (Brettchen/NACA 00xx) mit Dicke, Kennwerte und Gewichts-Schätzung; „Endgewicht“ je Flosse/Canard
@@ -39,6 +40,7 @@ extends Control
 signal closed
 signal share_requested
 signal view_reset_requested
+signal settings_requested          ## ⚙ → Einstellungen
 signal pid_requested              ## Regler (PID) einstellen – aus dem Reiter Flight Controller
 ## Für ruhige Töne: "add", "select", "remove", "ok", "warn"
 signal ui_action(kind: String)
@@ -120,6 +122,11 @@ func _ready() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rcol.add_child(spacer)
+	var b_set := UITheme.make_button("Einstellungen")
+	b_set.icon = load("res://textures/zahnrad.svg")
+	b_set.add_theme_constant_override("icon_max_width", 24)
+	b_set.pressed.connect(func(): settings_requested.emit())
+	rcol.add_child(b_set)
 	var share := UITheme.make_button("Teilen")
 	share.pressed.connect(func(): ui_action.emit("select"); share_requested.emit())
 	rcol.add_child(share)

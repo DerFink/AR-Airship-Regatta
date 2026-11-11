@@ -1,3 +1,4 @@
+# 2026-11-11 17:50 – Knopf ⚙ (Einstellungen) neben „Menü“
 # 2026-11-11 16:35 – Rundenzeiten rechts oben (RacePanel) mit Gesamtzeit und gewerteter Zeit (F7B); oben links nur noch nächster Kontrollpunkt
 # 2026-11-11 16:00 – Knopf „Autopilot“ heißt „Demo“
 # 2026-11-11 15:20 – Sender und Tastatur liefern Funktionen, Anzeige auf den Knüppeln nach Stickmode 1–4
@@ -44,6 +45,7 @@ extends Control
 
 signal reset_requested
 signal hub_requested               ## „Menü“ → Modell & Bau
+signal settings_requested          ## ⚙ → Einstellungen
 signal autopilot_requested         ## Autopilot an/aus
 signal perspective_changed(index: int)
 ## Autopilot fliegt gerade (Knöpfe zeigen „Autopilot stoppen“, Knüppel ruhen)
@@ -185,7 +187,12 @@ func _ready() -> void:
 	b_menu.pressed.connect(func(): hub_requested.emit())
 	var b_reset := UITheme.make_pill("Zurücksetzen", true)
 	b_reset.pressed.connect(func(): reset_requested.emit())
-	for b in [b_reset, _btn_arm, b_menu]: tr_box.add_child(b)
+	var b_set := UITheme.make_pill("", true)           # Einstellungen (Musik, Motorklang, Spur, Platzen …)
+	b_set.icon = load("res://textures/zahnrad.svg")    # Zahnrad (die Schrift hat kein ⚙)
+	b_set.expand_icon = false
+	b_set.add_theme_constant_override("icon_max_width", 26)
+	b_set.pressed.connect(func(): settings_requested.emit())
+	for b in [b_reset, _btn_arm, b_set, b_menu]: tr_box.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()

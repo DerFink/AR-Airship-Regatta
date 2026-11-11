@@ -1,3 +1,4 @@
+# 2026-11-11 17:55 – Browser: Musik ohne Blende (Lautstärkeänderung an Web-Audio-Samples wirkt in Godot 4.3 nicht → Werkstatt war stumm)
 # 2026-11-11 16:30 – Umbau: Werkstatt-Musik (Gitarre, Datei audio/werkstatt_gitarre.ogg, Schleife) mit weichem Ein-/Ausblenden statt Klangteppich; Glockentöne entfernt (Bedientöne aus; ein leiser Klick ist vorbereitet, CLICK_ON)
 # 2026-11-09 13:50 – Ohne Ton (im Flug fast immer) Stille in einem Aufruf statt Abtastwert für Abtastwert – entlastet besonders die Browser-Version
 # 2026-10-27 11:08 – Erstversion: ruhige Klänge für den Baukasten (sanfte Glockentöne bei Aktionen, sehr leiser Klangteppich), prozedural erzeugt; im Flug still
@@ -44,6 +45,18 @@ func _ready() -> void:
 
 func set_music(on: bool) -> void:
 	_want = on
+	if OS.has_feature("web"):
+		# Browser (Godot 4.3, ohne Threads): Musik läuft als Web-Audio-„Sample“.
+		# Lautstärkeänderungen am laufenden Sample kommen dort nicht an – mit der
+		# Blende ab −80 dB blieb die Musik stumm. Deshalb: gleich in voller
+		# Lautstärke starten, beim Ausschalten einfach stoppen (Lautstärke-Regler
+		# in den Einstellungen wirkt über den Bus „Musik“).
+		_music.volume_db = MUSIC_DB
+		if on and not _music.playing and _music.stream:
+			_music.play()
+		elif not on and _music.playing:
+			_music.stop()
+		return
 	if on and not _music.playing and _music.stream:
 		_music.play()
 
@@ -63,6 +76,8 @@ func chime(_kind: String = "") -> void:
 
 
 func _process(dt: float) -> void:
+	if OS.has_feature("web"):
+		return                                     # keine Blende im Browser (siehe set_music)
 	_gain = move_toward(_gain, 1.0 if _want else 0.0, dt / FADE_S)
 	_music.volume_db = MUSIC_DB + linear_to_db(maxf(_gain, 0.0001))
 	if _gain <= 0.0 and _music.playing and not _want:

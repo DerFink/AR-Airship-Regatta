@@ -1,3 +1,4 @@
+# 2026-11-11 17:55 – Browser: Puffer 0,25 s gegen abgehackten Motorklang
 # 2026-11-11 16:35 – Bus „Motoren“ (Lautstärke/aus unter Einstellungen)
 # 2026-11-11 10:30 – Klang-Sicherung: drei Stufen (static level: 2 Fein = je Motor, 1 Mittel = ein gemeinsamer Klang für alle Motoren, 0 Einfach = Schleife); Aussetzer und Rechenzeit werden an SoundGuard gemeldet, der stufenweise herunterschaltet
 # 2026-11-10 17:00 – Erstversion: Propellerklang mit gleitender Tonhöhe – jeder Abtastwert bekommt seine eigene Drehzahl (zwischen zwei Bildern linear übergeblendet), dadurch keine Tonhöhen-Stufen mehr bei schnellem Gasgeben/-wegnehmen; Tabellen statt Sinus-Rechnung (≈ 3 ms Rechenzeit je Sekunde Klang); im Browser automatischer Rückfall auf die Schleife (PropSound), falls die Wiedergabe Aussetzer hat
@@ -31,7 +32,7 @@ const NOISE_N := 88200              ## 4 s Rauschen bei SAMPLE_RATE
 const F_REF := 200.0                ## Rauschtabelle ist auf diese Blattfolge-Frequenz gefiltert
 const POLE_PAIRS := 7.0
 const BUFFER_S := 0.06              ## Pufferlänge Desktop/Handy (s) = Verzögerung höchstens 60 ms
-const BUFFER_S_WEB := 0.10          ## im Browser etwas mehr Puffer gegen Aussetzer
+const BUFFER_S_WEB := 0.25          ## im Browser (ohne Threads) großer Puffer gegen Aussetzer
 const SKIP_LIMIT := 4000            ## ausgelassene Abtastwerte (≈ 0,2 s) in den ersten Sekunden → Rückfall
 
 ## Klangstufe (setzt SoundGuard): 2 = Fein (je Motor ein Klang), 1 = Mittel

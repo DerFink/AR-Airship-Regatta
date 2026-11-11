@@ -64,6 +64,9 @@ func _physics_process(_dt: float) -> bool:   # zählt Physikschritte (CI läuft 
 				if bursts != 1: _fail("bei 4 m/s nicht geplatzt")
 				if s.deflate_front > 0.0: _fail("Gas nicht ganz entwichen")
 				if s.global_position.y > 0.8: _fail("Wrack liegt nicht am Boden (y %.2f)" % s.global_position.y)
+				main._set_view(main.View.BUILD)               # Baukasten: Hülle muss wieder heil sein
+				if s.burst: _fail("Baukasten zeigt geplatzte Hülle")
+				main._set_view(main.View.FLY)
 				main.reset_ship(); phase = 3; t0 = f
 		3:
 			if f == t0 + 10:

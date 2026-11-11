@@ -1,3 +1,4 @@
+# 2026-11-11 18:05 – repair(): heile Hülle auch beim Wechsel in Baukasten/Menü (vorher blieb sie dort schlaff)
 # 2026-11-11 14:10 – Aufprall: Stoß wird gemessen (Hülle federt sichtbar), über der Grenzgeschwindigkeit platzt die Hülle hinten (Druckwelle läuft nach hinten), Gas entweicht vom Heck zur Nase, Auftrieb und Auftriebspunkt wandern mit, Motoren aus
 # 2026-11-11 10:05 – Teensy-Masse einstellbar (teensy_mass_kg); Canards mit eigener Masse (ControlSurface.mass_kg) in Massenbilanz, Schwerpunkt und Trägheit
 # 2026-11-10 23:30 – Turm entfällt (lässt sich als Canard abbilden); Teensy-Flugcontroller als Bauteil (+10 g, ohne Teensy nur „Direkt“); Akku (Zellen, Kapazität, Masse) als Teil der Restmasse; frei platzierbare Nutzlast (Masse, Längslage, Umfangswinkel)
@@ -363,7 +364,11 @@ func reset_to(xform: Transform3D) -> void:
 	for s in surfaces:
 		s._servo_deg = 0.0
 		s._flex_deg = 0.0
-	# geplatzte Hülle wird beim Zurücksetzen „ersetzt“
+	repair()
+
+
+## Geplatzte Hülle durch eine heile ersetzen (Zurücksetzen, Baukasten, Menü).
+func repair() -> void:
 	if burst:
 		burst = false
 		deflate_front = 1.0

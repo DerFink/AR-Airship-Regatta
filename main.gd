@@ -1,3 +1,5 @@
+# 2026-11-11 18:05 – Geplatzte Hülle wird beim Wechsel in Baukasten/Menü/Startseite ersetzt
+# 2026-11-11 17:50 – ⚙ in Flug und Baukasten, Bestenliste von der Startseite; Einstellungen kehren zur vorigen Ansicht zurück
 # 2026-11-11 16:35 – Rennanzeige rechts: Strecke und Boxmaß an das RacePanel
 # 2026-11-11 16:00 – Nach dem Rennen bleibt Armed/Disarmed unverändert; „Autopilot“ heißt jetzt „Demo“
 # 2026-11-11 15:20 – „Alle Einstellungen zurücksetzen“ stellt auch den Stickmode auf Mode 4
@@ -61,6 +63,7 @@ var builder: BuilderPanel
 var pid: PIDPanel
 var share: SharePanel
 var course: Course
+var _settings_back := View.START      ## Ansicht, in die „Einstellungen“ zurückkehrt
 var autopilot: Autopilot             ## Autopilot (fliegt live die aktuelle Strecke)
 var start_screen: StartScreen
 var hub: ModelHub
@@ -311,8 +314,12 @@ func _build_ui() -> void:
 	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
 	settings = SettingsPanel.new()
 	root.add_child(settings)
-	start_screen.settings_requested.connect(func(): _set_view(View.SETTINGS))
-	settings.closed.connect(func(): _set_view(View.START))
+	start_screen.settings_requested.connect(func(): _settings_back = View.START; _set_view(View.SETTINGS))
+	settings.closed.connect(func(): _set_view(_settings_back))
+	# ⚙ auch im Flug und im Baukasten; zurück geht es dorthin, wo man herkam
+	hud.settings_requested.connect(func(): _settings_back = View.FLY; _set_view(View.SETTINGS))
+	builder.settings_requested.connect(func(): _settings_back = View.BUILD; _set_view(View.SETTINGS))
+	start_screen.leaderboard_requested.connect(func(): _leader_back = View.START; leader_panel.show_list(); _set_view(View.LEADER))
 	settings.controls_requested.connect(func(): _pid_back = View.SETTINGS; _set_view(View.PID))
 	about.closed.connect(func(): _set_view(View.START))
 	hub.closed.connect(func(): _set_view(View.FLY))
@@ -544,6 +551,9 @@ func _set_view(v: View) -> void:
 		fc.armed = false                              # außerhalb der Flugansicht: Motoren aus
 	# Baukasten/Teilen: Motoren aus, Schiff festhalten, ruhiger Klangteppich.
 	# Flug/PID: kein Klangteppich – zu hören sind nur die Motoren.
+	# Baukasten, Modell & Bau, Startseite: immer mit heiler Hülle
+	if v == View.BUILD or v == View.SHARE or v == View.HUB or v == View.START:
+		ship.repair()
 	var workshop := v == View.BUILD or v == View.SHARE
 	if workshop:
 		fc.armed = false
