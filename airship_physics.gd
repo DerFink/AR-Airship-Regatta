@@ -1,3 +1,4 @@
+# 2026-11-11 14:10 – Aufprall: Stoß wird gemessen (Hülle federt sichtbar), über der Grenzgeschwindigkeit platzt die Hülle hinten (Druckwelle läuft nach hinten), Gas entweicht vom Heck zur Nase, Auftrieb und Auftriebspunkt wandern mit, Motoren aus
 # 2026-11-11 10:05 – Teensy-Masse einstellbar (teensy_mass_kg); Canards mit eigener Masse (ControlSurface.mass_kg) in Massenbilanz, Schwerpunkt und Trägheit
 # 2026-11-10 23:30 – Turm entfällt (lässt sich als Canard abbilden); Teensy-Flugcontroller als Bauteil (+10 g, ohne Teensy nur „Direkt“); Akku (Zellen, Kapazität, Masse) als Teil der Restmasse; frei platzierbare Nutzlast (Masse, Längslage, Umfangswinkel)
 # 2026-11-07 23:30 – Munk-Moment mit Abminderung munk_factor (Standard 0,6: Grenzschicht am Heck; mit 1,0 schwang Chewie mit den echten Teensy-Reglerwerten stark in Nick)
@@ -42,6 +43,10 @@ signal telemetry_updated(data: Dictionary)
 signal config_changed
 ## Ein Modell wurde ausgewählt (Preset/Sammlung) → z. B. PID-Standardwerte übernehmen.
 signal model_applied
+## Hülle ist geplatzt (true) bzw. nach dem Zurücksetzen wieder heil (false)
+signal burst_changed(on: bool)
+## Stoß gegen Wand/Boden/Pylon: Stärke 0…1 (1 = Grenze zum Platzen), für das Nachfedern der Hülle
+signal bumped(strength: float)
 
 # --- Konfiguration aus dem Baukasten -----------------------------------------
 @export var hull: GertlerHull
@@ -168,10 +173,28 @@ var hull_viscous_moment: Vector3 = Vector3.ZERO
 var vector_moment: Vector3 = Vector3.ZERO
 var _reset_to = null                 ## Transform3D, wenn ein Zurücksetzen ansteht
 
+# --- Aufprall und Platzen ------------------------------------------------------
+# Prallt das Schiff gegen etwas, federt die pralle Hülle wie ein Ball zurück
+# (Rückprall über das Physikmaterial der Halle). Ist der Stoß senkrecht zur
+# Wand schneller als burst_speed_mps, läuft eine Druckwelle durch das Gas nach
+# hinten und die Hülle reißt am Heck entlang einer Längsnaht auf. Das Gas
+# entweicht von hinten nach vorn: deflate_front wandert in DEFLATE_S Sekunden
+# vom Heck (1) zur Nase (0); nur vor dieser Stelle trägt noch Gas.
+const DEFLATE_S := 1.4
+var burst_enabled := true            ## aus den Einstellungen
+var burst_speed_mps := 3.0           ## Grenzgeschwindigkeit senkrecht zur Wand (m/s)
+var burst := false                   ## Hülle ist geplatzt
+var deflate_front := 1.0             ## 1 = prall … 0 = leer (Anteil der Länge ab Nase, der noch Gas hat)
+var _v_prev := Vector3.ZERO          ## Geschwindigkeit am Ende des letzten Schritts (vor dem Stoß)
+var _w_prev := Vector3.ZERO
+var _bump_cool := 0.0                ## kurze Sperre, damit ein Stoß nur einmal zählt
+
 
 func _ready() -> void:
 	custom_integrator = true        # Godot rechnet nur noch Kollisionen
 	can_sleep = false
+	contact_monitor = true          # Berührungen melden, um den Aufprall zu messen
+	max_contacts_reported = 4
 	if hull == null:
 		hull = GertlerHull.new()
 	set_hull(hull)
@@ -340,6 +363,12 @@ func reset_to(xform: Transform3D) -> void:
 	for s in surfaces:
 		s._servo_deg = 0.0
 		s._flex_deg = 0.0
+	# geplatzte Hülle wird beim Zurücksetzen „ersetzt“
+	if burst:
+		burst = false
+		deflate_front = 1.0
+		physics_material_override = null
+		burst_changed.emit(false)
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
@@ -348,8 +377,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		state.linear_velocity = Vector3.ZERO
 		state.angular_velocity = Vector3.ZERO
 		_reset_to = null
+		_v_prev = Vector3.ZERO
+		_w_prev = Vector3.ZERO
 		return
 	var dt := state.step
+	_check_impacts(state, dt)
 	var body_basis := state.transform.basis.orthonormalized()   # Körper → Welt
 	var to_body := body_basis.transposed()  # Welt → Körper (orthonormal)
 
@@ -362,8 +394,16 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# --- 1) Gewicht und Auftrieb ---------------------------------------------
 	var g_b := to_body * Vector3(0, -gravity_mps2, 0)
 	var weight := g_b * total_mass
-	var buoyancy := -g_b * (air_density * hull.volume_m3)
+	var gas := 1.0                          # Anteil des Gases, das noch trägt
+	var cb_now := Vector3.ZERO              # Auftriebspunkt (wandert nach dem Platzen nach vorn)
+	if burst:
+		deflate_front = maxf(0.0, deflate_front - dt / DEFLATE_S)
+		var g := _gas_left(deflate_front)
+		gas = g.x
+		cb_now = Vector3(0, 0, g.y)
+	var buoyancy := -g_b * (air_density * hull.volume_m3 * gas)
 	F += weight + buoyancy
+	T += cb_now.cross(buoyancy)             # Heck leer, Nase trägt noch → Heck sackt zuerst
 	T += cg_offset.cross(weight)            # Pendel-Rückstellung (Schwerpunkt unten)
 
 	# --- 2) Rumpf: Längswiderstand ------------------------------------------
@@ -403,6 +443,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# --- 5) Schubvektor-Motoren ----------------------------------------------
 	vector_moment = Vector3.ZERO
 	for mot in motors:
+		if burst:
+			mot.armed = false                 # Hülle geplatzt → Motoren sofort aus
 		var fm := mot.compute_force(dt, v_rel + w_b.cross(mot.position))   # Anströmung am Motor
 		F += fm
 		var tm := mot.position.cross(fm)
@@ -428,8 +470,65 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# --- 9) Geschwindigkeiten integrieren (semi-implizit) --------------------
 	state.linear_velocity += body_basis * a_b * dt
 	state.angular_velocity += body_basis * wdot_b * dt
+	_v_prev = state.linear_velocity
+	_w_prev = state.angular_velocity
 
 	_update_telemetry(v_rel)
+
+
+## Berührungen auswerten: Wie schnell ist das Schiff senkrecht auf die
+## Fläche zugeflogen? (Geschwindigkeit vom Schritt davor, also vor dem Rückprall)
+func _check_impacts(state: PhysicsDirectBodyState3D, dt: float) -> void:
+	_bump_cool = maxf(0.0, _bump_cool - dt)
+	var count := state.get_contact_count()
+	if count == 0 or _bump_cool > 0.0:
+		return
+	var worst := 0.0
+	for i in count:
+		var nrm := state.get_contact_local_normal(i)          # zeigt von der Wand zum Schiff
+		var r := state.get_contact_local_position(i) - state.transform.origin
+		var v := _v_prev + _w_prev.cross(r)                   # Geschwindigkeit an der Berührstelle
+		worst = maxf(worst, -v.dot(nrm))                      # > 0: fliegt auf die Fläche zu
+	if worst < 0.3:
+		return                                                # nur Anlehnen / Rollen
+	_bump_cool = 0.25
+	bumped.emit(clampf(worst / burst_speed_mps, 0.0, 1.0))
+	if burst_enabled and not burst and worst > burst_speed_mps:
+		_start_burst()
+
+
+## Hülle platzt: Druckwelle läuft nach hinten, die Naht reißt am Heck.
+func _start_burst() -> void:
+	burst = true
+	deflate_front = 1.0
+	# Schlaffe Hülle springt nicht mehr: „absorbierendes“ Material zieht den
+	# Rückprall der Halle ab (0,6 − 1 → 0)
+	var pm := PhysicsMaterial.new()
+	pm.absorbent = true
+	pm.bounce = 1.0
+	pm.friction = 0.8
+	physics_material_override = pm
+	burst_changed.emit(true)
+
+
+## Gas vor der Stelle front (0 Nase … 1 Heck): x = Anteil am Gesamtvolumen,
+## y = Lage seines Schwerpunkts auf der Längsachse (Körper-Z).
+func _gas_left(front: float) -> Vector2:
+	const N := 24
+	var total := 0.0
+	var part := 0.0
+	var moment := 0.0
+	for i in N:
+		var x := (i + 0.5) / N
+		var r := hull.radius_at(x)
+		var dv := r * r                                       # ∝ Scheibenvolumen
+		total += dv
+		if x < front:
+			part += dv
+			moment += dv * (x * hull.length_m - hull.cb_from_nose)
+	if part <= 0.0:
+		return Vector2(0.0, 0.0)
+	return Vector2(part / total, moment / part)
 
 
 # =============================================================================

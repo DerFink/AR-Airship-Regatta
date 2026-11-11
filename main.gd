@@ -1,3 +1,4 @@
+# 2026-11-11 14:40 – Geplatzte Hülle: Meldung, Rennen und Autopilot beendet; Einstellungen Platzen an das Schiff
 # 2026-11-11 17:45 – Meldungen (Ziel, Bestenliste, Autopilot-Stopp) übersetzt
 # 2026-11-11 16:40 – Werkstatt-Musik außerhalb des Flugs, Bodenspur (CourseTrack), Einstellungen-Fenster (Musik, Motorklang, Spur)
 # 2026-11-11 10:40 – Klang-Sicherung (SoundGuard): Klangstufe Fein/Mittel/Einfach, Klangerzeuger werden bei Stufenwechsel neu gebaut
@@ -181,6 +182,10 @@ func _build_ship() -> void:
 	course.add_child(track)
 	track.visible = AppSettings.track_on
 	AppSettings.on_change.append(func(): if is_instance_valid(track): track.visible = AppSettings.track_on)
+	# Aufprall/Platzen aus den Einstellungen übernehmen
+	AppSettings.on_change.append(_apply_burst_settings)
+	_apply_burst_settings()
+	ship.burst_changed.connect(_on_burst)
 	_rebuild_prop_sounds()
 
 	# Akku-Modell: rechnet vor dem Luftschiff und gibt den Schubfaktor an die Motoren
@@ -374,6 +379,23 @@ func _toggle_autopilot() -> void:
 	await get_tree().create_timer(0.2).timeout
 	if hud.autopilot_active:
 		autopilot.start()
+
+
+func _apply_burst_settings() -> void:
+	if is_instance_valid(ship):
+		ship.burst_enabled = AppSettings.burst_on
+		ship.burst_speed_mps = AppSettings.burst_speed
+
+
+## Hülle geplatzt: Rennen ist vorbei (kein Bestenlisten-Eintrag), Autopilot aus.
+func _on_burst(on: bool) -> void:
+	if not on:
+		return
+	if autopilot and autopilot.active:
+		autopilot.stop()
+	hud.autopilot_active = false
+	course.reset_race()
+	hud.show_notice(I18n.t("Nähte geplatzt – Luftschiff kaputt · Zurücksetzen = neues Luftschiff"), "warning", 8.0)
 
 
 ## Schiff an den Startpunkt zurück (Nase Richtung Pylon 2), Regler neu starten.

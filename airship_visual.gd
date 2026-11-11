@@ -1,3 +1,4 @@
+# 2026-11-11 14:30 – Flossen drehen jetzt in die richtige Richtung (Vorzeichen war vertauscht); Hülle federt beim Stoß sichtbar nach; geplatzte Hülle: Riss entlang der oberen Längsnaht am Heck, Gaswolke, Hülle fällt vom Heck zur Nase hin in sich zusammen, Kollisionsform schrumpft mit
 # 2026-11-11 07:00 – Motoren als Flachmotor (Glocke, Ring, Halter, Welle) mit Schwenkservo statt langer Gondel; Größe aus dem Propellerdurchmesser
 # 2026-11-11 03:10 – Warnfarbe der Flossen (Validator) nur im Baukasten, im Flug echte Leitwerksfarbe
 # 2026-11-11 01:00 – Material aus der Gestaltung (Silberfolie glänzend, Weiß matt, Goldfolie, Farbe; Leitwerk Weiß/Carbon/Folie/Farbe); Flossenwurzel reicht bis in die Hülle (keine Lücke an der gewölbten Hülle); Propellerkreis aus dem Propellerdurchmesser; Nutzlast als Block; local_aabb() für das Boxmaß
@@ -35,6 +36,8 @@ var _workshop := false
 var _sail_mat := StandardMaterial3D.new() ## Turm in Hüllenfarbe
 var _hull_mat := StandardMaterial3D.new()
 var _payload_node := MeshInstance3D.new() ## Nutzlast (Block außen an der Hülle)
+var _squash := 0.0                       ## Nachfedern nach einem Stoß (0 … 1, klingt ab)
+var _drawn_front := 1.0                  ## zuletzt gezeichneter Stand der geplatzten Hülle
 
 
 func _ready() -> void:
@@ -69,6 +72,8 @@ func _ready() -> void:
 	_collision.name = "HullCollision"
 	ship.add_child.call_deferred(_collision)
 	ship.config_changed.connect(rebuild)
+	ship.bumped.connect(func(k: float): _squash = maxf(_squash, k))
+	ship.burst_changed.connect(_on_burst_changed)
 	rebuild()
 
 
@@ -344,15 +349,158 @@ func set_validation_level(level: int) -> void:
 # Live-Bewegung: Ruder kippen (vereinfacht ganze Fläche), Gondeln schwenken
 # =============================================================================
 func _process(_dt: float) -> void:
+	_update_hull_state(_dt)
 	for p in _fin_nodes:
 		var s: ControlSurface = p.get_meta("surface")
 		var defl := deg_to_rad(s._flex_deg)
 		if s.kind == ControlSurface.Kind.FLAP:
 			defl *= 0.5                                       # Klappe ≈ halber Sichtausschlag
 		var base: Basis = p.get_meta("base_basis")
-		p.basis = base * Basis(Vector3.UP, -defl)             # Drehung um die Spannweitenachse
+		# Drehung um die Spannweitenachse. Lokales X der Flosse = −Normale der
+		# Physik; positiver Ausschlag hebt die Vorderkante zur Normalen hin.
+		p.basis = base * Basis(Vector3.UP, defl)
 	for g in _motor_nodes:
 		var m: VectorMotor = g.get_meta("motor")
 		var dir := m.current_direction()
 		# -Z der Gondel zeigt in Schubrichtung
 		g.basis = Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.BACK)
+
+
+# =============================================================================
+# Aufprall und Platzen (Signale aus AirshipPhysics)
+# =============================================================================
+## Nachfedern der prallen Hülle bzw. Zusammenfallen der geplatzten Hülle.
+func _update_hull_state(dt: float) -> void:
+	if ship == null:
+		return
+	if ship.burst:
+		# Hülle nur neu zeichnen, wenn das Gas ein Stück weiter entwichen ist
+		if absf(_drawn_front - ship.deflate_front) > 0.03 or (ship.deflate_front == 0.0 and _drawn_front != 0.0):
+			_drawn_front = ship.deflate_front
+			_hull_mesh.mesh = _deflated_mesh(ship.hull, _drawn_front)
+			_shrink_collision(_drawn_front)
+		return
+	if _squash > 0.001:
+		# kurz gestaucht in Längsrichtung, dafür etwas dicker – wie ein Ball
+		_hull_mesh.scale = Vector3(1.0 + 0.05 * _squash, 1.0 + 0.05 * _squash, 1.0 - 0.09 * _squash)
+		_squash = maxf(0.0, _squash - dt * 4.0)
+	elif _hull_mesh.scale != Vector3.ONE:
+		_hull_mesh.scale = Vector3.ONE
+
+
+func _on_burst_changed(on: bool) -> void:
+	_hull_mesh.scale = Vector3.ONE
+	_squash = 0.0
+	if on:
+		_drawn_front = 1.0
+		_hull_mat.cull_mode = BaseMaterial3D.CULL_DISABLED   # durch den Riss sieht man die Innenseite
+		_hull_mesh.mesh = _deflated_mesh(ship.hull, 1.0)
+		_gas_cloud()
+	else:
+		_hull_mat.cull_mode = BaseMaterial3D.CULL_BACK
+		rebuild()                                             # heile Hülle und volle Kollisionsform
+
+
+## Hülle nach dem Platzen. front = bis wohin (ab Nase, 0…1) noch Gas trägt.
+## Dahinter: Hülle schlaff, faltig, sackt nach unten und liegt breiter.
+## Die obere Längsnaht ist am Heck aufgerissen (Lücke im Netz).
+## Texturkoordinaten wie GertlerHull.build_mesh(), damit die Gestaltung bleibt.
+func _deflated_mesh(h: GertlerHull, front: float) -> ArrayMesh:
+	const RINGS := 48
+	const SEGS := 24
+	const TEAR_FROM := 0.70          # Riss reicht vom Heck bis 70 % der Länge
+	var top_seg := SEGS / 4          # Segment über 90° = oben
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts := []
+	for i in RINGS + 1:
+		var x := float(i) / RINGS
+		var r := h.radius_at(x)
+		var z := x * h.length_m - h.cb_from_nose
+		# 0 = noch prall, 1 = leer (weicher Übergang an der Gasgrenze)
+		var k := smoothstep(front - 0.08, front + 0.02, x)
+		var ring := []
+		for j in SEGS + 1:
+			var a := TAU * j / SEGS
+			var fold := 1.0 + 0.18 * sin(a * 5.0 + x * 37.0) * k          # Falten
+			var rr := r * lerpf(1.0, 0.7, k) * fold
+			var px := cos(a) * rr * lerpf(1.0, 1.9, k)                     # liegt flach und breit
+			var py := sin(a) * rr * lerpf(1.0, 0.35, k) - r * 0.45 * k     # sackt nach unten
+			ring.append(Vector3(px, py, z))
+		pts.append(ring)
+	for i in RINGS:
+		var x0 := float(i) / RINGS
+		var x1 := float(i + 1) / RINGS
+		for j in SEGS:
+			if j == top_seg and x0 >= TEAR_FROM:
+				continue                                              # aufgerissene Längsnaht
+			var u0 := 1.0 - x0
+			var u1 := 1.0 - x1
+			var v0 := 0.75 - float(j) / SEGS
+			var v1 := 0.75 - float(j + 1) / SEGS
+			var p00: Vector3 = pts[i][j]
+			var p01: Vector3 = pts[i][j + 1]
+			var p10: Vector3 = pts[i + 1][j]
+			var p11: Vector3 = pts[i + 1][j + 1]
+			st.set_uv(Vector2(u0, v0)); st.add_vertex(p00)
+			st.set_uv(Vector2(u1, v0)); st.add_vertex(p10)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(p11)
+			st.set_uv(Vector2(u0, v0)); st.add_vertex(p00)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(p11)
+			st.set_uv(Vector2(u0, v1)); st.add_vertex(p01)
+	st.generate_normals()
+	return st.commit()
+
+
+## Kollisionsform schrumpft mit der Hülle, damit das Wrack am Boden aufliegt.
+func _shrink_collision(front: float) -> void:
+	var h := ship.hull
+	var cap := CapsuleShape3D.new()
+	cap.radius = h.diameter_m * 0.5 * lerpf(0.7, 1.0, front)    # Unterkante der schlaffen Hülle ≈ 0,7 r unter der Achse
+	cap.height = maxf(h.length_m * lerpf(0.85, 1.0, front), cap.radius * 2.0 + 0.01)
+	_collision.shape = cap
+
+
+## Helium-Wolke am Riss (oben am Heck): steigt auf und verblasst.
+func _gas_cloud() -> void:
+	var h := ship.hull
+	var x := 0.86
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.amount = 40
+	p.lifetime = 1.6
+	p.explosiveness = 0.7
+	p.local_coords = false                                     # Wolke bleibt in der Luft stehen
+	p.position = Vector3(0, h.radius_at(x), x * h.length_m - h.cb_from_nose)
+	p.direction = Vector3(0, 1, 0.4)
+	p.spread = 40.0
+	p.initial_velocity_min = 0.4
+	p.initial_velocity_max = 1.4
+	p.gravity = Vector3(0, 0.6, 0)                             # Helium steigt
+	p.damping_min = 0.8
+	p.damping_max = 1.6
+	var s := maxf(h.diameter_m * 0.18, 0.03)
+	var sph := SphereMesh.new()
+	sph.radius = s
+	sph.height = 2.0 * s
+	sph.radial_segments = 8
+	sph.rings = 4
+	p.mesh = sph
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.vertex_color_use_as_albedo = true
+	m.albedo_color = Color(1, 1, 1, 1)
+	sph.material = m
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.92, 0.96, 1.0, 0.55))
+	grad.set_color(1, Color(0.92, 0.96, 1.0, 0.0))
+	p.color_ramp = grad
+	var curve := Curve.new()
+	curve.max_value = 2.0
+	curve.add_point(Vector2(0, 0.5))
+	curve.add_point(Vector2(1, 2.0))
+	p.scale_amount_curve = curve
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(2.5).timeout.connect(p.queue_free)

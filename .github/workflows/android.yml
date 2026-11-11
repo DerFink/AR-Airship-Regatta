@@ -1,3 +1,4 @@
+# 2026-11-11 14:55 – Test crash_test aufgenommen
 # 2026-11-11 17:55 – Übersetzungs-Prüfung als eigener Job (im Godot-Container fehlt python3)
 # 2026-11-11 16:30 – Übersetzungs-Prüfung (tools/check_i18n.py meldet fehlende Texte in der Lauf-Zusammenfassung); Test i18n_test aufgenommen
 # 2026-11-08 18:15 – Browser-Version je Build unter eigenem Namen (ar-<Nr>.html), index.html leitet weiter
@@ -78,7 +79,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test; do
+          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
             rc=0; timeout 120 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
