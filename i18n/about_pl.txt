@@ -70,8 +70,8 @@ e to uchyb między wartością zadaną a zmierzoną. P reaguje natychmiast, I us
 [b]Mikser[/b]
 Każda płetwa dostaje udział pochylenia i odchylenia wg swojego kąta montażu. Wychylane silniki przejmują pochylenie razem, a przechył przeciwbieżnie.
 
-[b]Autopilot[/b]
-Autopilot lata ósemkę wokół pylonów z aktualnym modelem i ustawieniami – tylko drążkami, jak pilot. Może zawieść, np. gdy rozładuje się akumulator albo sterowiec zgubi trasę.
+[b]Demo[/b]
+Demo lata ósemkę wokół pylonów z aktualnym modelem i ustawieniami – tylko drążkami, jak pilot. Może zawieść, np. gdy rozładuje się akumulator albo sterowiec zgubi trasę.
 @@@
 [b]Model akumulatora[/b]
 Domyślnie: LiPo 4S, 300 mAh (Chewie).

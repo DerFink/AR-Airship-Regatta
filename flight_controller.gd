@@ -1,3 +1,4 @@
+# 2026-11-11 16:00 – einmalig auf Mode 4 zurück (Stickmode war ggf. versehentlich über den Sender verstellt)
 # 2026-11-11 15:20 – Stickmode 1–4 nach heli-planet-Nomenklatur (Standard Mode 4: Gas+Rolle links, Nick+Gier rechts); Funktionen ↔ Knüppel über STICK_LAYOUT; alte Einstellungen werden umgerechnet
 # 2026-11-11 13:00 – actuator_table(): Stellglieder mit Einbauwinkel und Richtungen für den parametrischen .ino-Export
 # 2026-11-11 10:00 – Modell-Regler aus dem Modell-String (gen = Mischer/Vorsteuerung) übernehmen; Stick-Mode bleibt beim Piloten
@@ -742,7 +743,7 @@ func save_settings() -> void:
 	for k in GENERAL_KEYS:
 		cfg.set_value("general", k, get(k))
 	cfg.set_value("general", "preset", preset)
-	cfg.set_value("general", "stick_nomenklatur", 2)   # 2 = Mode 1–4 nach heli-planet
+	cfg.set_value("general", "stick_nomenklatur", 3)   # 2/3 = Mode 1–4 nach heli-planet
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -753,8 +754,11 @@ func load_settings() -> void:
 	settings_outdated = int(cfg.get_value("general", "version", 1)) < SETTINGS_VERSION
 	stick_mode = int(cfg.get_value("general", "stick_mode", stick_mode))
 	# Bis 0.22: 2 = Gas links/Nick+Gier rechts (heute Mode 4), 1 = Nick links (heute Mode 3)
-	if int(cfg.get_value("general", "stick_nomenklatur", 1)) < 2:
+	var nom := int(cfg.get_value("general", "stick_nomenklatur", 1))
+	if nom < 2:
 		stick_mode = 4 if stick_mode != 1 else 3
+	elif nom < 3:
+		stick_mode = STICK_MODE_DEFAULT   # 0.23.0: Mode 1 wurde ggf. versehentlich über den Sender gewählt → einmalig Mode 4
 	if not STICK_LAYOUT.has(stick_mode):
 		stick_mode = STICK_MODE_DEFAULT
 	if settings_outdated:

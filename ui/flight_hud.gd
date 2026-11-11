@@ -1,3 +1,4 @@
+# 2026-11-11 16:00 – Knopf „Autopilot“ heißt „Demo“
 # 2026-11-11 15:20 – Sender und Tastatur liefern Funktionen, Anzeige auf den Knüppeln nach Stickmode 1–4
 # 2026-11-11 17:45 – Knüppel-Beschriftung, Akku- und Fahrtanzeige übersetzt (Dezimalzeichen je Sprache); bei Sprachwechsel neu beschriftet
 # 2026-11-11 00:00 – Knopf „Perspektive“ immer gleich beschriftet (gewählte Sicht kurz als Hinweis); ohne Teensy nur „Direkt“; Tastatursteuerung
@@ -132,7 +133,7 @@ func _ready() -> void:
 	var gap := Control.new()                   # kleiner Abstand zwischen den Gruppen
 	gap.custom_minimum_size.x = UITheme.space("md")
 	_mode_box.add_child(gap)
-	_btn_auto = UITheme.make_pill("Autopilot", true)
+	_btn_auto = UITheme.make_pill("Demo", true)
 	_btn_auto.pressed.connect(func(): autopilot_requested.emit())
 	_mode_box.add_child(_btn_auto)
 	_btn_persp = UITheme.make_pill("", true)
@@ -439,7 +440,7 @@ func _process(dt: float) -> void:
 			if _mode_btns[mm].button_pressed != on:
 				_mode_btns[mm].set_pressed_no_signal(on)
 	_update_battery()
-	var atxt := tr("Autopilot stoppen") if autopilot_active else tr("Autopilot")
+	var atxt := tr("Demo stoppen") if autopilot_active else tr("Demo")
 	if _btn_auto.text != atxt:
 		_btn_auto.text = atxt
 	if ship:

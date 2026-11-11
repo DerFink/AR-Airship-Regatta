@@ -70,8 +70,8 @@ e è lo scarto tra riferimento e misura. P reagisce subito, I elimina gli scarti
 [b]Mixer[/b]
 Ogni pinna riceve quote di beccheggio e imbardata secondo il suo angolo di montaggio. I motori orientabili prendono il beccheggio insieme e il rollio in senso opposto.
 
-[b]Pilota automatico[/b]
-Il pilota automatico vola l'otto attorno ai piloni con il modello e le impostazioni attuali – solo tramite le leve, come un pilota. Può fallire, p. es. quando la batteria è scarica o il dirigibile perde la traiettoria.
+[b]Demo[/b]
+La demo vola l'otto attorno ai piloni con il modello e le impostazioni attuali – solo tramite le leve, come un pilota. Può fallire, p. es. quando la batteria è scarica o il dirigibile perde la traiettoria.
 @@@
 [b]Modello della batteria[/b]
 Predefinita: LiPo 4S, 300 mAh (Chewie).

@@ -1,3 +1,4 @@
+# 2026-11-11 16:00 – Knöpfe ohne Fokus – Sender-Schalter drückten über die Joypad-Navigation versehentlich „Mode 1“
 # 2026-11-11 15:30 – Stickmode 1–4 wählbar (Standard Mode 4); Knüppelfelder zeigen die Funktionen nach dem Stickmode
 # 2026-11-11 17:45 – Anleitung als ein Text (übersetzbar); Knüppelfelder-Beschriftung übersetzt
 # 2026-11-11 14:10 – Kanalzuordnung: je Funktion Kanal wählen oder „Anlernen“ (Knüppel/Schalter bewegen → Kanal wird erkannt); Kanalnamen folgen der Zuordnung; 8 Kanäle
@@ -178,6 +179,7 @@ func show_panel() -> void:
 	_work = joy.cal.duplicate(true)
 	_wmap = JoystickInput.fmap.duplicate()
 	_learn = ""
+	_no_focus(self)
 	_sync_stick_mode()
 	for fn in _map_opts:
 		_map_opts[fn].select(int(_wmap[fn]) - 1)
@@ -341,6 +343,17 @@ func _layout() -> void:
 # =============================================================================
 # StickField – ein Knüppelweg als Quadrat (−1…+1 in beiden Richtungen)
 # =============================================================================
+## Kein Knopf in diesem Fenster darf den Tastatur-/Joypad-Fokus bekommen:
+## Godot steuert die Oberfläche sonst auch mit dem Sender (Knüppel = Pfeile,
+## Schalter = „Bestätigen“) – beim Durchschalten aller Schalter wurde so z. B.
+## „Mode 1“ gedrückt.
+func _no_focus(n: Node) -> void:
+	for c in n.get_children():
+		if c is Control:
+			(c as Control).focus_mode = Control.FOCUS_NONE
+		_no_focus(c)
+
+
 ## aktuelle Knüppelbelegung [links x, links y, rechts x, rechts y]
 func _stick_layout() -> Array:
 	var m := fc.stick_mode if fc else FlightController.STICK_MODE_DEFAULT

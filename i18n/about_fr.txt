@@ -70,8 +70,8 @@ e est l'écart entre consigne et mesure. P réagit immédiatement, I supprime le
 [b]Mélangeur[/b]
 Chaque aileron reçoit des parts de tangage et de lacet selon son angle de montage. Les moteurs orientables prennent le tangage ensemble et le roulis en sens opposés.
 
-[b]Pilote automatique[/b]
-Le pilote automatique vole le huit autour des pylônes avec le modèle et les réglages actuels – uniquement par les manches, comme un pilote. Il peut échouer, p. ex. quand la batterie est vide ou que le dirigeable perd la trajectoire.
+[b]Démo[/b]
+La démo vole le huit autour des pylônes avec le modèle et les réglages actuels – uniquement par les manches, comme un pilote. Elle peut échouer, p. ex. quand la batterie est vide ou que le dirigeable perd la trajectoire.
 @@@
 [b]Modèle de batterie[/b]
 Par défaut : LiPo 4S, 300 mAh (Chewie).

@@ -1,3 +1,4 @@
+# 2026-11-11 16:00 – Nach dem Rennen bleibt Armed/Disarmed unverändert; „Autopilot“ heißt jetzt „Demo“
 # 2026-11-11 15:20 – „Alle Einstellungen zurücksetzen“ stellt auch den Stickmode auf Mode 4
 # 2026-11-11 14:40 – Geplatzte Hülle: Meldung, Rennen und Autopilot beendet; Einstellungen Platzen an das Schiff
 # 2026-11-11 17:45 – Meldungen (Ziel, Bestenliste, Autopilot-Stopp) übersetzt
@@ -336,7 +337,7 @@ func _build_ui() -> void:
 	add_child(autopilot)
 	autopilot.finished.connect(func(): hud.autopilot_active = false)
 	autopilot.failed.connect(func(reason: String):
-		hud.show_notice("%s: %s (%s)" % [tr("Autopilot"), tr(reason), course.race_text()], "warning", 6.0))
+		hud.show_notice("%s: %s (%s)" % [tr("Demo"), tr(reason), course.race_text()], "warning", 6.0))
 	course_panel.closed.connect(func(): _set_view(View.FLY))
 	course_panel.course_changed.connect(reset_ship)
 	course_panel.leaderboard_requested.connect(func(): leader_panel.show_list(); _set_view(View.LEADER))
@@ -376,7 +377,7 @@ func _toggle_autopilot() -> void:
 		return
 	reset_ship()
 	hud.autopilot_active = true
-	hud.show_notice(tr("Autopilot") + " – " + tr("Zurücksetzen") + I18n.t(" = Stopp"), "info", 4.0)
+	hud.show_notice(tr("Demo") + " – " + tr("Zurücksetzen") + I18n.t(" = Stopp"), "info", 4.0)
 	await get_tree().create_timer(0.2).timeout
 	if hud.autopilot_active:
 		autopilot.start()
@@ -420,7 +421,7 @@ func _on_race_changed() -> void:
 		return
 	if autopilot and autopilot.active:
 		# Autopilot im Ziel: Zeit zeigen, nichts in die Bestenliste
-		hud.show_notice("%s · %s (%s)" % [tr("Autopilot"), Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
+		hud.show_notice("%s · %s (%s)" % [tr("Demo"), Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
 		autopilot.stop()
 		return
 	# Bestenliste nur mit unveränderten Modellen aus der Auswahl (Aussehen/Regler egal)
@@ -428,7 +429,7 @@ func _on_race_changed() -> void:
 		hud.show_notice(I18n.t("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl") % Course.format_time(course.time_s), "info", 5.0)
 		return
 	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
-		fc.armed = false
+		# Armed bleibt, wie der Pilot es geschaltet hat (Gas hat er ja in der Hand)
 		leader_panel.show_result()
 		_set_view(View.LEADER)
 	else:

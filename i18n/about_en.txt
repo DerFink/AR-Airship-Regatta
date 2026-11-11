@@ -71,7 +71,7 @@ e is the error between setpoint and measurement. P reacts immediately, I removes
 [b]Mixer[/b]
 Each fin gets pitch and yaw shares according to its mounting angle. Swivelling motors take pitch together and roll in opposition.
 
-[b]Autopilot[/b]
+[b]Demo[/b]
 The autopilot flies the figure eight around the pylons with the current model and current controller values – only through the sticks, like a pilot. It can fail, e.g. when the battery runs empty or the ship loses the track.
 @@@
 [b]Battery model[/b]

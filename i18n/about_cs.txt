@@ -70,8 +70,8 @@ e je odchylka mezi žádanou a skutečnou hodnotou. P reaguje okamžitě, I odst
 [b]Směšovač[/b]
 Každá ploutev dostává podíl klopení a zatáčení podle svého úhlu montáže. Naklápěcí motory přebírají klopení společně a klonění proti sobě.
 
-[b]Autopilot[/b]
-Autopilot létá osmičku kolem pylonů s aktuálním modelem a nastavením – jen přes knipl, jako pilot. Může selhat, např. když dojde baterie nebo loď ztratí dráhu.
+[b]Demo[/b]
+Demo létá osmičku kolem pylonů s aktuálním modelem a nastavením – jen přes knipl, jako pilot. Může selhat, např. když dojde baterie nebo loď ztratí dráhu.
 @@@
 [b]Model baterie[/b]
 Výchozí: LiPo 4S, 300 mAh (Chewie).

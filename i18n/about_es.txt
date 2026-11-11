@@ -70,8 +70,8 @@ e es la diferencia entre consigna y medida. P reacciona al instante, I elimina e
 [b]Mezclador[/b]
 Cada aleta recibe partes de cabeceo y guiñada según su ángulo de montaje. Los motores basculantes toman el cabeceo juntos y el alabeo en sentido opuesto.
 
-[b]Piloto automático[/b]
-El piloto automático vuela el ocho alrededor de los pilones con el modelo y los ajustes actuales, solo a través de los sticks, como un piloto. Puede fallar, p. ej. cuando la batería se agota o la nave pierde la trayectoria.
+[b]Demo[/b]
+La demo vuela el ocho alrededor de los pilones con el modelo y los ajustes actuales, solo a través de los sticks, como un piloto. Puede fallar, p. ej. cuando la batería se agota o la nave pierde la trayectoria.
 @@@
 [b]Modelo de batería[/b]
 Por defecto: LiPo 4S, 300 mAh (Chewie).

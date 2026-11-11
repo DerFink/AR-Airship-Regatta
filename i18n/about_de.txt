@@ -71,8 +71,8 @@ e ist die Abweichung zwischen Soll und Ist. P reagiert sofort, I beseitigt bleib
 [b]Mischer[/b]
 Jede Flosse bekommt Nick- und Gieranteile nach ihrem Einbauwinkel. Schwenkmotoren übernehmen Nick gemeinsam und Rollen gegenläufig.
 
-[b]Autopilot[/b]
-Der Autopilot fliegt die Acht um die Pylone mit dem aktuellen Modell und den aktuellen Reglerwerten – nur über die Knüppel, wie ein Pilot. Er kann scheitern, z. B. wenn der Akku leer ist oder das Schiff die Bahn verliert.
+[b]Demo[/b]
+Die Demo fliegt die Acht um die Pylone mit dem aktuellen Modell und den aktuellen Reglerwerten – nur über die Knüppel, wie ein Pilot. Sie kann scheitern, z. B. wenn der Akku leer ist oder das Schiff die Bahn verliert.
 @@@
 [b]Akku-Modell[/b]
 Standard: LiPo 4S, 300 mAh (Chewie).

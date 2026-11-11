@@ -1,3 +1,4 @@
+# 2026-11-11 16:00 – „Autopilot“ → „Demo“
 # 2026-11-11 14:40 – Alle übrigen Anzeige-Texte aus i18n/ui_texte.txt; I18n.t() für zusammengesetzte Texte, I18n.dec() für das Dezimalzeichen je Sprache
 # 2026-11-10 22:10 – Weitere Texte (Einstellungen, Autopilot, Modell & Bau, Kalibrieren)
 # 2026-11-10 20:00 – Erstversion: Sprachwahl (Deutsch, Englisch, Französisch, Spanisch, Italienisch, Tschechisch, Polnisch, Chinesisch traditionell) mit Flaggen; Übersetzungen über den TranslationServer von Godot
@@ -49,8 +50,8 @@ const TEXTS := {
 	"Lädt …": ["Loading …", "Chargement …", "Cargando …", "Caricamento …", "Načítání …", "Ładowanie …", "載入中 …"],
 	# --- Flugansicht ---
 	"Direkt": ["Direct", "Direct", "Directo", "Diretto", "Přímý", "Bezpośredni", "直接"],
-	"Autopilot": ["Autopilot", "Pilote auto", "Piloto automático", "Pilota automatico", "Autopilot", "Autopilot", "自動駕駛"],
-	"Autopilot stoppen": ["Stop autopilot", "Arrêter le pilote auto", "Detener piloto automático", "Ferma pilota automatico", "Zastavit autopilota", "Zatrzymaj autopilota", "停止自動駕駛"],
+	"Demo": ["Demo", "Démo", "Demo", "Demo", "Demo", "Demo", "示範"],
+	"Demo stoppen": ["Stop demo", "Arrêter la démo", "Detener demo", "Ferma demo", "Zastavit demo", "Zatrzymaj demo", "停止示範"],
 	"Zurücksetzen": ["Reset", "Réinitialiser", "Reiniciar", "Ripristina", "Reset", "Resetuj", "重設"],
 	"Armed": ["Armed", "Armé", "Armado", "Armato", "Odjištěno", "Uzbrojony", "已解鎖"],
 	"Disarmed": ["Disarmed", "Désarmé", "Desarmado", "Disarmato", "Zajištěno", "Rozbrojony", "已上鎖"],

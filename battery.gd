@@ -1,3 +1,4 @@
+# 2026-11-11 16:05 – Akku leer: Motoren aus (Unterspannungs-Abschaltung des ESC), vorher flog das Schiff mit ≈ 60 % Schub weiter
 # 2026-11-10 14:10 – Erstversion: Akku-Modell (LiPo) – Spannung unter Last, Ladezustand, Strom, Restflugzeit; Schub fällt mit der Spannung (Schub ∝ Drehzahl² ∝ Spannung²)
 # =============================================================================
 # Battery.gd  (ein Knoten in der Hauptszene, rechnet vor dem Luftschiff)
@@ -97,7 +98,9 @@ func _physics_process(dt: float) -> void:
 	var mah := current * dt / 3.6
 	used_mah += mah
 	soc = maxf(soc - mah / capacity_mah, 0.0)
-	_apply(v / v0)
+	# Akku leer: der Regler (ESC) schaltet wegen Unterspannung ab – wie beim
+	# echten LiPo; erst „Zurücksetzen“ lädt wieder auf
+	_apply(0.0 if soc <= 0.0 else v / v0)
 
 
 ## Schub- und Drehzahlfaktor an alle Motoren geben.
