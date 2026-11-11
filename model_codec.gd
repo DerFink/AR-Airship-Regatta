@@ -1,3 +1,4 @@
+# 2026-11-11 07:30 – Profil je Leitwerk und Canard (naca, tk = Dicke NACA, pmm = Plattendicke mm)
 # 2026-11-11 16:50 – fingerprint(): Bauart ohne Name/Aussehen/Regler (Bestenliste nur mit unveränderten Modellen der Auswahl)
 # 2026-11-11 11:00 – Schubrichtung je Motor (td, x vorn · y rechts · z unten)
 # 2026-11-11 10:00 – Regler komplett im Modell-String: alle Reglerwerte je Achse + Mischer/Vorsteuerung (gen) aus dem aktuellen Flugcontroller; Massen von Teensy (tm) und je Canard (m)
@@ -45,7 +46,7 @@ const LIMITS := {
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
 	"sx": [0.05, 0.95], "sl": [0.02, 0.4], "sh": [0.05, 1.0],
-	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "tm": [0.0, 1.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
+	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "tm": [0.0, 1.0], "tk": [0.04, 0.30], "pmm": [0.5, 20.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 80.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
@@ -93,14 +94,16 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 		var t := ship.tail
 		data["tail"] = {"lay": int(t.layout), "cnt": t.count, "v": t.v_angle_deg, "rot": t.rotation_deg,
 			"k": int(t.kind), "area": t.area_m2, "split": t.split_hv, "ah": t.area_h_m2, "av": t.area_v_m2,
-			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex}
+			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex,
+			"naca": t.profile_naca, "tk": t.naca_thickness, "pmm": t.plate_thickness_mm}
 	# Freie Flächen (Canards u. Ä.)
 	for s in ship.surfaces:
 		if (s.tail_member and ship.tail) or s.sail_member:
 			continue
 		data.fins.append({"n": s.display_name, "k": int(s.kind), "x": s.hull_x, "a": s.hull_angle_deg,
 			"area": s.area_m2, "ar": s.aspect_ratio, "defl": s.max_deflection_deg,
-			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper, "mk": s.mass_kg})
+			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper, "mk": s.mass_kg,
+			"naca": s.profile_naca, "tk": s.naca_thickness, "pmm": s.plate_thickness_mm})
 	for m in ship.motors:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
@@ -191,6 +194,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		var s := AirshipPresets.make_fin(f.n, f.x, f.a, f.area, int(f.k))
 		s.aspect_ratio = f.ar; s.max_deflection_deg = f.defl
 		s.flap_chord_ratio = f.flap; s.pseudo_flex = f.flex; s.taper = f.tp
+		s.profile_naca = f.naca; s.naca_thickness = f.tk; s.plate_thickness_mm = f.pmm
 		s.mass_kg = f.mk
 		fins.append(s)
 	ship.surfaces = fins
@@ -202,6 +206,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		t.kind = td.k; t.area_m2 = td.area; t.split_hv = td.split
 		t.area_h_m2 = td.ah; t.area_v_m2 = td.av; t.aspect_ratio = td.ar; t.taper = td.tp
 		t.hull_x = td.tx; t.max_deflection_deg = td.defl; t.pseudo_flex = td.flex
+		t.profile_naca = td.naca; t.naca_thickness = td.tk; t.plate_thickness_mm = td.pmm
 		ship.tail = t
 
 	var mots: Array[VectorMotor] = []
@@ -343,7 +348,8 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			out.fins.append({"n": _txt(f, "n", "Flosse", 32), "k": clampi(int(_num(f, "k", 0)), 0, 2),
 				"x": _num(f, "x", 0.9), "a": _num(f, "a", 0.0), "area": _num(f, "area", 0.08),
 				"ar": _num(f, "ar", 1.5), "defl": _num(f, "defl", 25.0), "flap": _num(f, "flap", 0.3),
-				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0), "mk": _num(f, "mk", 0.0)})
+				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0), "mk": _num(f, "mk", 0.0),
+				"naca": _flag(f, "naca", true), "tk": _num(f, "tk", 0.12), "pmm": _num(f, "pmm", 3.0)})
 	var td = d.get("tail")
 	if td is Dictionary:
 		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 8),
@@ -351,7 +357,8 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"area": _num(td, "area", 0.08), "split": _flag(td, "split", false),
 			"ah": _num(td, "ah", 0.08), "av": _num(td, "av", 0.08), "ar": _num(td, "ar", 1.5),
 			"tp": _num(td, "tp", 1.0), "tx": _num(td, "tx", 0.9), "defl": _num(td, "defl", 25.0),
-			"flex": _flag(td, "flex", false)}
+			"flex": _flag(td, "flex", false),
+			"naca": _flag(td, "naca", true), "tk": _num(td, "tk", 0.12), "pmm": _num(td, "pmm", 3.0)}
 	var mots = d.get("motors", [])
 	if mots is Array:
 		for m in mots.slice(0, MAX_MOTORS):

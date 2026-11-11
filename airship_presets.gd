@@ -1,3 +1,4 @@
+# 2026-11-11 07:35 – Chewie: Flossenprofil NACA 0020
 # 2026-11-11 17:15 – Presets setzen alle Bau-Werte zurück (_reset_common), sonst blieben Werte des vorigen Modells stehen
 # 2026-11-11 16:55 – Bestenliste: standard_model_of() erkennt unveränderte Modelle aus Standard und Sammlung
 # 2026-11-11 15:00 – meta(): Angaben auch für Modelle aus der Sammlung (Angabenzeile in models/sammlung.txt)
@@ -244,6 +245,8 @@ static func chewie(ship: AirshipPhysics) -> void:
 	t.taper = 0.8
 	t.max_deflection_deg = 50.0          # Pendel-Flossen ±50° (Angabe Nutzer)
 	t.pseudo_flex = false                # superleichte, starre 3D-Flossen: keine Verformung
+	t.profile_naca = true                # NACA 0020 aus leichtem Schaum (Angabe Erich Fink 10.11.2026)
+	t.naca_thickness = 0.20
 	ship.tail = t
 	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
 	# Antrieb laut Nutzer: 2 × GEPRC SpeedX2 1804 mit 4"-Propellern.

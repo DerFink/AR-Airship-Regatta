@@ -1,3 +1,4 @@
+# 2026-11-11 07:40 – Leitwerk und Canards: Profil (Brettchen/NACA 00xx) mit Dicke, Kennwerte und Gewichts-Schätzung; „Endgewicht“ je Flosse/Canard
 # 2026-11-11 14:20 – .ino-Export: Mischer aus dem Modell (an/aus), Kanalzuordnung des Senders (an/aus), Hinweise zur Ausgangsbelegung
 # 2026-11-11 12:00 – Flight Controller: Bausteine an/aus, Signalfluss-Bild, Export als Teensy-Sketch (.ino, dRehmFlight)
 # 2026-11-11 11:00 – Antrieb: Schubrichtung als Vektor (x vorn, y rechts, z unten), im Paar gespiegelt
@@ -353,8 +354,10 @@ func _fill_tail_page() -> void:
 		func(v): t.hull_x = v; _tail_changed(false), "%.2f"))
 	_tail_box.add_child(UITheme.make_slider_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
 		func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
-	# Eigene Masse je Flosse (mit Servo) – sitzt im Flächenschwerpunkt der Flosse
-	_tail_box.add_child(UITheme.make_slider_row("Masse je Flosse (mit Servo)", 0.0, 200.0, 1.0, ship.fin_mass_kg * 1000.0,
+	# Profil der Flossen (Platte oder NACA 00xx) mit Dicke und Gewichts-Schätzung
+	_profile_block(_tail_box, t, t.area_m2, t.aspect_ratio, func(): _tail_changed(false), _fill_tail_page)
+	# Endgewicht je Flosse (gewogen, mit Servo) – sitzt im Flächenschwerpunkt der Flosse
+	_tail_box.add_child(UITheme.make_slider_row("Endgewicht je Flosse (mit Servo)", 0.0, 200.0, 1.0, ship.fin_mass_kg * 1000.0,
 		func(v): ship.fin_mass_kg = v / 1000.0; _changed(), "%d g"))
 	# Elastisches Leitwerk für beide Bauarten schaltbar (aus = starre Flossen)
 	var flex := CheckBox.new()
@@ -414,7 +417,8 @@ func _edit_canard(i: int) -> void:
 		func(v): s.hull_angle_deg = v; _changed(), "%d°"))
 	_canard_editor.add_child(UITheme.make_slider_row("Fläche", 20.0, 2000.0, 1.0, s.area_m2 * 1e4,
 		func(v): s.area_m2 = v / 1e4; _changed(), "%d cm²"))
-	_canard_editor.add_child(UITheme.make_slider_row("Masse (mit Servo)", 0.0, 200.0, 1.0, s.mass_kg * 1000.0,
+	_profile_block(_canard_editor, s, s.area_m2, s.aspect_ratio, func(): _changed(), func(): _edit_canard(i))
+	_canard_editor.add_child(UITheme.make_slider_row("Endgewicht (mit Servo)", 0.0, 200.0, 1.0, s.mass_kg * 1000.0,
 		func(v): s.mass_kg = v / 1000.0; _changed(), "%d g"))
 	var del := UITheme.make_button("Canard entfernen")
 	del.pressed.connect(func():
@@ -739,6 +743,38 @@ func _fill_look_page() -> void:
 
 
 ## Farbfelder + freie Farbwahl; on_pick(Color) beim Antippen.
+## Schaumdichte für die Gewichts-Schätzung (kg/m³), nur Anzeige
+var _foam_density := 25.0
+
+## Profil-Auswahl für Leitwerk (TailConfig) oder Canard (ControlSurface) – beide
+## haben profile_naca, naca_thickness, plate_thickness_mm. on_change wendet die
+## Änderung an, refill baut den Abschnitt neu (Platte: mm, NACA: %).
+func _profile_block(box: Control, obj: Object, area: float, ar: float, on_change: Callable, refill: Callable) -> void:
+	box.add_child(UITheme.make_label("Profil", "MutedLabel"))
+	box.add_child(_choice_grid(["Brettchen (Platte)", "NACA 00xx"], 1 if obj.get("profile_naca") else 0,
+		func(k):
+			obj.set("profile_naca", k == 1)
+			on_change.call()
+			refill.call_deferred()))
+	if obj.get("profile_naca"):
+		box.add_child(UITheme.make_slider_row("Dicke (NACA 00xx)", 4.0, 30.0, 1.0, float(obj.get("naca_thickness")) * 100.0,
+			func(v): obj.set("naca_thickness", v / 100.0); on_change.call(), "%d %%"))
+	else:
+		box.add_child(UITheme.make_slider_row("Dicke der Platte", 0.5, 20.0, 0.5, float(obj.get("plate_thickness_mm")),
+			func(v): obj.set("plate_thickness_mm", v); on_change.call(), "%.1f mm"))
+	# Kennwerte und Schätzung (Schaum, ohne Servo) – hilft beim Eintragen des Endgewichts
+	var cs := ControlSurface.new()
+	cs.area_m2 = area; cs.aspect_ratio = ar
+	cs.profile_naca = obj.get("profile_naca"); cs.naca_thickness = obj.get("naca_thickness"); cs.plate_thickness_mm = obj.get("plate_thickness_mm")
+	var pr := cs.profile_params()
+	var info := UITheme.make_label(("%s: Abriss ab ≈ %d°, Grundwiderstand cd0 %.3f · Schätzung %d g bei Schaum %d kg/m³ (ohne Servo)" % [
+		cs.profile_name(), roundi(pr.stall_deg), pr.cd0, roundi(cs.estimated_mass_kg(_foam_density) * 1000.0), roundi(_foam_density)]).replace(".", ","), "MutedLabel")
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(info)
+	box.add_child(UITheme.make_slider_row("Schaumdichte (nur für die Schätzung)", 10.0, 80.0, 1.0, _foam_density,
+		func(v): _foam_density = v; refill.call_deferred(), "%d kg/m³"))
+
+
 ## Auswahl in zwei Spalten (passt in die schmale Seitenleiste). on_pick(index).
 func _choice_grid(labels: Array, selected: int, on_pick: Callable) -> GridContainer:
 	var g := GridContainer.new()

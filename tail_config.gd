@@ -1,3 +1,4 @@
+# 2026-11-11 07:25 – Profil (Platte/NACA, Dicke) für alle Leitwerksflossen
 # 2026-11-07 23:00 – größter Ausschlag bis 80° (Chewie ±50°)
 # 2026-10-27 23:28 – Pseudo-Flex auch für Pendelleitwerke erlaubt (schaltbar)
 # 2026-10-27 15:09 – Erstversion: symmetrisches Leitwerk als Konfiguration (1–8 Flossen; Anordnungen +, ×, Y, λ, gleichmäßig), Bauart Klappe/Pendel, Fläche, Streckung, Pfeilung (Zuspitzung), V-Winkel, optional getrennte Flächen für Höhen- und Seitenleitwerk
@@ -50,6 +51,10 @@ const LAYOUT_NAMES := ["+", "×", "Y", "λ", "gleichm."]
 @export_range(0.5, 1.0, 0.01) var hull_x: float = 0.90
 @export_range(0.0, 80.0, 1.0) var max_deflection_deg: float = 25.0
 @export var pseudo_flex: bool = false
+## Profil aller Flossen: NACA 00xx (true) oder flache Platte (false)
+@export var profile_naca: bool = true
+@export_range(0.04, 0.30, 0.01) var naca_thickness: float = 0.12
+@export_range(0.5, 20.0, 0.5) var plate_thickness_mm: float = 3.0
 
 
 ## Effektive Flossenzahl je nach Anordnung.
@@ -115,5 +120,8 @@ func generate() -> Array[ControlSurface]:
 		s.max_deflection_deg = max_deflection_deg
 		s.efficiency = efficiency
 		s.pseudo_flex = pseudo_flex
+		s.profile_naca = profile_naca
+		s.naca_thickness = naca_thickness
+		s.plate_thickness_mm = plate_thickness_mm
 		out.append(s)
 	return out

@@ -1,3 +1,4 @@
+# 2026-11-11 07:05 – Motoren als Flachmotor mit Servo (wie im 3D-Modell)
 # 2026-11-11 01:20 – Flossen und Motoren genau aus den Modelldaten (Trapez wie im 3D-Modell: Wurzel-/Endtiefe aus Fläche, Streckung und Zuspitzung, Hinterkante gerade, Wurzel folgt der Hüllenkontur); Motoren mit Gondel und Propellerkreis an ihrer Einbaulage; Restmasse und Nutzlast; Material aus der Gestaltung; keine erfundene Gondel mehr
 # 2026-11-10 19:40 – Erstversion: Seitenansicht eines Luftschiffs als Bild, gezeichnet aus den Modelldaten (Gertler-Hülle, Flossen, Motoren, Gondel, Aussehen) – für Startseite, Modellliste, Icon-Ladeanzeige
 # =============================================================================
@@ -154,15 +155,22 @@ static func svg(ship: AirshipPhysics, width_px: int, label := "") -> String:
 		if dir2.length() < 0.05: dir2 = Vector2(-1, 0)
 		dir2 = dir2.normalized()
 		var c := mo.position
-		var h := 0.045
+		# Flachmotor wie im 3D-Modell: Glocke (Länge bh, Ø 2·br) vorn, Servo dahinter
+		var br := clampf(mo.prop_diameter_in * 0.0029, 0.008, 0.04)
+		var bh := br * 1.05
 		var nrm := Vector2(-dir2.y, dir2.x)
-		var q := [Vector2(c.z, c.y) + dir2 * h + nrm * 0.026, Vector2(c.z, c.y) + dir2 * h - nrm * 0.026,
-			Vector2(c.z, c.y) - dir2 * h - nrm * 0.03, Vector2(c.z, c.y) - dir2 * h + nrm * 0.03]
+		var c2 := Vector2(c.z, c.y)
+		var q := [c2 + dir2 * bh + nrm * br, c2 + dir2 * bh - nrm * br, c2 - nrm * br * 1.2, c2 + nrm * br * 1.2]
 		var qs := PackedStringArray()
 		for v in q: qs.append(P.call(v.x, v.y))
 		var body := '<path d="M%s Z" fill="#2d3239"/>' % " L".join(qs)
+		if mo.max_swivel_deg > 0.0:
+			var sv := [c2 - nrm * br * 0.95, c2 + nrm * br * 0.95, c2 - dir2 * br * 2.2 + nrm * br * 0.95, c2 - dir2 * br * 2.2 - nrm * br * 0.95]
+			var ss := PackedStringArray()
+			for v in sv: ss.append(P.call(v.x, v.y))
+			body += '<path d="M%s Z" fill="#1f6fb5"/>' % " L".join(ss)
 		var pr := mo.prop_diameter_in * 0.0254 * 0.5
-		var pc := Vector2(c.z, c.y) + dir2 * 0.05
+		var pc := c2 + dir2 * (bh + br * 0.3)
 		var prop := '<path d="M%s L%s" stroke="#2d3239" stroke-opacity=".55" stroke-width="%.1f" stroke-linecap="round"/>' % [
 			P.call(pc.x + nrm.x * pr, pc.y + nrm.y * pr), P.call(pc.x - nrm.x * pr, pc.y - nrm.y * pr), maxf(1.0, 0.006 * k)]
 		if c.x < -0.01: parts_back += body + prop

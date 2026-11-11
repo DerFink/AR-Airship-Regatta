@@ -1,3 +1,4 @@
+# 2026-11-11 07:00 – Motoren als Flachmotor (Glocke, Ring, Halter, Welle) mit Schwenkservo statt langer Gondel; Größe aus dem Propellerdurchmesser
 # 2026-11-11 03:10 – Warnfarbe der Flossen (Validator) nur im Baukasten, im Flug echte Leitwerksfarbe
 # 2026-11-11 01:00 – Material aus der Gestaltung (Silberfolie glänzend, Weiß matt, Goldfolie, Farbe; Leitwerk Weiß/Carbon/Folie/Farbe); Flossenwurzel reicht bis in die Hülle (keine Lücke an der gewölbten Hülle); Propellerkreis aus dem Propellerdurchmesser; Nutzlast als Block; local_aabb() für das Boxmaß
 # 2026-10-27 23:49 – Turm als stromlinienförmiger Körper (NACA-Grundriss) in Hüllenfarbe
@@ -151,28 +152,52 @@ func rebuild() -> void:
 	# --- Motorgondeln -------------------------------------------------------
 	for n in _motor_nodes: n.queue_free()
 	_motor_nodes.clear()
-	var mm := StandardMaterial3D.new()
-	mm.albedo_color = motor_color
 	for m in ship.motors:
 		var g := Node3D.new()
 		add_child(g)
 		g.position = m.position
-		var body := MeshInstance3D.new()
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.025; cyl.bottom_radius = 0.03; cyl.height = 0.09
-		body.mesh = cyl
-		body.rotation = Vector3(PI * 0.5, 0, 0)               # Zylinder liegt in Schubrichtung
-		body.material_override = mm
-		g.add_child(body)
+		# Flachmotor (Außenläufer wie 1804): Glocke mit farbigem Ring, Motorhalter,
+		# Welle; Größe passend zum Propeller (4" → Glocke Ø 23 × 12 mm).
+		# Dahinter der Schwenkservo (nur bei schwenkbaren Motoren).
+		var br := clampf(m.prop_diameter_in * 0.0029, 0.008, 0.04)     # Glockenradius
+		var bh := br * 1.05                                             # Glockenhöhe
+		var parts := [
+			# [Radius, Höhe, Lage z (vorn = −), Farbe, metallisch]
+			[br, bh, -bh * 0.5, Color("2b2e33"), 0.6],                  # Glocke
+			[br * 1.02, bh * 0.25, -bh * 0.88, Color("c8402e"), 0.3],   # Ring vorn
+			[br * 1.2, br * 0.26, br * 0.13, Color("4a4f57"), 0.2],     # Motorhalter
+			[br * 0.22, br * 0.9, -bh - br * 0.35, Color("c0c4c8"), 0.9],  # Welle mit Propellermutter
+		]
+		for pdef in parts:
+			var mi := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = pdef[0]; cm.bottom_radius = pdef[0]; cm.height = pdef[1]; cm.radial_segments = 28
+			mi.mesh = cm
+			mi.rotation = Vector3(PI * 0.5, 0, 0)                      # Achse in Schubrichtung
+			mi.position = Vector3(0, 0, pdef[2])
+			var pmat := StandardMaterial3D.new()
+			pmat.albedo_color = pdef[3]; pmat.metallic = pdef[4]; pmat.roughness = 0.35
+			mi.material_override = pmat
+			g.add_child(mi)
+		if m.max_swivel_deg > 0.0:
+			var servo := MeshInstance3D.new()
+			var sb := BoxMesh.new()
+			sb.size = Vector3(br * 1.05, br * 1.9, br * 2.0)
+			servo.mesh = sb
+			servo.position = Vector3(0, 0, br * 0.26 + br)
+			var smat := StandardMaterial3D.new()
+			smat.albedo_color = Color("1f6fb5")
+			servo.material_override = smat
+			g.add_child(servo)
 		var prop := MeshInstance3D.new()
 		var disc := CylinderMesh.new()
 		var pr := m.prop_diameter_in * 0.0254 * 0.5          # Propellerkreis aus den Modelldaten
-		disc.top_radius = pr; disc.bottom_radius = pr; disc.height = 0.004
+		disc.top_radius = pr; disc.bottom_radius = pr; disc.height = 0.002
 		prop.mesh = disc
 		prop.rotation = Vector3(PI * 0.5, 0, 0)
-		prop.position = Vector3(0, 0, -0.05)
+		prop.position = Vector3(0, 0, -bh - br * 0.3)
 		var pm := StandardMaterial3D.new()
-		pm.albedo_color = Color(motor_color, 0.35)
+		pm.albedo_color = Color(0.2, 0.22, 0.25, 0.3)
 		pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		prop.material_override = pm
 		g.add_child(prop)

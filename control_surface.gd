@@ -1,3 +1,4 @@
+# 2026-11-11 07:20 – Profil: flache Platte (Dicke in mm) oder symmetrisches NACA 00xx (Dicke in % der Tiefe) – wirkt auf Auftriebsanstieg, Abrisswinkel, Weichheit des Abrisses und Grundwiderstand
 # 2026-11-11 10:05 – Eigene Masse je Fläche (mass_kg, für Canards)
 # 2026-11-07 23:55 – Flossen an der Hülle: wirksame Streckung doppelt (Hülle als Spiegelwand) und Rumpf-Flossen-Interferenz 1,3 (Chewie lief sonst nicht geradeaus)
 # 2026-11-07 23:00 – größter Ausschlag bis 80° einstellbar (Chewie: Pendelflossen ±50°)
@@ -60,7 +61,13 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 ## wird aus den Turm-Einstellungen von AirshipPhysics neu erzeugt.
 @export var sail_member: bool = false
 ## Profil-Nullwiderstand (flache Depronplatte ≈ 0,02).
-@export_range(0.0, 0.2, 0.001) var cd0: float = 0.02
+@export_range(0.0, 0.2, 0.001) var cd0: float = 0.02   ## (alt, nur noch Rückfall – Grundwiderstand kommt aus dem Profil)
+## Profil: false = flache Platte („Brettchen“, z. B. Depron), true = NACA 00xx
+@export var profile_naca: bool = true
+## Dicke NACA in Anteil der Tiefe (0,09 = NACA 0009, 0,20 = NACA 0020)
+@export_range(0.04, 0.30, 0.01) var naca_thickness: float = 0.12
+## Dicke der flachen Platte (mm)
+@export_range(0.5, 20.0, 0.5) var plate_thickness_mm: float = 3.0
 ## Leitwerks-Wirkungsgrad (Abschattung durch den Rumpf).
 @export_range(0.3, 1.5, 0.01) var efficiency: float = 0.8
 
@@ -133,7 +140,7 @@ func compute_force(v_local: Vector3, rho: float, dt: float) -> Vector3:
 	# 5) Auftrieb (mit Stall) und Widerstand
 	var cl := lift_coefficient(alpha)
 	var cdi := cl * cl / (PI * effective_aspect_ratio() * 0.85)
-	var cd := cd0 + cdi + 1.2 * pow(sin(alpha), 2)     # Plattenwiderstand bei großen Winkeln
+	var cd := profile_cd0() + cdi + 1.2 * pow(sin(alpha), 2)     # Plattenwiderstand bei großen Winkeln
 
 	# Auftriebsrichtung: senkrecht zum Fahrtwind, in der Ebene von Wind und Normale
 	var lift_dir := (n - flow * flow.dot(n))
@@ -192,13 +199,62 @@ func lift_slope() -> float:
 
 
 ## Auftriebsbeiwert mit weichem Übergang in den Strömungsabriss.
-## Unterhalb ~ 20° linear, darüber Flachplatten-Verhalten (sin·cos).
+## Bis zum Abrisswinkel des Profils linear, darüber Flachplatten-Verhalten
+## (sin·cos); wie weich der Übergang ist, hängt ebenfalls vom Profil ab.
 func lift_coefficient(alpha: float) -> float:
-	var cl_lin := lift_slope() * alpha
+	var pr := profile_params()
+	var cl_lin: float = lift_slope() * float(pr.slope) * alpha
 	var cl_plate := 2.0 * sin(alpha) * cos(alpha)
-	var stall := deg_to_rad(20.0)
-	var blend := clampf((absf(alpha) - stall) / deg_to_rad(10.0), 0.0, 1.0)
+	var blend := clampf((absf(alpha) - deg_to_rad(float(pr.stall_deg))) / deg_to_rad(float(pr.width_deg)), 0.0, 1.0)
 	return lerpf(cl_lin, cl_plate, blend)
+
+
+# -----------------------------------------------------------------------------
+# Profil-Kennwerte für kleine Flossen bei kleinen Reynoldszahlen (≈ 10⁵, wie bei
+# Rennluftschiffen um 1–10 m/s). Abgeleitet aus veröffentlichten Messreihen für
+# NACA 0009…0021 und dünne Platten bei Re 10⁵ und auf die kleinen
+# Seitenverhältnisse der Flossen übertragen (Abriss setzt dort später ein):
+#   Platte:   scharfe Vorderkante → Abriss früh (≈ 14°), schnell (6°), cd0 aus Dicke
+#   NACA 00xx: Abriss später und weicher, je dicker desto mehr; Grundwiderstand
+#             wächst mit der Dicke; dicke Profile verlieren bei kleinem Re etwas
+#             Auftriebsanstieg (Ablöseblase)
+# Werte sind Näherungen (ANNAHME) und können durch Messungen ersetzt werden.
+# -----------------------------------------------------------------------------
+func profile_params() -> Dictionary:
+	if not profile_naca:
+		var t_rel := plate_thickness_mm / 1000.0 / maxf(mean_chord(), 0.01)
+		return {"slope": 0.95, "stall_deg": 14.0, "width_deg": 6.0,
+			"cd0": 0.018 + 0.25 * t_rel}            # stumpfe Kanten: Widerstand wächst mit der Dicke
+	var t := naca_thickness
+	return {"slope": 1.0 - 0.6 * maxf(0.0, t - 0.12),
+		"stall_deg": clampf(18.0 + 55.0 * (t - 0.09), 15.0, 26.0),
+		"width_deg": clampf(8.0 + 45.0 * (t - 0.09), 6.0, 16.0),
+		"cd0": 0.008 + 0.07 * t}
+
+
+## Grundwiderstand des Profils (statt des festen cd0).
+func profile_cd0() -> float:
+	return float(profile_params().cd0)
+
+
+## Mittlere Tiefe (m) aus Fläche und Spannweite.
+func mean_chord() -> float:
+	return area_m2 / maxf(span_m(), 1e-4)
+
+
+## Kurzname des Profils für Anzeigen („NACA 0020“, „Platte 3 mm“).
+func profile_name() -> String:
+	if profile_naca:
+		return "NACA 00%02d" % roundi(naca_thickness * 100.0)
+	return ("Platte %.1f mm" % plate_thickness_mm).replace(".0 ", " ").replace(".", ",")
+
+
+## Geschätzte Masse der Fläche ohne Servo (kg) bei Schaumdichte rho_foam (kg/m³).
+## NACA-Querschnitt ≈ 0,685 · t · c²; Platte = Dicke · Tiefe.
+func estimated_mass_kg(rho_foam: float) -> float:
+	if profile_naca:
+		return rho_foam * area_m2 * 0.685 * naca_thickness * mean_chord()
+	return rho_foam * area_m2 * plate_thickness_mm / 1000.0
 
 
 ## Klappenwirksamkeit τ nach der Profiltheorie dünner Platten:
