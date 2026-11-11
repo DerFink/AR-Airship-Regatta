@@ -1,3 +1,4 @@
+# 2026-11-11 17:55 – Übersetzungs-Prüfung als eigener Job (im Godot-Container fehlt python3)
 # 2026-11-11 16:30 – Übersetzungs-Prüfung (tools/check_i18n.py meldet fehlende Texte in der Lauf-Zusammenfassung); Test i18n_test aufgenommen
 # 2026-11-08 18:15 – Browser-Version je Build unter eigenem Namen (ar-<Nr>.html), index.html leitet weiter
 # 2026-11-08 00:10 – Browser-Version (Godot-Export „Web“) wird gebaut und auf GitHub Pages veröffentlicht
@@ -30,6 +31,19 @@ permissions:
   id-token: write
 
 jobs:
+  # Eigener Job ohne Godot-Container: dort gibt es python3
+  i18n:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Übersetzungen prüfen
+        run: |
+          # Meldet Anzeige-Texte ohne Übersetzung (bricht den Build nicht ab)
+          echo '## Übersetzungen' >> "$GITHUB_STEP_SUMMARY"
+          python3 tools/check_i18n.py | tee i18n.txt
+          { echo '```'; tail -n 40 i18n.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if ! tail -n 1 i18n.txt | grep -q "^0 Texte"; then echo "::warning::$(tail -n 1 i18n.txt) – siehe tools/check_i18n.py"; fi
+
   android:
     runs-on: ubuntu-latest
     container:
@@ -59,18 +73,6 @@ jobs:
 
       - name: Projekt importieren
         run: godot --headless --import --path . || true
-
-      - name: Übersetzungen prüfen
-        run: |
-          # Meldet Anzeige-Texte ohne Übersetzung (bricht den Build nicht ab)
-          echo '## Übersetzungen' >> "$GITHUB_STEP_SUMMARY"
-          if command -v python3 >/dev/null; then
-            python3 tools/check_i18n.py | tee i18n.txt
-            { echo '```'; tail -n 40 i18n.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-            if ! tail -n 1 i18n.txt | grep -q "^0 Texte"; then echo "::warning::$(tail -n 1 i18n.txt) – siehe tools/check_i18n.py"; fi
-          else
-            echo "python3 fehlt im Container – Prüfung übersprungen" | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
 
       - name: Headless-Tests
         run: |
