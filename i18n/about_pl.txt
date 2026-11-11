@@ -1,3 +1,4 @@
+# 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Teksty strony „Podstawy symulatora” (BBCode). Zakładki oddzielone wierszem @@@:
 # Fizyka, Model sterowca, Regulator (PID), Akumulator, O programie / licencja. Zmienne {VERSION} i {CONTACT}.
 [b]Równania ruchu (6 stopni swobody)[/b]
@@ -54,6 +55,12 @@ Kreator sprawdza objętość usterzenia [code]V_H = S_płetw · ramię / V_powł
 
 [b]Własne modele[/b]
 W „Model i budowa” → „Własna konstrukcja” można dowolnie ustawić powłokę, usterzenie, napęd i wygląd. Modele można wyeksportować do pliku i wysłać administratorowi – sprawdzone modele stają się standardowymi dla wszystkich.
+
+[b]Punktacja wyścigu (regulamin F7B)[/b]
+Lata się 3 okrążenia ósemki wokół obu pylonów ze startem lotnym. Mierzy się łączny czas t za 3 okrążenia. Aby uczciwie porównać duże i małe sterowce, czas jest ważony wielkością sterowca:
+[code]V_ref = D · S · W · π/6
+t_wynik = t · V_ref^(1/3)[/code]
+D, S, W: długość, szerokość i wysokość całkowitego prostopadłościanu (powłoka, płetwy, silniki, akumulator) w m – jak pokazuje kreator. V_ref to objętość elipsoidy w tym prostopadłościanie; mniejszy sterowiec dostaje więc premię. Panel po prawej w czasie lotu pokazuje okrążenia, łączny czas i wynik.
 @@@
 [b]Wirtualny kontroler lotu[/b]
 Odwzorowuje kontroler lotu Teensy (dRehmFlight) prawdziwego Chewiego. Mierzy prędkości kątowe i położenie (jak żyroskop i akcelerometr) i steruje płetwami oraz wychylanymi silnikami. Gaz zawsze zostaje u pilota – regulator nigdy nie zmienia ciągu.

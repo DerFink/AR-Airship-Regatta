@@ -327,3 +327,9 @@ Mode %d · links %s + %s · rechts %s + %s	Mode %d · left %s + %s · right %s +
 Stickmode (gilt für Sender-Anzeige, Bildschirmknüppel und Tastatur)	Stick mode (applies to transmitter display, on-screen sticks and keyboard)	Mode de manches (pour l'affichage de l'émetteur, les manches à l'écran et le clavier)	Modo de sticks (para la vista de la emisora, los sticks en pantalla y el teclado)	Modo leve (vale per la visualizzazione del radiocomando, le leve a schermo e la tastiera)	Režim kniplů (platí pro zobrazení vysílače, knipl na obrazovce a klávesnici)	Tryb drążków (dla widoku nadajnika, drążków na ekranie i klawiatury)	搖桿模式（適用於遙控器顯示、螢幕搖桿與鍵盤）
 Gas · Rolle	Throttle · roll	Gaz · roulis	Gas · alabeo	Gas · rollio	Plyn · klonění	Gaz · przechył	油門 · 滾轉
 Nick · Rolle	Pitch · roll	Tangage · roulis	Cabeceo · alabeo	Beccheggio · rollio	Klopení · klonění	Pochylenie · przechył	俯仰 · 滾轉
+Runde %d	Lap %d	Tour %d	Vuelta %d	Giro %d	Kolo %d	Okrążenie %d	第 %d 圈
+Runde %d / %d	Lap %d / %d	Tour %d / %d	Vuelta %d / %d	Giro %d / %d	Kolo %d / %d	Okrążenie %d / %d	第 %d / %d 圈
+Ziel	Finish	Arrivée	Meta	Arrivo	Cíl	Meta	終點
+Gesamt	Total	Total	Total	Totale	Celkem	Razem	總計
+Gewertet	Scored	Classé	Puntuado	Valutato	Hodnoceno	Wynik	計分
+= Gesamt × V_Box^(1/3) (Box %.2f × %.2f × %.2f m)	= total × V_box^(1/3) (box %.2f × %.2f × %.2f m)	= total × V_boîte^(1/3) (boîte %.2f × %.2f × %.2f m)	= total × V_caja^(1/3) (caja %.2f × %.2f × %.2f m)	= totale × V_box^(1/3) (box %.2f × %.2f × %.2f m)	= celkem × V_box^(1/3) (box %.2f × %.2f × %.2f m)	= razem × V_box^(1/3) (box %.2f × %.2f × %.2f m)	= 總計 × V_box^(1/3)（box %.2f × %.2f × %.2f m）

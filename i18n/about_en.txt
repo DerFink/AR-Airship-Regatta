@@ -1,3 +1,4 @@
+# 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
 # Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
 # Zeilen mit # am Anfang werden ignoriert.
@@ -55,6 +56,12 @@ The builder checks the tail volume [code]V_H = S_fins · lever arm / V_hull[/cod
 
 [b]Your own models[/b]
 Under “Model & Build” → “Custom build” you can set hull, tail, propulsion and appearance freely. Models can be exported as a file and sent to the admin – checked models become standard models for everyone.
+
+[b]Race scoring (F7B rules)[/b]
+The race is 3 laps of a figure eight around the two pylons with a flying start. The total time t over all 3 laps is measured. To compare large and small airships fairly, the time is weighted by the size of the ship:
+[code]V_ref = L · W · H · π/6
+t_scored = t · V_ref^(1/3)[/code]
+L, W, H: length, width and height of the overall box (hull, fins, motors, battery) in m – as shown in the builder. V_ref is the volume of the ellipsoid in that box, so a smaller ship gets a bonus. The display on the right during the flight shows the laps, the total time and the scored time.
 @@@
 [b]The virtual flight controller[/b]
 It mirrors the Teensy flight controller (dRehmFlight) of the real Chewie. It measures rates and attitude (like gyro and accelerometer) and drives fins and swivelling motors. Throttle always stays with the pilot – the controller never changes thrust.

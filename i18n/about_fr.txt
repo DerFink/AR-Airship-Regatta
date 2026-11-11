@@ -1,3 +1,4 @@
+# 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte de la page « Bases du simulateur » (BBCode). Onglets séparés par une ligne @@@ :
 # Physique, Modèle de dirigeable, Régulateur (PID), Batterie, À propos / licence. Variables {VERSION} et {CONTACT}.
 [b]Équations du mouvement (6 degrés de liberté)[/b]
@@ -54,6 +55,12 @@ L'atelier vérifie le volume d'empennage [code]V_H = S_ailerons · bras de levie
 
 [b]Tes propres modèles[/b]
 Sous « Modèle & construction » → « Construction perso », tu peux régler librement l'enveloppe, l'empennage, la propulsion et l'apparence. Les modèles peuvent être exportés en fichier et envoyés à l'administrateur – les modèles vérifiés deviennent des modèles standard pour tous.
+
+[b]Classement de course (règlement F7B)[/b]
+La course comporte 3 tours en huit autour des deux pylônes, départ lancé. On mesure le temps total t sur les 3 tours. Pour comparer équitablement grands et petits dirigeables, le temps est pondéré par la taille :
+[code]V_ref = L · l · H · π/6
+t_classé = t · V_ref^(1/3)[/code]
+L, l, H : longueur, largeur et hauteur de la boîte hors tout (enveloppe, ailerons, moteurs, batterie) en m – comme affiché dans l'atelier. V_ref est le volume de l'ellipsoïde dans cette boîte ; un dirigeable plus petit obtient donc un bonus. L'affichage à droite pendant le vol montre les tours, le temps total et le temps classé.
 @@@
 [b]Le contrôleur de vol virtuel[/b]
 Il reproduit le contrôleur de vol Teensy (dRehmFlight) du vrai Chewie. Il mesure les vitesses de rotation et l'assiette (comme gyroscope et accéléromètre) et commande les ailerons et les moteurs orientables. Les gaz restent toujours au pilote – le régulateur ne modifie jamais la poussée.

@@ -1,3 +1,4 @@
+# 2026-11-11 16:35 – Rundenzeiten rechts oben (RacePanel) mit Gesamtzeit und gewerteter Zeit (F7B); oben links nur noch nächster Kontrollpunkt
 # 2026-11-11 16:00 – Knopf „Autopilot“ heißt „Demo“
 # 2026-11-11 15:20 – Sender und Tastatur liefern Funktionen, Anzeige auf den Knüppeln nach Stickmode 1–4
 # 2026-11-11 17:45 – Knüppel-Beschriftung, Akku- und Fahrtanzeige übersetzt (Dezimalzeichen je Sprache); bei Sprachwechsel neu beschriftet
@@ -59,7 +60,8 @@ var stick_right: TouchStick
 var _pill_speed: Button
 var _pill_alpha: Button
 var _pill_race: Button                    ## Runde / Zeit
-var _laps: Label                          ## Rundenzeiten unter der Telemetrie
+var _laps: Label                          ## Hinweis unter der Telemetrie (vor dem Start)
+var race_panel: RacePanel                 ## Rundenzeiten, Gesamt- und gewertete Zeit (rechts oben)
 var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
@@ -112,6 +114,10 @@ func _ready() -> void:
 	_laps = UITheme.make_label("", "MutedLabel")
 	_laps.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_laps)
+	# Rennanzeige rechts oben (unter den Knöpfen, über dem rechten Knüppel)
+	race_panel = RacePanel.new()
+	race_panel.visible = false
+	add_child(race_panel)
 
 	# --- Modusschalter oben Mitte (3 Stellungen wie Kanal 13 am Teensy) -----
 	# Beim Umschalten erklärt ein kurzes Banner, was die Knüppel jetzt tun.
@@ -244,6 +250,8 @@ func _layout() -> void:
 		_tl.position = Vector2(m, _mode_box.position.y + _mode_box.size.y + m * 0.5)
 	_laps.size = _laps.get_combined_minimum_size()
 	_laps.position = Vector2(m, _tl.position.y + _tl.size.y + m * 0.5)
+	race_panel.size = race_panel.get_combined_minimum_size()
+	race_panel.position = Vector2(sz.x - race_panel.size.x - m, _mode_box.position.y + _mode_box.size.y + m * 0.5)
 	_batt_box.size = _batt_box.get_combined_minimum_size()
 	_batt_box.position = Vector2(m, _laps.position.y + _laps.size.y + m * 0.5)
 	for st in [stick_left, stick_right]:
@@ -346,6 +354,11 @@ func set_race_text(text: String, laps := "") -> void:
 		_pill_race.text = text
 	if _laps.text != laps:
 		_laps.text = laps
+	if race_panel:
+		var was := race_panel.visible
+		race_panel.refresh()
+		if race_panel.visible != was:
+			_layout.call_deferred()             # Größe/Lage neu, sobald die Anzeige erscheint
 
 
 ## Tastatursteuerung: liefert true, solange die Tastatur steuert.

@@ -1,3 +1,4 @@
+# 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texty stránky „Základy simulátoru“ (BBCode). Karty oddělené řádkem @@@:
 # Fyzika, Model vzducholodě, Regulátor (PID), Baterie, O aplikaci / licence. Proměnné {VERSION} a {CONTACT}.
 [b]Pohybové rovnice (6 stupňů volnosti)[/b]
@@ -54,6 +55,12 @@ Stavebnice kontroluje objem ocasních ploch [code]V_H = S_ploutví · rameno / V
 
 [b]Vlastní modely[/b]
 V „Model a stavba“ → „Vlastní stavba“ lze volně nastavit obal, ocasní plochy, pohon a vzhled. Modely lze exportovat jako soubor a poslat správci – ověřené modely se stanou standardními pro všechny.
+
+[b]Hodnocení závodu (pravidla F7B)[/b]
+Létají se 3 kola osmičky kolem obou pylonů s letmým startem. Měří se celkový čas t za všechna 3 kola. Aby se velké a malé vzducholodě porovnaly spravedlivě, čas se váží velikostí lodi:
+[code]V_ref = D · Š · V · π/6
+t_hodnocený = t · V_ref^(1/3)[/code]
+D, Š, V: délka, šířka a výška celkového boxu (obal, ploutve, motory, baterie) v m – jak ukazuje stavebnice. V_ref je objem elipsoidu v tomto boxu; menší loď tedy dostane bonus. Panel vpravo během letu ukazuje kola, celkový a hodnocený čas.
 @@@
 [b]Virtuální letový kontrolér[/b]
 Napodobuje letový kontrolér Teensy (dRehmFlight) skutečného Chewieho. Měří úhlové rychlosti a polohu (jako gyroskop a akcelerometr) a ovládá ploutve a naklápěcí motory. Plyn zůstává vždy pilotovi – regulátor nikdy nemění tah.

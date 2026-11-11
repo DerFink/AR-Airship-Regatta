@@ -1,3 +1,4 @@
+# 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Testi della pagina «Fondamenti del simulatore» (BBCode). Schede separate da una riga @@@:
 # Fisica, Modello del dirigibile, Regolatore (PID), Batteria, Info / licenza. Variabili {VERSION} e {CONTACT}.
 [b]Equazioni del moto (6 gradi di libertà)[/b]
@@ -54,6 +55,12 @@ Il costruttore controlla il volume dell'impennaggio [code]V_H = S_pinne · bracc
 
 [b]I tuoi modelli[/b]
 In «Modello e costruzione» → «Costruzione propria» puoi impostare liberamente involucro, impennaggio, propulsione e aspetto. I modelli si possono esportare come file e inviare all'amministratore – i modelli verificati diventano modelli standard per tutti.
+
+[b]Classifica di gara (regolamento F7B)[/b]
+Si volano 3 giri a otto attorno ai due piloni, con partenza lanciata. Si misura il tempo totale t sui 3 giri. Per confrontare in modo equo dirigibili grandi e piccoli, il tempo viene pesato con la dimensione:
+[code]V_ref = L · W · H · π/6
+t_valutato = t · V_ref^(1/3)[/code]
+L, W, H: lunghezza, larghezza e altezza del box d'ingombro (involucro, pinne, motori, batteria) in m, come mostrato nel costruttore. V_ref è il volume dell'ellissoide in quel box; un dirigibile più piccolo ottiene quindi un vantaggio. Il riquadro a destra durante il volo mostra i giri, il tempo totale e il tempo valutato.
 @@@
 [b]Il flight controller virtuale[/b]
 Riproduce il flight controller Teensy (dRehmFlight) del vero Chewie. Misura velocità di rotazione e assetto (come giroscopio e accelerometro) e comanda pinne e motori orientabili. Il gas resta sempre al pilota – il regolatore non modifica mai la spinta.

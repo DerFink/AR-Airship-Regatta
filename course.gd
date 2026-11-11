@@ -1,3 +1,4 @@
+# 2026-11-11 16:35 – Rennanzeige oben links nur noch nächster Kontrollpunkt; current_lap_time(), hint_text(), scored_time() (F7B: Gesamtzeit × ∛(L·B·H·π/6))
 # 2026-11-11 12:15 – aerarium-Plakate an allen vier Hallenwänden: große oben (weiße Wand über der 2. Galerie), kleine unten an den Glastüren; Seitenverhältnis kommt aus dem Bild, nie gestreckt
 # 2026-11-11 17:45 – Anzeige-Texte (Runde, Ziel, nächster Kontrollpunkt) übersetzt; Zeiten mit Dezimalzeichen je Sprache
 # 2026-11-10 14:00 – Location „Halle“ / „Wiese“ (Wiese: keine Wände/Decke, Pylonabstand Vorgabe 200 m); Pylonabstand frei 5–500 m; Halle nachgebildet nach Fotos der Windreiter-Halle (Glasdach mit Holzraster, Band mit Horizont-Wandbildern, zwei Galerien mit Geländer, weiße Säulen, Glastüren, dunkler glänzender Boden)
@@ -434,8 +435,26 @@ func _set_far_green(on: bool) -> void:
 func race_text() -> String:
 	match race:
 		Race.WAIT: return "Start: Pylon 1 passieren"
-		Race.RUN: return I18n.t("Runde %d/%d · %s") % [lap, LAPS, format_time(time_s)]
+		Race.RUN: return I18n.t("nächster: ") + I18n.t(GATE_NAMES[next_gate])   # Zeiten stehen rechts (RacePanel)
 		_: return I18n.t("Ziel · %s") % format_time(time_s)
+
+
+## Hinweiszeile oben links unter der Rennanzeige (nur vor dem Start).
+func hint_text() -> String:
+	return "Pilotenseite, Richtung Pylon 2" if race == Race.WAIT else ""
+
+
+## Zeit der laufenden Runde (s).
+func current_lap_time() -> float:
+	return time_s - _lap_start
+
+
+## Gewertete Zeit nach dem F7B-Reglement: Gesamtzeit × ∛V_ref, dabei ist V_ref
+## das Ellipsoid in der Box über alles: V_ref = L · B · H · π/6 (m³).
+## Kleine Schiffe werden damit belohnt, große bekommen eine längere Zeit.
+static func scored_time(total_s: float, box_m: Vector3) -> float:
+	var v_ref := box_m.x * box_m.y * box_m.z * PI / 6.0
+	return total_s * pow(maxf(v_ref, 1e-6), 1.0 / 3.0)
 
 
 ## Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten

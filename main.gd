@@ -1,3 +1,4 @@
+# 2026-11-11 16:35 – Rennanzeige rechts: Strecke und Boxmaß an das RacePanel
 # 2026-11-11 16:00 – Nach dem Rennen bleibt Armed/Disarmed unverändert; „Autopilot“ heißt jetzt „Demo“
 # 2026-11-11 15:20 – „Alle Einstellungen zurücksetzen“ stellt auch den Stickmode auf Mode 4
 # 2026-11-11 14:40 – Geplatzte Hülle: Meldung, Rennen und Autopilot beendet; Einstellungen Platzen an das Schiff
@@ -443,7 +444,11 @@ func _physics_process(dt: float) -> void:
 		return                                  # Schiff steht im Baukasten fest
 	var nose := ship.global_transform * Vector3(0, 0, -ship.hull.cb_from_nose)
 	course.track(nose.x, nose.z, dt)
-	hud.set_race_text(course.race_text(), course.lap_text())
+	if hud.race_panel and hud.race_panel.course == null:
+		hud.race_panel.course = course
+		_update_race_box()
+		ship.config_changed.connect(_update_race_box)
+	hud.set_race_text(course.race_text(), course.hint_text())
 
 
 ## Knopf „Alle Einstellungen zurücksetzen“ (PID-Menü): Flugcontroller auf
@@ -464,6 +469,12 @@ func reset_all_settings() -> void:
 
 
 ## Boxmaß-Ecke an den aktuellen Umriss des Schiffs anpassen.
+## Boxmaß über alles (Länge, Breite, Höhe) für die gewertete Zeit (F7B).
+func _update_race_box() -> void:
+	var a := visual.local_aabb()
+	hud.race_panel.box_m = Vector3(a.size.z, a.size.x, a.size.y)
+
+
 func _rebuild_gauge() -> void:
 	if gauge.visible:
 		gauge.rebuild(visual.local_aabb(), ship.cg_offset)
