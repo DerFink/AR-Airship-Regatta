@@ -1,3 +1,4 @@
+# 2026-11-11 19:20 – „Fertig“ auch oben in der Liste; Tippen aufs Spielfeld schließt die Liste
 # 2026-11-11 18:30 – Platz und Liste nach gewerteter Zeit (F7B), gemessene Zeit daneben
 # 2026-11-11 17:45 – Texte mit Zahlen übersetzt
 # 2026-11-09 13:40 – Ergebnis wird beim Zieleinlauf festgehalten (vorher: SH setzte zugleich das Rennen zurück → Eintrag mit 0 s); Knopf „Liste löschen“ mit Rückfrage
@@ -49,6 +50,11 @@ func _ready() -> void:
 	var bg := ColorRect.new()
 	bg.color = UITheme.color("backdrop")
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Tippen neben das Fenster (aufs Spielfeld) schließt die Liste – nicht
+	# während der Namenseingabe, damit kein Ergebnis aus Versehen verloren geht
+	bg.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed and not _pending:
+			closed.emit())
 	add_child(bg)
 	_panel = UITheme.make_panel(640)
 	add_child(_panel)
@@ -133,7 +139,15 @@ func _on_enter() -> void:
 
 func _fill_list() -> void:
 	for c in _box.get_children(): c.queue_free()
-	_box.add_child(UITheme.make_title(I18n.t("Bestenliste · %s") % course.title()))
+	# Kopfzeile: Titel links, „Fertig“ rechts (auch oben, damit man nicht scrollen muss)
+	var head := UITheme.make_hbox("sm")
+	var title := UITheme.make_title(I18n.t("Bestenliste · %s") % course.title())
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var done_top := UITheme.make_button("Fertig")
+	done_top.pressed.connect(func(): closed.emit())
+	head.add_child(done_top)
+	_box.add_child(head)
 	_box.add_child(UITheme.make_label("Gewertete Zeit nach F7B (Gesamtzeit × Boxfaktor) · 3 Runden", "MutedLabel"))
 	var lst := Leaderboard.entries(course.course_key())
 	if lst.is_empty():

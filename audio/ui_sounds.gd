@@ -1,3 +1,4 @@
+# 2026-11-11 19:20 – Musik deutlich leiser (−26 dB statt −6 dB, ≈ 10 % der bisherigen Lautstärke)
 # 2026-11-11 17:55 – Browser: Musik ohne Blende (Lautstärkeänderung an Web-Audio-Samples wirkt in Godot 4.3 nicht → Werkstatt war stumm)
 # 2026-11-11 16:30 – Umbau: Werkstatt-Musik (Gitarre, Datei audio/werkstatt_gitarre.ogg, Schleife) mit weichem Ein-/Ausblenden statt Klangteppich; Glockentöne entfernt (Bedientöne aus; ein leiser Klick ist vorbereitet, CLICK_ON)
 # 2026-11-09 13:50 – Ohne Ton (im Flug fast immer) Stille in einem Aufruf statt Abtastwert für Abtastwert – entlastet besonders die Browser-Version
@@ -15,7 +16,7 @@ class_name UISounds
 extends Node
 
 const MUSIC := "res://audio/werkstatt_gitarre.ogg"
-const MUSIC_DB := -6.0             ## Grundlautstärke der Musik (Feinregelung über den Bus)
+const MUSIC_DB := -26.0            ## Grundlautstärke der Musik (Feinregelung über den Bus)
 const FADE_S := 1.5                ## Ein-/Ausblendzeit
 const CLICK_GAP := 0.25            ## Mindestabstand zwischen zwei Klicks (s)
 ## Bedientöne ganz aus (Glockentöne entfernt, Klick nur bei Bedarf wieder einschalten)

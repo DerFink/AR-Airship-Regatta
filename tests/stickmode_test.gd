@@ -1,3 +1,4 @@
+# 2026-11-11 19:30 – Prüft auch das Laden alter Einstellungen (Stickmode wurde überschrieben)
 # 2026-11-11 15:45 – Erstversion: Stickmode 1–4 (heli-planet-Nomenklatur), Standard Mode 4
 extends SceneTree
 
@@ -28,6 +29,24 @@ func _initialize() -> void:
 		if absf(fc.cmd_throttle - 0.1) > 1e-6 or absf(fc.cmd_pitch + 0.2) > 1e-6 or absf(fc.cmd_yaw - 0.3) > 1e-6:
 			print("FEHLER Mode %d: Kommandos falsch" % m); ok = false
 	fc.free()
+	# Gespeicherte alte Einstellung (Mode 1, Nomenklatur 3) wird beim Laden zu Mode 4 –
+	# und darf danach nicht wieder überschrieben werden (Fehler bis 0.26.0)
+	var cfg := ConfigFile.new()
+	var had := cfg.load(FlightController.SETTINGS_PATH) == OK
+	var keep := cfg.encode_to_text()
+	cfg.set_value("general", "stick_mode", 1)
+	cfg.set_value("general", "stick_nomenklatur", 3)
+	cfg.set_value("general", "version", FlightController.SETTINGS_VERSION)
+	cfg.save(FlightController.SETTINGS_PATH)
+	var fc2 := FlightController.new()
+	fc2.load_settings()
+	if fc2.stick_mode != 4:
+		print("FEHLER alter Stickmode 1 wurde nicht zu Mode 4 (", fc2.stick_mode, ")"); ok = false
+	fc2.free()
+	if had:
+		var back := ConfigFile.new(); back.parse(keep); back.save(FlightController.SETTINGS_PATH)
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(FlightController.SETTINGS_PATH))
 	print("stickmode_test: ", "OK" if ok else "FEHLER")
 	if not ok: push_error("SCRIPT ERROR: stickmode_test")
 	print("ENDE")

@@ -1,3 +1,4 @@
+# 2026-11-11 19:25 – FEHLER behoben: der umgerechnete Stickmode wurde beim Laden sofort wieder mit dem alten gespeicherten Wert überschrieben (daher immer Gas rechts); Stickmode wird nach dem Laden gespeichert
 # 2026-11-11 18:55 – Stickmode noch einmal einmalig auf Mode 4 (Ursache jetzt behoben)
 # 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 16:00 – einmalig auf Mode 4 zurück (Stickmode war ggf. versehentlich über den Sender verstellt)
@@ -750,6 +751,10 @@ func save_settings() -> void:
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
+func _save_stick_mode_later() -> void:
+	save_settings()
+
+
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) != OK:
@@ -764,12 +769,16 @@ func load_settings() -> void:
 		stick_mode = STICK_MODE_DEFAULT   # 0.23.x–0.25: Mode 1 wurde über den Sender (Menü-Navigation) gewählt → einmalig Mode 4
 	if not STICK_LAYOUT.has(stick_mode):
 		stick_mode = STICK_MODE_DEFAULT
+	if nom < 4:
+		_save_stick_mode_later.call_deferred()   # umgerechneten Wert gleich dauerhaft speichern
 	if settings_outdated:
 		return                    # alte Reglerwerte passen nicht zum neuen Regler
 	for a in params:
 		for term in params[a]:
 			params[a][term] = cfg.get_value(AXIS_KEYS[a], term, params[a][term])
 	for k in GENERAL_KEYS:
+		if k == "stick_mode":
+			continue              # schon oben geladen und umgerechnet – NICHT mit dem alten Rohwert überschreiben
 		set(k, cfg.get_value("general", k, get(k)))
 	preset = str(cfg.get_value("general", "preset", "teensy"))
 	# 10.11.2026: alte Werkseinstellung 180 °/s → neue 110 °/s (eigene andere Werte bleiben)
