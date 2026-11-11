@@ -1,3 +1,4 @@
+# 2026-11-11 08:40 – Physik: Abschnitt „Profilierte Flossen und Reynoldszahl“ (DE/EN)
 # 2026-11-11 01:30 – Quelle Johannes Eissing (Gertler Shape Generator)
 # 2026-11-11 00:20 – Formeln ohne Zeichen, die die Handy-Schrift nicht hat (ₐ → _a, ω̇ → dω/dt)
 # 2026-11-10 21:10 – Erstversion: „Grundlagen des Simulators“ mit Reitern Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz (Texte Deutsch und Englisch; andere Sprachen zeigen den englischen Text)
@@ -114,6 +115,15 @@ Dieses Moment dreht die Nase weiter aus dem Wind – der Rumpf allein ist instab
 [b]Flossen und Ruder[/b]
 Jede Flosse ist eine kleine Tragfläche mit eigener Anströmung (Fahrt + Drehung des Schiffs). Auftrieb nach Helmbold für kleine Streckungen, Strömungsabriss bei großen Winkeln, Ruderwirkung je nach Bauart (Ruderklappe, Pendelruder, flexible Depronplatte). Hinter dem Schwerpunkt wirken Flossen stabilisierend, Canards vorne destabilisierend.
 
+[b]Profilierte Flossen und Reynoldszahl[/b]
+Leitwerk und Canards können flache Platten („Brettchen“, z. B. Depron) oder symmetrische NACA-00xx-Profile sein (die letzten beiden Ziffern = Dicke in % der Tiefe, Chewie: NACA 0020). Wie sich das Profil verhält, hängt von der Reynoldszahl ab, die der Simulator in jedem Schritt aus Fahrt und mittlerer Flossentiefe bestimmt:
+[code]Re = v · c / ν      (ν = 0,000015 m²/s)[/code]
+Chewie-Flosse (c ≈ 19 cm): 2 m/s → Re ≈ 25 000, 6 m/s → 76 000, 10 m/s → 127 000 – sehr klein im Vergleich zu Flugzeugen (Millionen).
+[b]Platte:[/b] Die scharfe Vorderkante lässt die Strömung früh und abrupt abreißen (≈ 14°), fast unabhängig von Re. Stumpfe Kanten erhöhen den Grundwiderstand.
+[b]NACA 00xx:[/b] Die runde Nase hält die Strömung länger: Abriss später und weicher, je dicker desto mehr (0009 ≈ 18°, 0020 ≈ 24° bei Re 10⁵). Bei kleinem Re löst die laminare Grenzschicht früher ab – der Abriss kommt etwas früher, dicke Profile verlieren etwas Auftriebsanstieg.
+[b]Grundwiderstand:[/b] wächst mit der Dicke und bei kleinem Re (Reibung ∝ 1/√Re).
+Die Kennwerte sind Näherungen aus veröffentlichten Messreihen bei kleinen Reynoldszahlen, übertragen auf die kleinen Seitenverhältnisse der Flossen.
+
 [b]Schub[/b]
 Jeder Motor erzeugt Schub entlang seiner Achse, die Schwenkmotoren drehen diese Achse. Der Schub fällt mit der Fahrt (Propeller-Anströmung) und mit der Akkuspannung. Sitzt der Motor nicht im Schwerpunkt, entsteht zusätzlich ein Moment.
 
@@ -215,6 +225,15 @@ This moment turns the nose further out of the wind – the bare hull is unstable
 
 [b]Fins and rudders[/b]
 Each fin is a small wing with its own local flow (airspeed + rotation of the ship). Lift follows Helmbold for low aspect ratios, with stall at large angles; control effect depends on the type (flap, all-moving, flexible Depron plate). Fins behind the centre of gravity stabilise, canards at the front destabilise.
+
+[b]Profiled fins and Reynolds number[/b]
+Tail fins and canards can be flat plates (e.g. Depron) or symmetric NACA 00xx sections (last two digits = thickness in % of chord; Chewie: NACA 0020). How a section behaves depends on the Reynolds number, which the simulator computes every step from airspeed and mean fin chord:
+[code]Re = v · c / ν      (ν = 0.000015 m²/s)[/code]
+Chewie's fin (c ≈ 19 cm): 2 m/s → Re ≈ 25,000, 6 m/s → 76,000, 10 m/s → 127,000 – tiny compared with aircraft (millions).
+[b]Flat plate:[/b] the sharp leading edge makes the flow separate early and abruptly (≈ 14°), almost independent of Re. Blunt edges add drag.
+[b]NACA 00xx:[/b] the round nose keeps the flow attached longer: stall later and softer, the thicker the more (0009 ≈ 18°, 0020 ≈ 24° at Re 10⁵). At low Re the laminar boundary layer separates earlier – stall comes a little sooner and thick sections lose some lift slope.
+[b]Zero-lift drag:[/b] grows with thickness and at low Re (friction ∝ 1/√Re).
+The values are approximations from published low-Reynolds measurements, transferred to the small aspect ratios of the fins.
 
 [b]Thrust[/b]
 Each motor pushes along its axis; swivelling motors rotate that axis. Thrust drops with airspeed (propeller inflow) and with battery voltage. A motor away from the centre of gravity also adds a moment.

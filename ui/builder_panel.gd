@@ -1,3 +1,4 @@
+# 2026-11-11 08:25 – Profil-Kennwerte bei 3 und 9 m/s mit Reynoldszahl
 # 2026-11-11 07:40 – Leitwerk und Canards: Profil (Brettchen/NACA 00xx) mit Dicke, Kennwerte und Gewichts-Schätzung; „Endgewicht“ je Flosse/Canard
 # 2026-11-11 14:20 – .ino-Export: Mischer aus dem Modell (an/aus), Kanalzuordnung des Senders (an/aus), Hinweise zur Ausgangsbelegung
 # 2026-11-11 12:00 – Flight Controller: Bausteine an/aus, Signalfluss-Bild, Export als Teensy-Sketch (.ino, dRehmFlight)
@@ -766,9 +767,14 @@ func _profile_block(box: Control, obj: Object, area: float, ar: float, on_change
 	var cs := ControlSurface.new()
 	cs.area_m2 = area; cs.aspect_ratio = ar
 	cs.profile_naca = obj.get("profile_naca"); cs.naca_thickness = obj.get("naca_thickness"); cs.plate_thickness_mm = obj.get("plate_thickness_mm")
-	var pr := cs.profile_params()
-	var info := UITheme.make_label(("%s: Abriss ab ≈ %d°, Grundwiderstand cd0 %.3f · Schätzung %d g bei Schaum %d kg/m³ (ohne Servo)" % [
-		cs.profile_name(), roundi(pr.stall_deg), pr.cd0, roundi(cs.estimated_mass_kg(_foam_density) * 1000.0), roundi(_foam_density)]).replace(".", ","), "MutedLabel")
+	# Kennwerte bei langsamer (3 m/s) und schneller (9 m/s) Fahrt – Re = v·c/ν
+	var p3 := cs.profile_params(cs.reynolds(3.0))
+	var p9 := cs.profile_params(cs.reynolds(9.0))
+	var info := UITheme.make_label(("%s · Tiefe %d mm\n3 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\n9 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\nSchätzung %d g bei Schaum %d kg/m³ (ohne Servo)" % [
+		cs.profile_name(), roundi(cs.mean_chord() * 1000.0),
+		roundi(cs.reynolds(3.0) / 1000.0), roundi(p3.stall_deg), p3.cd0,
+		roundi(cs.reynolds(9.0) / 1000.0), roundi(p9.stall_deg), p9.cd0,
+		roundi(cs.estimated_mass_kg(_foam_density) * 1000.0), roundi(_foam_density)]).replace(".", ","), "MutedLabel")
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(info)
 	box.add_child(UITheme.make_slider_row("Schaumdichte (nur für die Schätzung)", 10.0, 80.0, 1.0, _foam_density,

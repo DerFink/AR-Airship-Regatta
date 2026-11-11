@@ -1,3 +1,4 @@
+# 2026-11-11 08:20 – Reynoldszahl wird aus Fahrt und mittlerer Tiefe bestimmt (Re = v·c/ν) statt pauschal 10⁵; Profilwerte (Grundwiderstand, Abriss, Auftriebsanstieg dicker Profile) hängen von Re ab
 # 2026-11-11 07:20 – Profil: flache Platte (Dicke in mm) oder symmetrisches NACA 00xx (Dicke in % der Tiefe) – wirkt auf Auftriebsanstieg, Abrisswinkel, Weichheit des Abrisses und Grundwiderstand
 # 2026-11-11 10:05 – Eigene Masse je Fläche (mass_kg, für Canards)
 # 2026-11-07 23:55 – Flossen an der Hülle: wirksame Streckung doppelt (Hülle als Spiegelwand) und Rumpf-Flossen-Interferenz 1,3 (Chewie lief sonst nicht geradeaus)
@@ -138,9 +139,11 @@ func compute_force(v_local: Vector3, rho: float, dt: float) -> Vector3:
 	var alpha := alpha_geo + delta_alpha
 
 	# 5) Auftrieb (mit Stall) und Widerstand
-	var cl := lift_coefficient(alpha)
+	last_re = reynolds(speed)
+	var pr := profile_params(last_re)
+	var cl := lift_coefficient(alpha, pr)
 	var cdi := cl * cl / (PI * effective_aspect_ratio() * 0.85)
-	var cd := profile_cd0() + cdi + 1.2 * pow(sin(alpha), 2)     # Plattenwiderstand bei großen Winkeln
+	var cd: float = float(pr.cd0) + cdi + 1.2 * pow(sin(alpha), 2)     # Plattenwiderstand bei großen Winkeln
 
 	# Auftriebsrichtung: senkrecht zum Fahrtwind, in der Ebene von Wind und Normale
 	var lift_dir := (n - flow * flow.dot(n))
@@ -201,8 +204,9 @@ func lift_slope() -> float:
 ## Auftriebsbeiwert mit weichem Übergang in den Strömungsabriss.
 ## Bis zum Abrisswinkel des Profils linear, darüber Flachplatten-Verhalten
 ## (sin·cos); wie weich der Übergang ist, hängt ebenfalls vom Profil ab.
-func lift_coefficient(alpha: float) -> float:
-	var pr := profile_params()
+func lift_coefficient(alpha: float, pr: Dictionary = {}) -> float:
+	if pr.is_empty():
+		pr = profile_params(RE_REF)
 	var cl_lin: float = lift_slope() * float(pr.slope) * alpha
 	var cl_plate := 2.0 * sin(alpha) * cos(alpha)
 	var blend := clampf((absf(alpha) - deg_to_rad(float(pr.stall_deg))) / deg_to_rad(float(pr.width_deg)), 0.0, 1.0)
@@ -210,31 +214,49 @@ func lift_coefficient(alpha: float) -> float:
 
 
 # -----------------------------------------------------------------------------
-# Profil-Kennwerte für kleine Flossen bei kleinen Reynoldszahlen (≈ 10⁵, wie bei
-# Rennluftschiffen um 1–10 m/s). Abgeleitet aus veröffentlichten Messreihen für
-# NACA 0009…0021 und dünne Platten bei Re 10⁵ und auf die kleinen
-# Seitenverhältnisse der Flossen übertragen (Abriss setzt dort später ein):
-#   Platte:   scharfe Vorderkante → Abriss früh (≈ 14°), schnell (6°), cd0 aus Dicke
-#   NACA 00xx: Abriss später und weicher, je dicker desto mehr; Grundwiderstand
-#             wächst mit der Dicke; dicke Profile verlieren bei kleinem Re etwas
-#             Auftriebsanstieg (Ablöseblase)
+# Profil-Kennwerte für kleine Flossen, abhängig von der Reynoldszahl
+#   Re = v · c / ν    (v Fahrt, c mittlere Tiefe, ν = 1,5·10⁻⁵ m²/s für Luft)
+# Chewie-Flosse (c ≈ 0,19 m): 1 m/s → Re ≈ 13 000, 5 m/s → 63 000, 10 m/s → 127 000.
+# Bezug sind Messreihen für NACA 0009…0021 und dünne Platten bei Re ≈ 10⁵,
+# übertragen auf die kleinen Seitenverhältnisse der Flossen (Abriss später):
+#   Platte:    scharfe Vorderkante → Abriss früh (≈ 14°) und schnell (6°), kaum
+#              von Re abhängig; Grundwiderstand aus Dicke (stumpfe Kanten)
+#   NACA 00xx: Abriss später und weicher, je dicker desto mehr. Bei kleinerem
+#              Re reißt die laminare Grenzschicht früher ab (Ablöseblase):
+#              Abriss früher, dicke Profile verlieren Auftriebsanstieg
+#   Reibung:   Grundwiderstand ∝ Re^−0,5 (laminare Grenzschicht), begrenzt
 # Werte sind Näherungen (ANNAHME) und können durch Messungen ersetzt werden.
 # -----------------------------------------------------------------------------
-func profile_params() -> Dictionary:
+const NU_AIR := 1.5e-5                 ## kinematische Zähigkeit der Luft (m²/s, 20 °C)
+const RE_REF := 1.0e5                  ## Bezugs-Reynoldszahl der Kennwerte
+## zuletzt berechnete Reynoldszahl (für Anzeigen)
+var last_re := 0.0
+
+
+## Reynoldszahl der Fläche bei Fahrt speed (m/s).
+func reynolds(speed: float) -> float:
+	return absf(speed) * mean_chord() / NU_AIR
+
+
+func profile_params(re: float = RE_REF) -> Dictionary:
+	var r := clampf(re, 5000.0, 1.0e6) / RE_REF
+	var lg := log(r) / log(10.0)                         # log10(Re/10⁵): −1,3 … +1
+	var friction := clampf(pow(r, -0.5), 0.6, 2.5)       # laminare Reibung
 	if not profile_naca:
 		var t_rel := plate_thickness_mm / 1000.0 / maxf(mean_chord(), 0.01)
 		return {"slope": 0.95, "stall_deg": 14.0, "width_deg": 6.0,
-			"cd0": 0.018 + 0.25 * t_rel}            # stumpfe Kanten: Widerstand wächst mit der Dicke
+			"cd0": 0.008 * friction + 0.010 + 0.25 * t_rel}   # Reibung + Kantenwiderstand
 	var t := naca_thickness
-	return {"slope": 1.0 - 0.6 * maxf(0.0, t - 0.12),
-		"stall_deg": clampf(18.0 + 55.0 * (t - 0.09), 15.0, 26.0),
+	var thick := maxf(0.0, t - 0.12)
+	return {"slope": clampf(1.0 - 0.6 * thick * clampf(pow(r, -0.3), 0.6, 2.2), 0.7, 1.0),
+		"stall_deg": clampf(18.0 + 55.0 * (t - 0.09) + 3.0 * lg, 12.0, 27.0),
 		"width_deg": clampf(8.0 + 45.0 * (t - 0.09), 6.0, 16.0),
-		"cd0": 0.008 + 0.07 * t}
+		"cd0": (0.008 + 0.07 * t) * friction}
 
 
-## Grundwiderstand des Profils (statt des festen cd0).
+## Grundwiderstand des Profils bei der Bezugs-Reynoldszahl.
 func profile_cd0() -> float:
-	return float(profile_params().cd0)
+	return float(profile_params(RE_REF).cd0)
 
 
 ## Mittlere Tiefe (m) aus Fläche und Spannweite.
