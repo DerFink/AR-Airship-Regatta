@@ -21,7 +21,7 @@ func _launch(s: AirshipPhysics) -> void:
 	s.reset_to(Transform3D(Basis.IDENTITY, Vector3(0, 6, -hz + 4.0)))
 	t0 = f
 
-func _process(_dt: float) -> bool:
+func _physics_process(_dt: float) -> bool:   # zählt Physikschritte (CI läuft ohne feste Bildrate)
 	if not is_instance_valid(main): return true
 	if not main.ready_done: return false
 	f += 1
