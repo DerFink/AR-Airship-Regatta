@@ -1,3 +1,4 @@
+# 2026-11-11 12:15 – aerarium-Plakate an allen vier Hallenwänden: große oben (weiße Wand über der 2. Galerie), kleine unten an den Glastüren; Seitenverhältnis kommt aus dem Bild, nie gestreckt
 # 2026-11-11 17:45 – Anzeige-Texte (Runde, Ziel, nächster Kontrollpunkt) übersetzt; Zeiten mit Dezimalzeichen je Sprache
 # 2026-11-10 14:00 – Location „Halle“ / „Wiese“ (Wiese: keine Wände/Decke, Pylonabstand Vorgabe 200 m); Pylonabstand frei 5–500 m; Halle nachgebildet nach Fotos der Windreiter-Halle (Glasdach mit Holzraster, Band mit Horizont-Wandbildern, zwei Galerien mit Geländer, weiße Säulen, Glastüren, dunkler glänzender Boden)
 # 2026-11-09 09:45 – Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke 25 m, halb durchsichtig mit 5-m-Raster, Luftschiff prallt ab
@@ -59,6 +60,14 @@ const FIELD_WIDTH := 20.0
 ## Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke in 25 m Höhe
 const HALL_GAP := 10.0
 const HALL_HEIGHT := 25.0
+## aerarium-Plakate an den Hallenwänden (Bild: textures/aerarium_plakat.png)
+const POSTER_TEX := "res://textures/aerarium_plakat.png"
+const POSTER_BIG_H := 4.6       # Höhe der großen Plakate (m), weiße Wand 11,2–16,5 m
+const POSTER_BIG_Y := 13.85     # Mitte der großen Plakate (m)
+const POSTER_SMALL_H := 2.0     # Höhe der kleinen Plakate (m) an den Glastüren
+const POSTER_SMALL_Y := 2.0     # Mitte der kleinen Plakate (m)
+const POSTER_SPACING := 16.0    # Abstand zwischen zwei großen Plakaten (m) = 2 Säulenfelder
+const POSTER_GAP := 0.06        # Abstand zur Wand (m), damit nichts flimmert
 ## Abprallen an Wänden und Decke (0 = kein Abprall, 1 = voll elastisch)
 const HALL_BOUNCE := 0.6
 const LINE_WIDTH := 0.10
@@ -265,6 +274,78 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 			c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(c)
 		px += 8.0
+	_build_posters(xa, xb, hz)
+
+
+## aerarium-Plakate wie aufgehängt: große oben an der weißen Wand über der
+## 2. Galerie, kleine unten an den Glastüren, dazwischen versetzt – so ist aus
+## fast jeder Blickrichtung eins zu sehen. Die Breite ergibt sich immer aus der
+## Höhe × Seitenverhältnis des Bildes, das Logo wird also nie verzerrt.
+func _build_posters(xa: float, xb: float, hz: float) -> void:
+	var tex := load(POSTER_TEX) as Texture2D
+	if tex == null:
+		return
+	var aspect := float(tex.get_width()) / float(tex.get_height())
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.roughness = 0.85
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	# leicht selbstleuchtend, damit das Plakat auch im Schatten gut lesbar bleibt
+	mat.emission_enabled = true
+	mat.emission_texture = tex
+	mat.emission_energy_multiplier = 0.35
+	var cx := (xa + xb) * 0.5
+	# [Mitte der Wand, Breite der Wand, Drehung, Richtung entlang der Wand, Säulen?]
+	var walls := [
+		[Vector3(cx, 0, -hz), xb - xa, 0.0, Vector3.RIGHT, true],
+		[Vector3(cx, 0, hz), xb - xa, PI, Vector3.RIGHT, true],   # gleiche Richtung wie hinten, damit die Säulenlücken passen
+		[Vector3(xa, 0, 0), 2.0 * hz, PI * 0.5, Vector3.BACK, false],
+		[Vector3(xb, 0, 0), 2.0 * hz, -PI * 0.5, Vector3.FORWARD, false],
+	]
+	for w in walls:
+		var basis := Basis(Vector3.UP, w[2])
+		var normal: Vector3 = basis * Vector3.BACK          # zeigt in die Halle
+		var along: Vector3 = w[3]
+		var length: float = w[1]
+		# Längswände: Plakate mittig zwischen zwei Säulen (Säulen bei xa+4+8k).
+		# Stirnwände: gleichmäßig verteilt.
+		var big_pos := _poster_slots(length, POSTER_SPACING, w[4], xa - cx if w[4] else 0.0)
+		for i in big_pos.size():
+			var d: float = big_pos[i]
+			_poster(mat, aspect, POSTER_BIG_H, POSTER_BIG_Y, w[0] + along * d + normal * POSTER_GAP, basis)
+			# kleines Plakat unten, um eine halbe Teilung versetzt (zwischen den großen)
+			var ds := d + POSTER_SPACING * 0.5
+			if absf(ds) + POSTER_SMALL_H * aspect * 0.5 < length * 0.5 - 1.0:
+				_poster(mat, aspect, POSTER_SMALL_H, POSTER_SMALL_Y, w[0] + along * ds + normal * POSTER_GAP, basis)
+
+
+## Positionen entlang einer Wand (Abstand von der Wandmitte). Mit Säulen liegen
+## die Plätze genau zwischen zwei Säulen, sonst symmetrisch zur Mitte.
+func _poster_slots(length: float, spacing: float, columns: bool, start_off: float) -> Array:
+	var out := []
+	var n := maxi(1, int(floor((length - 4.0) / spacing)))
+	if columns:
+		# Säulen bei start_off + 4 + 8k (von der Mitte gemessen) → Lücken bei +8, +24 …
+		var p := start_off + 8.0
+		while p < length * 0.5 - 4.0:
+			out.append(p)
+			p += spacing
+	else:
+		for i in n:
+			out.append((i - (n - 1) * 0.5) * spacing)
+	return out
+
+
+## Ein Plakat: Fläche mit Höhe h, Breite h × Seitenverhältnis, Mitte in Höhe y.
+func _poster(mat: Material, aspect: float, h: float, y: float, at: Vector3, basis: Basis) -> void:
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(h * aspect, h)
+	mi.mesh = q
+	mi.material_override = mat
+	mi.transform = Transform3D(basis, Vector3(at.x, y, at.z))
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 
 ## Startlage des Schiffs: Bug 1 m hinter der Linie des vorderen Pylons,
