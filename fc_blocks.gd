@@ -1,3 +1,4 @@
+# 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 11:40 – Erstversion: Regler-Bausteine – jeder Baustein steht für einen Teil des Teensy-Reglers und lässt sich an/aus schalten (aus = seine Werte auf 0, die alten Werte werden gemerkt); feste Sicherheits-Bausteine (Gas nur Pilot, Failsafe, Motorfreigabe) sind nicht abschaltbar
 # =============================================================================
 # FcBlocks.gd
@@ -18,14 +19,14 @@ const BLOCKS := [
 	{"id": "mix", "name": "Mischer nach Einbauwinkel", "desc": "verteilt Nick, Gier und Roll nach dem Einbauwinkel auf jede Flosse und jeden Schwenker", "vals": [], "fixed": true},
 	{"id": "ff", "name": "Knüppel-Vorsteuerung", "desc": "Knüppel geht direkt (ohne Regler) anteilig auf Ruder und Schwenker – schnelle Reaktion",
 		"vals": [["gen", "stick_pitch_motor"], ["gen", "stick_pitch_tail"], ["yaw", "stick_yaw_motor"], ["yaw", "stick_yaw_tail"], ["yaw", "stick_yaw_motor_m3"], ["yaw", "stick_yaw_tail_m3"]]},
-	{"id": "pitch", "name": "Nick-Lageregler (PID)", "desc": "hält den Nickwinkel auf dem Sollwert des Knüppels (Mode 2/3)",
+	{"id": "pitch", "name": "Nick-Lageregler (PID)", "desc": "hält den Nickwinkel auf dem Sollwert des Knüppels (Angle/Horizon)",
 		"vals": [["pitch", "Kp"], ["pitch", "Ki"], ["pitch", "Kd"]]},
 	{"id": "roll", "name": "Rolllagen-Ausgleich (PID)", "desc": "richtet das Schiff um die Längsachse auf",
 		"vals": [["roll", "Kp"], ["roll", "Ki"], ["roll", "Kd"]]},
 	{"id": "roll_mot", "name": "Roll über Motorschwenker", "desc": "Schwenker gegenläufig für den Rollausgleich",
 		"vals": [["gen", "motor_roll_gain"]]},
-	{"id": "rate", "name": "Nick-Rate (Mode 3)", "desc": "Höhenknüppel gibt eine Nick-Drehrate vor statt eines Winkels", "vals": [], "fixed": true},
-	{"id": "yaw_pid", "name": "Gier-PID (Mode 3)", "desc": "I- und D-Anteil des Gier-Drehratenreglers (P bleibt)",
+	{"id": "rate", "name": "Nick-Rate (Horizon)", "desc": "Höhenknüppel gibt eine Nick-Drehrate vor statt eines Winkels", "vals": [], "fixed": true},
+	{"id": "yaw_pid", "name": "Gier-PID (Horizon)", "desc": "I- und D-Anteil des Gier-Drehratenreglers (P bleibt)",
 		"vals": [["yaw", "Ki_yaw_m3"], ["yaw", "Kd_yaw_m3"]]},
 	{"id": "protect", "name": "Nick-Schutz", "desc": "nimmt die Vorsteuerung über dem maximalen Nickwinkel zurück",
 		"vals": [["gen", "pitch_protect_band_deg"]]},

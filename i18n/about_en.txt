@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
 # Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
@@ -72,8 +73,8 @@ e is the error between setpoint and measurement. P reacts immediately, I removes
 
 [b]Modes[/b]
 [b]Direct[/b]: sticks go straight to fins and swivels, no controller.
-[b]Mode 2[/b]: pitch as attitude controller (stick = target angle, release = level), yaw as rate controller.
-[b]Mode 3[/b]: like Mode 2, yaw with PID rate controller (max. 110 °/s), pitch protection limits the pitch angle, roll via the swivelling motors.
+[b]Angle[/b]: pitch as attitude controller (stick = target angle, release = level), yaw as rate controller.
+[b]Horizon[/b]: like Angle, yaw with PID rate controller (max. 110 °/s), pitch protection limits the pitch angle, roll via the swivelling motors.
 
 [b]Mixer[/b]
 Each fin gets pitch and yaw shares according to its mounting angle. Swivelling motors take pitch together and roll in opposition.

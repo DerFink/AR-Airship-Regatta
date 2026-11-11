@@ -1,3 +1,4 @@
+# 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 15:20 – Stickmode 1–4 (gleiche Einstellung wie beim Sender-Kalibrieren)
 # 2026-11-07 23:00 – Mischer-Werte aus FlightController.MIX_PARAMS (Namen wie im Teensy-Code)
 # 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 mit Kurzbeschreibung; Nick-Sollwert: Max-Winkel, Mode-3-Nickrate, Rückkehr, Vorlauf (Ruheband und Gas-Anpassung entfallen); Anzeigeformat je Regler (z. B. 0,0014)
@@ -160,11 +161,11 @@ func _fill_left() -> void:
 	_left_box.add_child(UITheme.make_title("Nick-Sollwert"))
 	_left_box.add_child(UITheme.make_slider_row("Max ±", 10.0, 60.0, 1.0, fc.pitch_max_deg,
 		func(v): fc.pitch_max_deg = v; fc.save_settings(), "%d°", 80))
-	_left_box.add_child(UITheme.make_slider_row("Mode 3 Nickrate", 5.0, 120.0, 1.0, fc.pitch_rate_dps,
+	_left_box.add_child(UITheme.make_slider_row("Horizon Nickrate", 5.0, 120.0, 1.0, fc.pitch_rate_dps,
 		func(v): fc.pitch_rate_dps = v; fc.save_settings(), "%d °/s", 80))
-	_left_box.add_child(UITheme.make_slider_row("Mode 3 Rückkehr", 1.0, 90.0, 1.0, fc.pitch_return_dps,
+	_left_box.add_child(UITheme.make_slider_row("Horizon Rückkehr", 1.0, 90.0, 1.0, fc.pitch_return_dps,
 		func(v): fc.pitch_return_dps = v; fc.save_settings(), "%d °/s", 80))
-	_left_box.add_child(UITheme.make_slider_row("Mode 3 Vorlauf max", 1.0, 45.0, 1.0, fc.pitch_lead_deg,
+	_left_box.add_child(UITheme.make_slider_row("Horizon Vorlauf max", 1.0, 45.0, 1.0, fc.pitch_lead_deg,
 		func(v): fc.pitch_lead_deg = v; fc.save_settings(), "%d°", 80))
 
 	# Alles auf Werkseinstellung – mit Rückfrage (zweites Tippen bestätigt)
@@ -206,7 +207,7 @@ func _build_mix() -> void:
 func _build_gains() -> void:
 	for c in _gain_box.get_children(): c.queue_free()
 	if fc.mode == FlightController.Mode.DIRECT:
-		_gain_box.add_child(UITheme.make_label("Direkt (Mode 1): Knüppel wirken ungeregelt (Werte gelten für Mode 2/3).", "MutedLabel"))
+		_gain_box.add_child(UITheme.make_label("Direkt: Knüppel wirken ungeregelt (Werte gelten für Angle/Horizon).", "MutedLabel"))
 	var axis := _axis
 	for p in FlightController.UI_PARAMS[axis]:
 		var term: String = p.term

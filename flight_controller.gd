@@ -1,3 +1,5 @@
+# 2026-11-11 18:55 – Stickmode noch einmal einmalig auf Mode 4 (Ursache jetzt behoben)
+# 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 16:00 – einmalig auf Mode 4 zurück (Stickmode war ggf. versehentlich über den Sender verstellt)
 # 2026-11-11 15:20 – Stickmode 1–4 nach heli-planet-Nomenklatur (Standard Mode 4: Gas+Rolle links, Nick+Gier rechts); Funktionen ↔ Knüppel über STICK_LAYOUT; alte Einstellungen werden umgerechnet
 # 2026-11-11 13:00 – actuator_table(): Stellglieder mit Einbauwinkel und Richtungen für den parametrischen .ino-Export
@@ -76,12 +78,13 @@ signal loop_sample(axis: int, setpoint: float, measurement: float)
 
 enum Mode { DIRECT, MODE2, MODE3 }
 ## Namen für Schalter und Menüs
-const MODE_NAMES := ["Direkt", "Mode 2", "Mode 3"]
+## Flugmodi wie bei Drohnen (Teensy-Kanal 13: Mode 1/2/3 = Direkt/Angle/Horizon)
+const MODE_NAMES := ["Direkt", "Angle", "Horizon"]
 ## Kurzbeschreibung je Modus (Banner beim Umschalten)
 const MODE_HINTS := [
-	"Direkt (Mode 1): Knüppel direkt auf Ruder und Motorschwenk, Rolle auf dem linken Knüppel",
-	"Mode 2: Nick und Roll geregelt · Höhe = Nickwinkel bis ±30° · Seite direkt",
-	"Mode 3: wie Mode 2 · Höhe = Nickrate 45 °/s · Seite = Gierrate bis 180 °/s",
+	"Direkt: Knüppel direkt auf Ruder und Motorschwenk, Rolle auf dem linken Knüppel",
+	"Angle: Nick und Roll geregelt · Höhe = Nickwinkel bis ±30° · Seite direkt",
+	"Horizon: wie Angle · Höhe = Nickrate 45 °/s · Seite = Gierrate bis 180 °/s",
 ]
 enum Axis { ROLL, PITCH, YAW }
 const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
@@ -216,7 +219,7 @@ const UI_PARAMS := {
 		{"term": "Kp_yaw_m3", "label": "Mode 3 Kp_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
 		{"term": "Ki_yaw_m3", "label": "Mode 3 Ki_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
 		{"term": "Kd_yaw_m3", "label": "Mode 3 Kd_yaw_m3", "min": 0.0, "max": 0.2, "step": 0.002, "fmt": "%.3f"},
-		{"term": "yaw_rate_max", "label": "Mode 3 Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
+		{"term": "yaw_rate_max", "label": "Horizon Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
 		{"term": "yaw_loop_motor_m3", "label": "Mode 3 yaw_loop_motor_m3", "min": 0.0, "max": 2.0, "step": 0.05},
 		{"term": "yaw_loop_tail_m3", "label": "Mode 3 yaw_loop_tail_m3", "min": 0.0, "max": 2.0, "step": 0.05},
 	],
@@ -253,8 +256,8 @@ var yaw_swivel_scale := 1.0        ## aktueller Faktor (Anzeige/Test)
 const MIX_PARAMS := [
 	["yaw_expo", "Expo Seitenknüppel (Gier)", 0.0, 1.0, 0.05, "%.2f"],
 	["yaw_swivel_full_lever", "Gierschwenk voll bis Gas", 0.05, 1.0, 0.01, "%.2f"],
-	["servo_throw_m23", "Gesamt-Ausschlag Mode 2/3", 0.1, 1.0, 0.05, "%.2f"],
-	["servo_throw_m1", "Gesamt-Ausschlag Mode 1", 0.1, 1.0, 0.05, "%.2f"],
+	["servo_throw_m23", "Gesamt-Ausschlag Angle/Horizon", 0.1, 1.0, 0.05, "%.2f"],
+	["servo_throw_m1", "Gesamt-Ausschlag Direkt", 0.1, 1.0, 0.05, "%.2f"],
 	["tail_pitch_gain", "tail_pitch_gain_m2", 0.0, 5.0, 0.1, "%.1f"],
 	["motor_pitch_gain", "motor_pitch_gain_m2", 0.0, 5.0, 0.1, "%.1f"],
 	["motor_roll_gain", "motor_roll_gain", 0.0, 3.0, 0.05, "%.2f"],
@@ -743,7 +746,7 @@ func save_settings() -> void:
 	for k in GENERAL_KEYS:
 		cfg.set_value("general", k, get(k))
 	cfg.set_value("general", "preset", preset)
-	cfg.set_value("general", "stick_nomenklatur", 3)   # 2/3 = Mode 1–4 nach heli-planet
+	cfg.set_value("general", "stick_nomenklatur", 4)   # 2–4 = Mode 1–4 nach heli-planet
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -757,8 +760,8 @@ func load_settings() -> void:
 	var nom := int(cfg.get_value("general", "stick_nomenklatur", 1))
 	if nom < 2:
 		stick_mode = 4 if stick_mode != 1 else 3
-	elif nom < 3:
-		stick_mode = STICK_MODE_DEFAULT   # 0.23.0: Mode 1 wurde ggf. versehentlich über den Sender gewählt → einmalig Mode 4
+	elif nom < 4:
+		stick_mode = STICK_MODE_DEFAULT   # 0.23.x–0.25: Mode 1 wurde über den Sender (Menü-Navigation) gewählt → einmalig Mode 4
 	if not STICK_LAYOUT.has(stick_mode):
 		stick_mode = STICK_MODE_DEFAULT
 	if settings_outdated:

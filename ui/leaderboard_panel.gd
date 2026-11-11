@@ -1,3 +1,4 @@
+# 2026-11-11 18:30 – Platz und Liste nach gewerteter Zeit (F7B), gemessene Zeit daneben
 # 2026-11-11 17:45 – Texte mit Zahlen übersetzt
 # 2026-11-09 13:40 – Ergebnis wird beim Zieleinlauf festgehalten (vorher: SH setzte zugleich das Rennen zurück → Eintrag mit 0 s); Knopf „Liste löschen“ mit Rückfrage
 # 2026-11-08 17:40 – Nach dem Ziel mit dem Sender bedienbar: rechter Knüppel wählt Eintragen/Nicht eintragen, SH bestätigt (ohne Wahl nicht gespeichert)
@@ -33,6 +34,8 @@ var _btn_no: Button
 ## Ergebnis beim Zieleinlauf festgehalten – das Rennen kann danach schon
 ## zurückgesetzt sein (Schalter SH bestätigt UND setzt zurück)
 var _res_total := 0.0
+var _res_score := 0.0                ## gewertete Zeit (F7B) des letzten Rennens
+var box_m := Vector3.ZERO             ## Boxmaß des Schiffs (setzt main.gd)
 var _res_laps := PackedFloat32Array()
 
 
@@ -68,10 +71,12 @@ func show_list() -> void:
 func show_result() -> void:
 	_pending = true
 	_res_total = course.time_s
+	_res_score = Course.scored_time(_res_total, box_m) if box_m.x > 0.0 else _res_total
 	_res_laps = PackedFloat32Array(course.lap_times)
 	for c in _box.get_children(): c.queue_free()
-	var place := Leaderboard.rank_for(course.course_key(), _res_total)
-	_box.add_child(UITheme.make_title(I18n.t("Ziel · %s · Platz %d") % [Course.format_time(_res_total), place]))
+	var place := Leaderboard.rank_for(course.course_key(), _res_score)
+	_box.add_child(UITheme.make_title(I18n.t("Ziel · %s · Platz %d") % [Course.format_time(_res_score), place]))
+	_box.add_child(UITheme.make_label(I18n.t("gewertet · gemessen %s") % Course.format_time(_res_total), "MutedLabel"))
 	_box.add_child(UITheme.make_label(I18n.t("%s · Runden %s") % [course.title(), _laps_text(_res_laps)], "MutedLabel"))
 	_box.add_child(UITheme.make_label("Name", "MutedLabel"))
 	_name_edit = LineEdit.new()
@@ -121,7 +126,7 @@ func confirm_by_switch() -> void:
 
 
 func _on_enter() -> void:
-	Leaderboard.add(course.course_key(), _res_total, _res_laps, _name_edit.text, ship.model_name)
+	Leaderboard.add(course.course_key(), _res_total, _res_laps, _name_edit.text, ship.model_name, _res_score)
 	_pending = false
 	_fill_list()
 
@@ -129,13 +134,14 @@ func _on_enter() -> void:
 func _fill_list() -> void:
 	for c in _box.get_children(): c.queue_free()
 	_box.add_child(UITheme.make_title(I18n.t("Bestenliste · %s") % course.title()))
-	_box.add_child(UITheme.make_label("Wertung über 3 Runden · nur vollständige Rennen", "MutedLabel"))
+	_box.add_child(UITheme.make_label("Gewertete Zeit nach F7B (Gesamtzeit × Boxfaktor) · 3 Runden", "MutedLabel"))
 	var lst := Leaderboard.entries(course.course_key())
 	if lst.is_empty():
 		_box.add_child(UITheme.make_label("Noch keine Einträge – flieg 3 Runden!"))
 	for i in lst.size():
 		var e: Dictionary = lst[i]
-		var top := UITheme.make_label(I18n.t("%d.  %s   (Runden %s)") % [i + 1, Course.format_time(float(e.get("total", 0.0))), _laps_text(e.get("laps", []))])
+		var top := UITheme.make_label(I18n.t("%d.  %s  ·  gemessen %s   (Runden %s)") % [i + 1, Course.format_time(Leaderboard.score_of(e)),
+			Course.format_time(float(e.get("total", 0.0))), _laps_text(e.get("laps", []))])
 		_box.add_child(top)
 		var sub := UITheme.make_label("     %s · %s · %s" % [e.get("name", ""), e.get("model", ""), e.get("date", "")], "MutedLabel")
 		_box.add_child(sub)

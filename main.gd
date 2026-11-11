@@ -1,3 +1,4 @@
+# 2026-11-11 18:55 – Sender bedient keine Menüs mehr (Joypad aus allen ui_*-Aktionen entfernt) – Ursache für Stickmode 1 / Gas rechts
 # 2026-11-11 18:05 – Geplatzte Hülle wird beim Wechsel in Baukasten/Menü/Startseite ersetzt
 # 2026-11-11 17:50 – ⚙ in Flug und Baukasten, Bestenliste von der Startseite; Einstellungen kehren zur vorigen Ansicht zurück
 # 2026-11-11 16:35 – Rennanzeige rechts: Strecke und Boxmaß an das RacePanel
@@ -94,6 +95,7 @@ var _touches := {}               ## aktive Finger: Index → Position
 
 
 func _ready() -> void:
+	_no_joypad_ui()
 	AppSettings.load_all()                   # Lautstärken, Spur (vor dem Aufbau: Audio-Busse)
 	I18n.setup()                             # gespeicherte Sprache laden (vor dem Aufbau der Oberfläche)
 	# Ladeanzeige (Luftschiff fliegt die Acht) zuerst – zwischen den Bauschritten
@@ -391,6 +393,19 @@ func _toggle_autopilot() -> void:
 		autopilot.start()
 
 
+## Godot bedient Menüs von Haus aus auch mit Gamepads (Knüppel = Pfeile,
+## Knöpfe = Bestätigen). Für einen RC-Sender ist das gefährlich: beim Bewegen
+## der Knüppel/Schalter wurden unbemerkt Menüpunkte gewählt – z. B. Stickmode 1
+## (Gas rechts). Der Sender wirkt deshalb NUR auf den Flug (JoystickInput).
+func _no_joypad_ui() -> void:
+	for action in InputMap.get_actions():
+		if not String(action).begins_with("ui_"):
+			continue
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+				InputMap.action_erase_event(action, ev)
+
+
 func _apply_burst_settings() -> void:
 	if is_instance_valid(ship):
 		ship.burst_enabled = AppSettings.burst_on
@@ -436,7 +451,7 @@ func _on_race_changed() -> void:
 	if AirshipPresets.standard_model_of(ship) == "":
 		hud.show_notice(I18n.t("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl") % Course.format_time(course.time_s), "info", 5.0)
 		return
-	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
+	if Leaderboard.rank_for(course.course_key(), Course.scored_time(course.time_s, hud.race_panel.box_m)) > 0:
 		# Armed bleibt, wie der Pilot es geschaltet hat (Gas hat er ja in der Hand)
 		leader_panel.show_result()
 		_set_view(View.LEADER)
@@ -480,6 +495,7 @@ func reset_all_settings() -> void:
 func _update_race_box() -> void:
 	var a := visual.local_aabb()
 	hud.race_panel.box_m = Vector3(a.size.z, a.size.x, a.size.y)
+	leader_panel.box_m = hud.race_panel.box_m
 
 
 func _rebuild_gauge() -> void:

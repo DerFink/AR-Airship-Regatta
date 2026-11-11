@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Textos de la página «Fundamentos del simulador» (BBCode). Pestañas separadas por una línea @@@:
 # Física, Modelo del dirigible, Controlador (PID), Batería, Acerca de / licencia. Variables {VERSION} y {CONTACT}.
@@ -71,8 +72,8 @@ e es la diferencia entre consigna y medida. P reacciona al instante, I elimina e
 
 [b]Modos[/b]
 [b]Directo[/b]: los sticks van directos a aletas y basculantes, sin controlador.
-[b]Modo 2[/b]: cabeceo como control de actitud (stick = ángulo deseado, soltar = horizontal), guiñada como control de velocidad.
-[b]Modo 3[/b]: como el modo 2, guiñada con control PID de velocidad (máx. 110 °/s), la protección de cabeceo limita el ángulo, alabeo mediante los motores basculantes.
+[b]Angle[/b]: cabeceo como control de actitud (stick = ángulo deseado, soltar = horizontal), guiñada como control de velocidad.
+[b]Horizon[/b]: como el Angle, guiñada con control PID de velocidad (máx. 110 °/s), la protección de cabeceo limita el ángulo, alabeo mediante los motores basculantes.
 
 [b]Mezclador[/b]
 Cada aleta recibe partes de cabeceo y guiñada según su ángulo de montaje. Los motores basculantes toman el cabeceo juntos y el alabeo en sentido opuesto.

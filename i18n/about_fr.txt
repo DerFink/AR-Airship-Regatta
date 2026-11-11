@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte de la page « Bases du simulateur » (BBCode). Onglets séparés par une ligne @@@ :
 # Physique, Modèle de dirigeable, Régulateur (PID), Batterie, À propos / licence. Variables {VERSION} et {CONTACT}.
@@ -71,8 +72,8 @@ e est l'écart entre consigne et mesure. P réagit immédiatement, I supprime le
 
 [b]Modes[/b]
 [b]Direct[/b] : les manches agissent directement sur ailerons et orientations, sans régulateur.
-[b]Mode 2[/b] : tangage en régulation d'assiette (manche = angle de consigne, relâcher = horizontal), lacet en régulation de vitesse.
-[b]Mode 3[/b] : comme le mode 2, lacet avec régulateur PID de vitesse (max. 110 °/s), la protection de tangage limite l'angle, roulis par les moteurs orientables.
+[b]Angle[/b] : tangage en régulation d'assiette (manche = angle de consigne, relâcher = horizontal), lacet en régulation de vitesse.
+[b]Horizon[/b] : comme le Angle, lacet avec régulateur PID de vitesse (max. 110 °/s), la protection de tangage limite l'angle, roulis par les moteurs orientables.
 
 [b]Mélangeur[/b]
 Chaque aileron reçoit des parts de tangage et de lacet selon son angle de montage. Les moteurs orientables prennent le tangage ensemble et le roulis en sens opposés.

@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texty stránky „Základy simulátoru“ (BBCode). Karty oddělené řádkem @@@:
 # Fyzika, Model vzducholodě, Regulátor (PID), Baterie, O aplikaci / licence. Proměnné {VERSION} a {CONTACT}.
@@ -71,8 +72,8 @@ e je odchylka mezi žádanou a skutečnou hodnotou. P reaguje okamžitě, I odst
 
 [b]Režimy[/b]
 [b]Přímý[/b]: knipl jde přímo na ploutve a naklápění, bez regulátoru.
-[b]Mode 2[/b]: klopení jako regulátor polohy (knipl = žádaný úhel, puštění = vodorovně), zatáčení jako regulátor rychlosti.
-[b]Mode 3[/b]: jako mode 2, zatáčení s PID regulátorem rychlosti (max. 110 °/s), ochrana klopení omezuje úhel, klonění přes naklápěcí motory.
+[b]Angle[/b]: klopení jako regulátor polohy (knipl = žádaný úhel, puštění = vodorovně), zatáčení jako regulátor rychlosti.
+[b]Horizon[/b]: jako Angle, zatáčení s PID regulátorem rychlosti (max. 110 °/s), ochrana klopení omezuje úhel, klonění přes naklápěcí motory.
 
 [b]Směšovač[/b]
 Každá ploutev dostává podíl klopení a zatáčení podle svého úhlu montáže. Naklápěcí motory přebírají klopení společně a klonění proti sobě.

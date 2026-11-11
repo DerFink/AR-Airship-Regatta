@@ -1,3 +1,4 @@
+# 2026-11-11 18:30 – Sortierung nach gewerteter Zeit (F7B: Gesamtzeit × Boxfaktor); Feld "score" je Eintrag, alte Einträge zählen mit der Gesamtzeit
 # 2026-11-09 13:40 – Ungültige Einträge (Zeit 0 oder keine 3 Runden) werden nicht gespeichert und nicht angezeigt; clear(): Liste einer Strecke löschen
 # 2026-10-29 00:19 – Erstversion: Bestenliste je Strecke (Wertung über 3 Runden, Einzelrunden gespeichert), Top 10, Name wird gemerkt; Datei user://bestenliste.json
 # =============================================================================
@@ -7,7 +8,10 @@
 # Gerät. Eine Liste je Strecke:
 #   "cup"        – FN Hugo Eckener Cup
 #   "frei_25.0"  – freie Strecke mit 25 m Pylonabstand
-# Jeder Eintrag: Gesamtzeit, die drei Rundenzeiten, Name, Luftschiff, Datum.
+# Jeder Eintrag: Gesamtzeit, gewertete Zeit (F7B), die drei Rundenzeiten, Name,
+# Luftschiff, Datum. Sortiert wird nach der GEWERTETEN Zeit – so haben auch
+# kleine, langsamere Luftschiffe eine Chance. Alte Einträge ohne gewertete
+# Zeit zählen mit ihrer Gesamtzeit.
 # Das Dateiformat ist schlichtes JSON – später kann die Liste (wie die
 # Modell-Strings) geteilt werden.
 # =============================================================================
@@ -41,13 +45,20 @@ static func _save(data: Dictionary) -> void:
 		f.store_string(JSON.stringify(data, "\t"))
 
 
-## Einträge einer Strecke, schnellste zuerst.
+## Gewertete Zeit eines Eintrags (alte Einträge: Gesamtzeit).
+static func score_of(e: Dictionary) -> float:
+	return float(e.get("score", e.get("total", 0.0)))
+
+
+## Einträge einer Strecke, beste gewertete Zeit zuerst.
 static func entries(course_key: String) -> Array:
 	var lst = _load().lists.get(course_key, [])
 	if not lst is Array:
 		return []
 	# nur gültige Rennen (Zeit > 0) – fängt alte, fehlerhafte Einträge ab
-	return lst.filter(func(e): return e is Dictionary and float(e.get("total", 0.0)) > 0.0)
+	var ok: Array = lst.filter(func(e): return e is Dictionary and float(e.get("total", 0.0)) > 0.0)
+	ok.sort_custom(func(a, b): return score_of(a) < score_of(b))
+	return ok
 
 
 ## Zuletzt verwendeter Name (Vorbelegung des Eingabefelds).
@@ -55,18 +66,20 @@ static func last_name() -> String:
 	return _load().name
 
 
-## Schafft es diese Gesamtzeit in die Top 10? Rückgabe: Platz (1…10) oder 0.
-static func rank_for(course_key: String, total: float) -> int:
+## Schafft es diese gewertete Zeit in die Top 10? Rückgabe: Platz (1…10) oder 0.
+static func rank_for(course_key: String, score: float) -> int:
 	var lst := entries(course_key)
 	var place := 1
 	for e in lst:
-		if float(e.get("total", 0.0)) <= total:
+		if score_of(e) <= score:
 			place += 1
 	return place if place <= MAX_ENTRIES else 0
 
 
 ## Rennen eintragen; Rückgabe: Platz (1…10) oder 0, wenn nicht in den Top 10.
-static func add(course_key: String, total: float, laps: PackedFloat32Array, name: String, model: String) -> int:
+static func add(course_key: String, total: float, laps: PackedFloat32Array, name: String, model: String, score := -1.0) -> int:
+	if score <= 0.0:
+		score = total
 	if total <= 0.0 or laps.size() < 3:
 		return 0                                  # kein vollständiges Rennen → nicht speichern
 	var data := _load()
@@ -77,14 +90,14 @@ static func add(course_key: String, total: float, laps: PackedFloat32Array, name
 	var lst: Array = (data.lists.get(course_key, []) as Array).filter(func(e): return float(e.get("total", 0.0)) > 0.0)
 	var lap_list := []
 	for t in laps: lap_list.append(snappedf(t, 0.01))
-	lst.append({"total": snappedf(total, 0.01), "laps": lap_list, "name": clean,
+	lst.append({"total": snappedf(total, 0.01), "score": snappedf(score, 0.01), "laps": lap_list, "name": clean,
 		"model": model.left(40), "date": Time.get_date_string_from_system()})
-	lst.sort_custom(func(a, b): return float(a.total) < float(b.total))
+	lst.sort_custom(func(a, b): return score_of(a) < score_of(b))
 	lst = lst.slice(0, MAX_ENTRIES)
 	data.lists[course_key] = lst
 	_save(data)
 	for i in lst.size():
-		if lst[i].name == clean and is_equal_approx(float(lst[i].total), snappedf(total, 0.01)):
+		if lst[i].name == clean and is_equal_approx(score_of(lst[i]), snappedf(score, 0.01)):
 			return i + 1
 	return 0
 

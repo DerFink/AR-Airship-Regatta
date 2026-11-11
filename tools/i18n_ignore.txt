@@ -154,3 +154,6 @@ s%d=Pin %d %s (%d Grad)
 Vorlage fehlt
 Heckmotor
 Erichfink@gmx.de
+Angle
+Horizon
+Angle/Horizon

@@ -1,7 +1,7 @@
 # 2026-11-11 15:10 – Erstversion: Übersetzungen Teil 2 (Regler, Sketch-Hinweise, Sender, Optik, Meldungen, Updates, Baukasten Hülle/Leitwerk)
 # Spalten: de, en, fr, es, it, cs, pl, zh_TW
 E = [
-("Gesamt-Ausschlag Mode 1", "Total throw mode 1", "Débattement total mode 1", "Recorrido total modo 1", "Escursione totale mode 1", "Celková výchylka mode 1", "Całkowite wychylenie mode 1", "總行程 模式 1"),
+("Gesamt-Ausschlag Direkt", "Total throw Direct", "Débattement total Direct", "Recorrido total Directo", "Escursione totale Diretto", "Celková výchylka Přímý", "Całkowite wychylenie Bezpośredni", "總行程 直接"),
 ("Nick-Schutz ab maxPitch (°, 0 = aus)", "Pitch protection from maxPitch (°, 0 = off)", "Protection de tangage dès maxPitch (°, 0 = désactivée)", "Protección de cabeceo desde maxPitch (°, 0 = apagado)", "Protezione beccheggio da maxPitch (°, 0 = spenta)", "Ochrana klopení od maxPitch (°, 0 = vyp.)", "Ochrona pochylenia od maxPitch (°, 0 = wył.)", "俯仰保護起點 maxPitch（°，0 = 關閉）"),
 ("Sim-optimiert", "Sim-optimised", "Optimisé simulateur", "Optimizado para el simulador", "Ottimizzato per il simulatore", "Optimalizováno pro simulátor", "Zoptymalizowane pod symulator", "模擬器最佳化"),
 ("Nick", "Pitch", "Tangage", "Cabeceo", "Beccheggio", "Klopení", "Pochylenie", "俯仰"),

@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Teksty strony „Podstawy symulatora” (BBCode). Zakładki oddzielone wierszem @@@:
 # Fizyka, Model sterowca, Regulator (PID), Akumulator, O programie / licencja. Zmienne {VERSION} i {CONTACT}.
@@ -71,8 +72,8 @@ e to uchyb między wartością zadaną a zmierzoną. P reaguje natychmiast, I us
 
 [b]Tryby[/b]
 [b]Bezpośredni[/b]: drążki działają wprost na płetwy i wychylenia, bez regulatora.
-[b]Mode 2[/b]: pochylenie jako regulator położenia (drążek = kąt zadany, puszczenie = poziomo), odchylenie jako regulator prędkości.
-[b]Mode 3[/b]: jak mode 2, odchylenie z regulatorem PID prędkości (maks. 110 °/s), ochrona pochylenia ogranicza kąt, przechył przez wychylane silniki.
+[b]Angle[/b]: pochylenie jako regulator położenia (drążek = kąt zadany, puszczenie = poziomo), odchylenie jako regulator prędkości.
+[b]Horizon[/b]: jak Angle, odchylenie z regulatorem PID prędkości (maks. 110 °/s), ochrona pochylenia ogranicza kąt, przechył przez wychylane silniki.
 
 [b]Mikser[/b]
 Każda płetwa dostaje udział pochylenia i odchylenia wg swojego kąta montażu. Wychylane silniki przejmują pochylenie razem, a przechył przeciwbieżnie.

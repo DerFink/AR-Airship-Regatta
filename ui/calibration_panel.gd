@@ -1,3 +1,5 @@
+# 2026-11-11 19:00 – Hinweis, wenn der Browser nichts dauerhaft speichert (Kalibrierung ginge verloren)
+# 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 17:00 – Bereits gespeicherte Kanäle zeigen „gespeichert ✓“ statt „noch bewegen“
 # 2026-11-11 16:00 – Knöpfe ohne Fokus – Sender-Schalter drückten über die Joypad-Navigation versehentlich „Mode 1“
 # 2026-11-11 15:30 – Stickmode 1–4 wählbar (Standard Mode 4); Knüppelfelder zeigen die Funktionen nach dem Stickmode
@@ -248,6 +250,9 @@ func _process(_dt: float) -> void:
 		return
 	var on := joy.active()
 	_dev.text = (I18n.t("● %s · Motoren aus") % Input.get_joy_name(joy.device)) if on else "Kein Sender angeschlossen"
+	if not OS.is_userfs_persistent():
+		# Browser ohne dauerhaften Speicher (z. B. privates Fenster): Kalibrierung geht beim Schließen verloren
+		_dev.text += "  ·  " + I18n.t("Browser speichert nicht dauerhaft!")
 	# Anlernen: erster Kanal mit deutlicher Bewegung (> 60 %) gehört zur Funktion
 	if _learn != "":
 		for i in JoystickInput.CHANNELS:
@@ -288,7 +293,7 @@ func _process(_dt: float) -> void:
 	var sh := JoystickInput.apply_cal(joy.raw(_wax("reset")), _effective(_wax("reset")))
 	_switches.text = I18n.t("SF: %s     SC: %s     SH: %s") % [
 		"oben · scharf" if sf < -0.5 else "unten · aus",
-		"oben · Direkt" if sc < -0.5 else ("unten · Mode 3" if sc > 0.5 else "Mitte · Mode 2"),
+		"oben · Direkt" if sc < -0.5 else ("unten · Horizon" if sc > 0.5 else "Mitte · Angle"),
 		"oben" if sh < -0.5 else "unten"]
 
 

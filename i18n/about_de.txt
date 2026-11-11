@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
 # Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
@@ -72,8 +73,8 @@ e ist die Abweichung zwischen Soll und Ist. P reagiert sofort, I beseitigt bleib
 
 [b]Modi[/b]
 [b]Direkt[/b]: Knüppel gehen ohne Regler auf Ruder und Schwenker.
-[b]Mode 2[/b]: Nick als Lageregler (Knüppel = Sollwinkel, loslassen = waagrecht), Gier als Ratenregler.
-[b]Mode 3[/b]: wie Mode 2, Gier mit PID-Ratenregler (max. 110 °/s), Nick-Schutz begrenzt den Nickwinkel, Rollen über die Schwenkmotoren.
+[b]Angle[/b]: Nick als Lageregler (Knüppel = Sollwinkel, loslassen = waagrecht), Gier als Ratenregler.
+[b]Horizon[/b]: wie Angle, Gier mit PID-Ratenregler (max. 110 °/s), Nick-Schutz begrenzt den Nickwinkel, Rollen über die Schwenkmotoren.
 
 [b]Mischer[/b]
 Jede Flosse bekommt Nick- und Gieranteile nach ihrem Einbauwinkel. Schwenkmotoren übernehmen Nick gemeinsam und Rollen gegenläufig.

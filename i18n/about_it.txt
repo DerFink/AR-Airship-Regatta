@@ -1,3 +1,4 @@
+# 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Testi della pagina «Fondamenti del simulatore» (BBCode). Schede separate da una riga @@@:
 # Fisica, Modello del dirigibile, Regolatore (PID), Batteria, Info / licenza. Variabili {VERSION} e {CONTACT}.
@@ -71,8 +72,8 @@ e è lo scarto tra riferimento e misura. P reagisce subito, I elimina gli scarti
 
 [b]Modalità[/b]
 [b]Diretto[/b]: le leve vanno direttamente su pinne e brandeggi, senza regolatore.
-[b]Mode 2[/b]: beccheggio come regolatore d'assetto (leva = angolo voluto, rilasciare = orizzontale), imbardata come regolatore di velocità.
-[b]Mode 3[/b]: come il mode 2, imbardata con regolatore PID di velocità (max. 110 °/s), la protezione del beccheggio limita l'angolo, rollio tramite i motori orientabili.
+[b]Angle[/b]: beccheggio come regolatore d'assetto (leva = angolo voluto, rilasciare = orizzontale), imbardata come regolatore di velocità.
+[b]Horizon[/b]: come il Angle, imbardata con regolatore PID di velocità (max. 110 °/s), la protezione del beccheggio limita l'angolo, rollio tramite i motori orientabili.
 
 [b]Mixer[/b]
 Ogni pinna riceve quote di beccheggio e imbardata secondo il suo angolo di montaggio. I motori orientabili prendono il beccheggio insieme e il rollio in senso opposto.
