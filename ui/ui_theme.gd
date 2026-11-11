@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Wertanzeige der Schieberegler: Einheit übersetzt, Dezimalzeichen je Sprache
 # 2026-11-10 22:50 – Ersatzschrift über FontVariation (Kopie der Standardschrift erzeugte Punkte im Text)
 # 2026-11-10 20:15 – Schrift: Standardschrift mit chinesischer Ersatzschrift (Noto Sans CJK TC, Teilmenge) für die Sprachwahl
 # 2026-10-29 00:19 – Größere Knöpfe (PillButton: Schrift 19, Mindesthöhe 52); Reiter-Schrift größer
@@ -312,7 +313,8 @@ static func make_slider_row(label: String, min_v: float, max_v: float, step: flo
 	var l := make_label(label, "MutedLabel")
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(l)
-	var out := make_label(fmt % value)
+	# Einheit übersetzen (z. B. „U/min“) und Dezimalzeichen der Sprache verwenden
+	var out := make_label(I18n.dec(I18n.t(fmt) % value))
 	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	top.add_child(out)
 	box.add_child(top)
@@ -331,7 +333,7 @@ static func make_slider_row(label: String, min_v: float, max_v: float, step: flo
 	row.add_child(_step_button("+", func(): s.value = s.value + step))
 	box.add_child(row)
 	s.value_changed.connect(func(v: float):
-		out.text = fmt % v
+		out.text = I18n.dec(I18n.t(fmt) % v)
 		on_change.call(v))
 	box.set_meta("slider", s)          # für späteres Setzen von außen
 	box.set_meta("out", out)           # Wertanzeige

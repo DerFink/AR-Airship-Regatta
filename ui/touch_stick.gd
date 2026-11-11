@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Beschriftung unter dem Knüppel in der gewählten Sprache
 # 2026-11-08 17:15 – show_external(): Knüppel zeigt die Stellung des angeschlossenen Senders
 # 2026-10-27 10:42 – Erstversion: virtueller Knüppel mit Multitouch, Totzone, Selbstzentrierung je Achse, Maus-Ersatz für Desktop, Farben aus UITheme
 # =============================================================================
@@ -127,6 +128,7 @@ func _draw() -> void:
 	if caption != "":
 		var f := get_theme_default_font()
 		var fs := UITheme.font_size("caption")
-		var w := f.get_string_size(caption, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
+		var cap := I18n.t(caption)            # Beschriftung in der gewählten Sprache
+		var w := f.get_string_size(cap, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
 		draw_string(f, Vector2(c.x - w * 0.5, r * 2.0 + UITheme.space("sm") + fs),
-			caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.color("text_muted"))
+			cap, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.color("text_muted"))

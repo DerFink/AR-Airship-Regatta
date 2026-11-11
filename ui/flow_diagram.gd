@@ -1,3 +1,4 @@
+# 2026-11-11 16:20 – Texte in der gewählten Sprache; Schrift in den Kästchen wird kleiner, wenn die Übersetzung nicht passt
 # 2026-11-11 11:50 – Erstversion: Signalflussbild des Reglers – wird aus den eingeschalteten Bausteinen und dem Aufbau des Modells (Flossen, Motoren) automatisch gezeichnet
 # =============================================================================
 # FlowDiagram.gd
@@ -71,11 +72,11 @@ func _draw() -> void:
 	if ship:
 		for s in ship.surfaces:
 			if s.tail_member or not s.sail_member:
-				outs.append("Flosse %d°" % roundi(s.hull_angle_deg))
+				outs.append(I18n.t("Flosse %d°") % roundi(s.hull_angle_deg))
 		for m in ship.motors:
-			outs.append("Schwenker %s" % ("rechts" if m.position.x > 0 else "links"))
+			outs.append(I18n.t("Schwenker %s") % (I18n.t("rechts") if m.position.x > 0 else I18n.t("links")))
 		for m in ship.motors:
-			outs.append("ESC %s" % ("rechts" if m.position.x > 0 else "links"))
+			outs.append(I18n.t("ESC %s") % (I18n.t("rechts") if m.position.x > 0 else I18n.t("links")))
 	var oy := 10.0
 	var oh := (h - 20.0) / maxf(outs.size(), 1.0)
 	for i in outs.size():
@@ -96,7 +97,7 @@ func _draw() -> void:
 	# Sicherheit (fest)
 	var sx := x_blk
 	var sy := h - 66.0
-	draw_string(font, Vector2(sx, sy + 12), "Fest eingebaut (nicht abschaltbar):", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("97a4b2"))
+	draw_string(font, Vector2(sx, sy + 12), I18n.t("Fest eingebaut (nicht abschaltbar):"), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("97a4b2"))
 	for i in safes.size():
 		var r := Rect2(sx + i * (w_blk * 1.4 / safes.size()), sy + 20.0, w_blk * 1.4 / safes.size() - 6.0, 40.0)
 		_box(r, safes[i].name, C_SAFE, font, fs - 2, false)
@@ -110,7 +111,15 @@ func _box(r: Rect2, text: String, col: Color, font: Font, fs: int, dashed: bool)
 			draw_dashed_line(p[i], p[i + 1], col, 1.5, 5.0)
 	else:
 		draw_rect(r, col, false, 1.5)
-	var lines := text.split("\n")
+	var lines := I18n.t(text).split("\n")     # Kästchentext in der gewählten Sprache
+	# Schrift verkleinern, bis die längste Zeile ins Kästchen passt (längere Übersetzungen)
+	while fs > 8:
+		var widest := 0.0
+		for ln in lines:
+			widest = maxf(widest, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		if widest <= r.size.x - 8:
+			break
+		fs -= 1
 	var lh := fs + 2.0
 	var y0 := r.get_center().y - lh * lines.size() * 0.5 + fs * 0.85
 	for i in lines.size():

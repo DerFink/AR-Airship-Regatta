@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Maßzahlen mit dem Dezimalzeichen der gewählten Sprache (I18n.dec)
 # 2026-11-11 02:20 – Maßzahlen liegen wie in der technischen Zeichnung neben der Maßlinie in der Wand-/Bodenebene; Striche im Körpersystem ausgerichtet
 # 2026-11-11 02:00 – Schwerpunkt mit Abstand zur Stirnwand (x_S) und zum Boden (y_S); Wände gleichmäßig hell (unbeleuchtet) mit sichtbarem 10-cm-Raster; größere Maßzahlen
 # 2026-11-11 01:10 – Erstversion: Boxmaß im Baukasten – das Luftschiff steht in einer Ecke (Seite an der Rückwand, Heck an der Stirnwand, unten auf dem Boden); Länge, Breite und Höhe sind wie in einer technischen Zeichnung mit Maßlinien, Pfeilen und Maßzahlen an Wände und Boden gezeichnet
@@ -197,4 +198,4 @@ func _arrow(p: Vector3, dir: Vector3, len: float, t: float) -> void:
 
 
 static func _m(v: float) -> String:
-	return ("%.2f m" % v).replace(".", ",")
+	return I18n.dec("%.2f m" % v)

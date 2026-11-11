@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Achsname und Hinweise übersetzt, Stabilitätsmaß mit Dezimalzeichen je Sprache
 # 2026-11-07 23:55 – Flossenwirkung mit Rumpf-Flossen-Interferenz (wie in der Flugphysik)
 # 2026-10-27 10:40 – Erstversion: Leitwerksvolumen V_T für Nick und Gier, Stabilitätsmaß gegen Munk-Moment, Canard-Berücksichtigung, Warnstufen
 # =============================================================================
@@ -77,10 +78,10 @@ static func validate(hull: GertlerHull, surfaces: Array[ControlSurface],
 	# Zusatzhinweis: welche Achse ist das Problem, und wie viel Fläche fehlt?
 	var detail := ""
 	if level != Level.OK:
-		var axis := "Nick" if ratio_pitch <= ratio_yaw else "Gier"
-		detail = "Schwächste Achse: %s (Stabilitätsmaß %.2f)." % [axis, worst]
+		var axis := I18n.t("Nick") if ratio_pitch <= ratio_yaw else I18n.t("Gier")
+		detail = I18n.t("Schwächste Achse: %s (Stabilitätsmaß %s).") % [axis, I18n.dec("%.2f" % worst)]
 		if canard_penalty > 0.0:
-			detail += " Canards verringern die Stabilität."
+			detail += I18n.t(" Canards verringern die Stabilität.")
 
 	return {
 		"level": level,

@@ -1,0 +1,112 @@
+# Teksty strony „Podstawy symulatora” (BBCode). Zakładki oddzielone wierszem @@@:
+# Fizyka, Model sterowca, Regulator (PID), Akumulator, O programie / licencja. Zmienne {VERSION} i {CONTACT}.
+[b]Równania ruchu (6 stopni swobody)[/b]
+Sterowiec jest bryłą sztywną z 3 przesunięciami i 3 obrotami. Symulator liczy w układzie związanym z bryłą (początek w środku wyporu, dziób do przodu) z częstotliwością 60 kroków na sekundę:
+
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+
+m, I: masa i bezwładność sterowca (powłoka, gaz nośny, silniki, akumulator, płetwy)
+M_a, I_a: masy i bezwładności dodane (wirtualne) porywanego powietrza
+F, T: siły i momenty od ciężaru, wyporu, kadłuba, płetw i silników
+
+[b]Masy dodane[/b]
+Sterowiec jest prawie tak lekki jak powietrze, które wypiera. Przy przyspieszaniu musi pchać to powietrze ze sobą – w poprzek dużo bardziej niż wzdłuż. Symulator używa współczynników Lamba dla wydłużonej elipsoidy (podejście ATTAS):
+[code]wzdłuż: k1·ρ·V      w poprzek: k2·ρ·V      obrót: k'·I_powietrza[/code]
+Przy L/D = 6 k1 ≈ 0,05 i k2 ≈ 0,92: w poprzek sterowiec ciągnie prawie drugą objętość powietrza.
+
+[b]Moment Munka[/b]
+Z nierównych mas dodanych wynika bezpośrednio ostatni człon drugiego równania, [code]−v × (M_a·v)[/code]. Przy kącie natarcia α w przybliżeniu
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
+Ten moment wykręca dziób jeszcze bardziej z wiatru – sam kadłub jest niestateczny. Ponieważ warstwa przyścienna na ogonie znosi jego część, symulator przyjmuje 60 % wartości teoretycznej.
+
+[b]Płetwy i stery[/b]
+Każda płetwa to małe skrzydło z własnym lokalnym opływem (prędkość + obrót sterowca). Siła nośna wg Helmbolda dla małych wydłużeń, przeciągnięcie przy dużych kątach; skuteczność steru zależy od rodzaju (klapa, płetwa całkowicie ruchoma, elastyczna płytka z Depronu). Płetwy za środkiem ciężkości stabilizują, kaczki z przodu destabilizują.
+
+[b]Profilowane płetwy i liczba Reynoldsa[/b]
+Usterzenie i kaczki mogą być płaskimi płytkami (np. Depron) lub symetrycznymi profilami NACA 00xx (dwie ostatnie cyfry = grubość w % cięciwy; Chewie: NACA 0020). Zachowanie profilu zależy od liczby Reynoldsa, którą symulator w każdym kroku wyznacza z prędkości i średniej cięciwy płetwy:
+[code]Re = v · c / ν      (ν = 0,000015 m²/s)[/code]
+Płetwa Chewiego (c ≈ 19 cm): 2 m/s → Re ≈ 25 000, 6 m/s → 76 000, 10 m/s → 127 000 – bardzo mało w porównaniu z samolotami (miliony).
+[b]Płytka:[/b] ostra krawędź natarcia powoduje wczesne i gwałtowne oderwanie (≈ 14°), prawie niezależnie od Re. Tępe krawędzie zwiększają opór.
+[b]NACA 00xx:[/b] zaokrąglony nosek dłużej utrzymuje przylegający opływ: przeciągnięcie później i łagodniej, tym bardziej, im grubszy profil (0009 ≈ 18°, 0020 ≈ 24° przy Re 10⁵). Przy małym Re laminarna warstwa przyścienna odrywa się wcześniej – przeciągnięcie przychodzi nieco wcześniej, a grube profile tracą część nachylenia charakterystyki siły nośnej.
+[b]Opór podstawowy:[/b] rośnie z grubością i przy małym Re (tarcie ∝ 1/√Re).
+Wartości są przybliżeniami z opublikowanych pomiarów przy małych liczbach Reynoldsa, przeniesionymi na małe wydłużenia płetw.
+
+[b]Ciąg[/b]
+Każdy silnik pcha wzdłuż swojej osi, silniki wychylane obracają tę oś. Ciąg maleje z prędkością (napływ na śmigło) i z napięciem akumulatora. Silnik poza środkiem ciężkości wytwarza dodatkowo moment.
+
+[b]Ciężar i wypór[/b]
+[code]Wypór = ρ_powietrza · V · g      (ρ = 1,20 kg/m³)[/code]
+Pozostała masa (akumulator, balast) jest tak dobrana i umieszczona, aby sterowiec był nieco cięższy od powietrza i wisiał poziomo. Gdy środek ciężkości leży pod środkiem wyporu, moment wahadłowy prostuje sterowiec.
+@@@
+[b]Powłoka wg Gertlera[/b]
+Kształt powłoki pochodzi z serii DTMB 58 (Gertler, 1950), zrealizowany według Gertler Shape Generatora Johannesa Eissinga. Wielomian 6. stopnia opisuje promień wzdłuż długości; parametry to długość/średnica (L/D), położenie największego przekroju, promienie dziobu i ogona oraz pełność. Z kształtu wynikają objętość, powierzchnia, środek wyporu i masy dodane.
+
+[b]Modele standardowe[/b]
+[b]Chewie[/b] – prawdziwy sterowiec wyścigowy: L/D 6, usterzenie lambda z trzech lekkich płetw całkowicie ruchomych (±50°), dwa wychylane silniki nisko po bokach, kontroler lotu Teensy.
+[b]Albacore Standard[/b] – wg okrętu podwodnego USS Albacore, L/D 7,5, usterzenie krzyżowe z klapami, dwa silniki nisko po bokach.
+
+[b]Masy[/b]
+Powłoka (rozłożona na powierzchni), silniki i płetwy w miejscu montażu, elektronika i akumulator pod powłoką. Z tego symulator oblicza środek ciężkości i momenty bezwładności; pozostała masa jest wyważana automatycznie.
+
+[b]Wielkość usterzenia[/b]
+Kreator sprawdza objętość usterzenia [code]V_H = S_płetw · ramię / V_powłoki[/code]. Jeśli jest za mała, usterzenie nie zrównoważy momentu Munka i pojawia się ostrzeżenie.
+
+[b]Własne modele[/b]
+W „Model i budowa” → „Własna konstrukcja” można dowolnie ustawić powłokę, usterzenie, napęd i wygląd. Modele można wyeksportować do pliku i wysłać administratorowi – sprawdzone modele stają się standardowymi dla wszystkich.
+@@@
+[b]Wirtualny kontroler lotu[/b]
+Odwzorowuje kontroler lotu Teensy (dRehmFlight) prawdziwego Chewiego. Mierzy prędkości kątowe i położenie (jak żyroskop i akcelerometr) i steruje płetwami oraz wychylanymi silnikami. Gaz zawsze zostaje u pilota – regulator nigdy nie zmienia ciągu.
+
+[b]Regulator PID[/b]
+[code]u = Kp·e + Ki·∫e dt + Kd·de/dt[/code]
+e to uchyb między wartością zadaną a zmierzoną. P reaguje natychmiast, I usuwa trwałe uchyby (ograniczony przeciw nasyceniu), D tłumi szybkie zmiany.
+
+[b]Tryby[/b]
+[b]Bezpośredni[/b]: drążki działają wprost na płetwy i wychylenia, bez regulatora.
+[b]Mode 2[/b]: pochylenie jako regulator położenia (drążek = kąt zadany, puszczenie = poziomo), odchylenie jako regulator prędkości.
+[b]Mode 3[/b]: jak mode 2, odchylenie z regulatorem PID prędkości (maks. 110 °/s), ochrona pochylenia ogranicza kąt, przechył przez wychylane silniki.
+
+[b]Mikser[/b]
+Każda płetwa dostaje udział pochylenia i odchylenia wg swojego kąta montażu. Wychylane silniki przejmują pochylenie razem, a przechył przeciwbieżnie.
+
+[b]Autopilot[/b]
+Autopilot lata ósemkę wokół pylonów z aktualnym modelem i ustawieniami – tylko drążkami, jak pilot. Może zawieść, np. gdy rozładuje się akumulator albo sterowiec zgubi trasę.
+@@@
+[b]Model akumulatora[/b]
+Domyślnie: LiPo 4S, 300 mAh (Chewie).
+
+[b]Napięcie pod obciążeniem[/b]
+Napięcie spoczynkowe E zależy od stanu naładowania (typowa krzywa LiPo na ogniwo). Przy rezystancji wewnętrznej R i mocy silnika P:
+[code]V = E − I·R,   I = P(V) / V[/code]
+stąd [code]a·V² + V − E = 0[/code] z [code]a = R·P0 / V0³[/code].
+
+[b]Moc[/b]
+[code]P_silnika ≈ 25 W · (ciąg w N)^1,5[/code]   plus 2 W na elektronikę i serwa. To założenia, które można zastąpić pomiarami.
+
+[b]Wpływ na lot[/b]
+Gdy napięcie spada, silniki kręcą się wolniej: [code]ciąg ∝ (V/V0)²[/code]. Rozładowany akumulator nie daje już ciągu.
+
+Orientacyjne czasy lotu (Chewie prosto): 30 % gazu ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, pełny gaz ≈ 34 s. „Resetuj” ponownie ładuje akumulator.
+@@@
+[b]RC Airship Regatta[/b]
+Symulator open source dla wyścigowych sterowców DIY. Zbudowany w Godot Engine 4.
+
+{VERSION}
+
+[b]Licencja[/b]
+Licencja MIT – © 2026 Erich Fink (DerFink). Kod źródłowy można swobodnie używać, zmieniać i udostępniać.
+Godot Engine: licencja MIT. Czcionka dla chińskiego: Noto Sans CJK (SIL Open Font License).
+
+[b]Stworzone z pomocą AI[/b]
+Ten program powstał tylko dzięki AI: kod, model fizyczny i teksty powstały w dialogu z Claude (AI firmy Anthropic). AI może popełniać błędy – sprawdzaj wyniki, zwłaszcza wyeksportowane szkice Teensy: przed pierwszym lotem zawsze zrób test naziemny ze zdjętymi śmigłami.
+
+[b]Źródła[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – kształty powłoki wg Gertlera (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – podstawa kontrolera lotu Teensy
+
+[b]Kontakt[/b]
+{CONTACT}

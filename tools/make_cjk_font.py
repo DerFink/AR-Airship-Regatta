@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 2026-11-11 15:50 – Auch die Übersetzungsdateien i18n/*.txt (Oberfläche und Seite „Grundlagen“)
 # 2026-11-11 00:30 – Auch Symbole, die der Standardschrift fehlen (Pfeile, ●, ✓, ▶, ▾, ₀₁₂, ∝ …), aus allen .gd-Dateien
 # 2026-11-10 20:10 – Erstversion: erzeugt fonts/cjk_tc_subset.otf – nur die chinesischen Zeichen, die in den Übersetzungen vorkommen
 # Quelle: Noto Sans CJK TC (SIL Open Font License). Aufruf im Projektordner:
@@ -10,7 +11,7 @@ from fontTools import subset
 
 src = sys.argv[1] if len(sys.argv) > 1 else "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
 text = ""
-for f in glob.glob("*.gd") + glob.glob("ui/*.gd") + glob.glob("docs/about/*.md"):
+for f in glob.glob("*.gd") + glob.glob("ui/*.gd") + glob.glob("docs/about/*.md") + glob.glob("i18n/*.txt"):
     try:
         text += open(f, encoding="utf-8").read()
     except OSError:

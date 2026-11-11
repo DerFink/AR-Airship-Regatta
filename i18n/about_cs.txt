@@ -1,0 +1,112 @@
+# Texty stránky „Základy simulátoru“ (BBCode). Karty oddělené řádkem @@@:
+# Fyzika, Model vzducholodě, Regulátor (PID), Baterie, O aplikaci / licence. Proměnné {VERSION} a {CONTACT}.
+[b]Pohybové rovnice (6 stupňů volnosti)[/b]
+Vzducholoď je tuhé těleso se 3 posuvy a 3 rotacemi. Simulátor počítá v souřadnicích tělesa (počátek ve středu vztlaku, příď dopředu) 60 kroků za sekundu:
+
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+
+m, I: hmotnost a setrvačnost lodi (obal, nosný plyn, motory, baterie, ploutve)
+M_a, I_a: přidané (virtuální) hmotnosti a setrvačnosti strhávaného vzduchu
+F, T: síly a momenty od tíhy, vztlaku, trupu, ploutví a motorů
+
+[b]Přidané hmotnosti[/b]
+Vzducholoď je skoro tak lehká jako vzduch, který vytlačuje. Při zrychlování musí tento vzduch tlačit s sebou – napříč mnohem víc než podélně. Simulátor používá Lambovy koeficienty protáhlého elipsoidu (přístup ATTAS):
+[code]podélně: k1·ρ·V      příčně: k2·ρ·V      rotace: k'·I_vzduch[/code]
+Při L/D = 6 je k1 ≈ 0,05 a k2 ≈ 0,92: napříč loď strhává skoro druhý objem vzduchu.
+
+[b]Munkův moment[/b]
+Z nestejných přidaných hmotností přímo vyplývá poslední člen druhé rovnice, [code]−v × (M_a·v)[/code]. Při úhlu náběhu α přibližně platí
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
+Tento moment vytáčí příď ještě víc z větru – samotný trup je nestabilní. Protože mezní vrstva na zádi část z něj ruší, simulátor počítá se 60 % teoretické hodnoty.
+
+[b]Ploutve a kormidla[/b]
+Každá ploutev je malé křídlo s vlastním místním prouděním (rychlost + rotace lodi). Vztlak podle Helmbolda pro malé štíhlosti, odtržení proudu při velkých úhlech; účinek kormidla závisí na provedení (klapka, celopohyblivé, pružná deska z Depronu). Ploutve za těžištěm stabilizují, kachní plochy vpředu destabilizují.
+
+[b]Profilované ploutve a Reynoldsovo číslo[/b]
+Ocasní plochy a kachní plochy mohou být rovné desky (např. Depron) nebo symetrické profily NACA 00xx (poslední dvě číslice = tloušťka v % hloubky; Chewie: NACA 0020). Chování profilu závisí na Reynoldsově čísle, které simulátor v každém kroku určuje z rychlosti a střední hloubky ploutve:
+[code]Re = v · c / ν      (ν = 0,000015 m²/s)[/code]
+Ploutev Chewieho (c ≈ 19 cm): 2 m/s → Re ≈ 25 000, 6 m/s → 76 000, 10 m/s → 127 000 – nepatrné ve srovnání s letadly (miliony).
+[b]Deska:[/b] ostrá náběžná hrana nechá proud odtrhnout brzy a náhle (≈ 14°), téměř nezávisle na Re. Tupé hrany zvyšují odpor.
+[b]NACA 00xx:[/b] zaoblená náběžná hrana drží proud déle přilnutý: odtržení přijde později a měkčeji, čím tlustší, tím víc (0009 ≈ 18°, 0020 ≈ 24° při Re 10⁵). Při malém Re se laminární mezní vrstva odtrhne dřív – odtržení přijde o něco dřív a tlusté profily ztratí část sklonu vztlakové čáry.
+[b]Základní odpor:[/b] roste s tloušťkou a při malém Re (tření ∝ 1/√Re).
+Hodnoty jsou přiblížení z publikovaných měření při malých Reynoldsových číslech, přenesená na malé štíhlosti ploutví.
+
+[b]Tah[/b]
+Každý motor táhne podél své osy, naklápěcí motory tuto osu natáčejí. Tah klesá s rychlostí (nátok do vrtule) a s napětím baterie. Motor mimo těžiště navíc vytváří moment.
+
+[b]Tíha a vztlak[/b]
+[code]Vztlak = ρ_vzduch · V · g      (ρ = 1,20 kg/m³)[/code]
+Zbývající hmotnost (baterie, zátěž) se volí a umisťuje tak, aby loď byla o něco těžší než vzduch a visela vodorovně. Je-li těžiště pod středem vztlaku, kyvadlový moment loď vyrovnává.
+@@@
+[b]Obal podle Gertlera[/b]
+Tvar obalu pochází z řady DTMB 58 (Gertler, 1950), převzatý podle Gertler Shape Generatoru Johannese Eissinga. Polynom 6. stupně popisuje poloměr po délce; parametry jsou délka/průměr (L/D), poloha největšího průřezu, poloměr přídě a zádě a plnost. Z tvaru vyplývá objem, povrch, střed vztlaku a přidané hmotnosti.
+
+[b]Standardní modely[/b]
+[b]Chewie[/b] – skutečná závodní vzducholoď: L/D 6, lambda ocasní plochy ze tří lehkých celopohyblivých ploutví (±50°), dva naklápěcí motory dole po stranách, letový kontrolér Teensy.
+[b]Albacore Standard[/b] – podle ponorky USS Albacore, L/D 7,5, křížové ocasní plochy s klapkami, dva motory dole po stranách.
+
+[b]Hmotnosti[/b]
+Obal (rozložený po povrchu), motory a ploutve v místě montáže, elektronika a baterie dole na obalu. Z toho simulátor počítá těžiště a momenty setrvačnosti; zbývající hmotnost se vyváží automaticky.
+
+[b]Velikost ocasních ploch[/b]
+Stavebnice kontroluje objem ocasních ploch [code]V_H = S_ploutví · rameno / V_obalu[/code]. Je-li příliš malý, ocasní plochy nevyrovnají Munkův moment a objeví se varování.
+
+[b]Vlastní modely[/b]
+V „Model a stavba“ → „Vlastní stavba“ lze volně nastavit obal, ocasní plochy, pohon a vzhled. Modely lze exportovat jako soubor a poslat správci – ověřené modely se stanou standardními pro všechny.
+@@@
+[b]Virtuální letový kontrolér[/b]
+Napodobuje letový kontrolér Teensy (dRehmFlight) skutečného Chewieho. Měří úhlové rychlosti a polohu (jako gyroskop a akcelerometr) a ovládá ploutve a naklápěcí motory. Plyn zůstává vždy pilotovi – regulátor nikdy nemění tah.
+
+[b]PID regulátor[/b]
+[code]u = Kp·e + Ki·∫e dt + Kd·de/dt[/code]
+e je odchylka mezi žádanou a skutečnou hodnotou. P reaguje okamžitě, I odstraňuje trvalé odchylky (omezeno proti rozkmitání), D tlumí rychlé změny.
+
+[b]Režimy[/b]
+[b]Přímý[/b]: knipl jde přímo na ploutve a naklápění, bez regulátoru.
+[b]Mode 2[/b]: klopení jako regulátor polohy (knipl = žádaný úhel, puštění = vodorovně), zatáčení jako regulátor rychlosti.
+[b]Mode 3[/b]: jako mode 2, zatáčení s PID regulátorem rychlosti (max. 110 °/s), ochrana klopení omezuje úhel, klonění přes naklápěcí motory.
+
+[b]Směšovač[/b]
+Každá ploutev dostává podíl klopení a zatáčení podle svého úhlu montáže. Naklápěcí motory přebírají klopení společně a klonění proti sobě.
+
+[b]Autopilot[/b]
+Autopilot létá osmičku kolem pylonů s aktuálním modelem a nastavením – jen přes knipl, jako pilot. Může selhat, např. když dojde baterie nebo loď ztratí dráhu.
+@@@
+[b]Model baterie[/b]
+Výchozí: LiPo 4S, 300 mAh (Chewie).
+
+[b]Napětí při zatížení[/b]
+Napětí naprázdno E závisí na stavu nabití (typická křivka LiPo na článek). S vnitřním odporem R a výkonem motoru P platí
+[code]V = E − I·R,   I = P(V) / V[/code]
+a z toho [code]a·V² + V − E = 0[/code] s [code]a = R·P0 / V0³[/code].
+
+[b]Výkon[/b]
+[code]P_motor ≈ 25 W · (tah v N)^1,5[/code]   plus 2 W pro elektroniku a serva. Jsou to předpoklady, které lze nahradit měřením.
+
+[b]Vliv na let[/b]
+Když napětí klesá, motory se točí pomaleji: [code]tah ∝ (V/V0)²[/code]. Vybitá baterie už nedává žádný tah.
+
+Přibližné doby letu (Chewie rovně): 30 % plynu ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, plný plyn ≈ 34 s. „Reset“ baterii znovu nabije.
+@@@
+[b]RC Airship Regatta[/b]
+Open-source simulátor pro závodní vzducholodě DIY. Vytvořeno v Godot Engine 4.
+
+{VERSION}
+
+[b]Licence[/b]
+Licence MIT – © 2026 Erich Fink (DerFink). Zdrojový kód lze volně používat, měnit a šířit.
+Godot Engine: licence MIT. Písmo pro čínštinu: Noto Sans CJK (SIL Open Font License).
+
+[b]Vytvořeno s pomocí AI[/b]
+Tento program vznikl jen díky AI: kód, fyzikální model a texty vznikly v dialogu s Claude (AI od Anthropic). AI může dělat chyby – výsledky prosím kontroluj, hlavně exportované sketche pro Teensy: před prvním letem vždy udělej pozemní test se sundanými vrtulemi.
+
+[b]Zdroje[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – tvary obalu podle Gertlera (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – základ letového kontroléru Teensy
+
+[b]Kontakt[/b]
+{CONTACT}

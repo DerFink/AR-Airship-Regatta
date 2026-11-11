@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Meldungen (Ziel, Bestenliste, Autopilot-Stopp) übersetzt
 # 2026-11-11 16:40 – Werkstatt-Musik außerhalb des Flugs, Bodenspur (CourseTrack), Einstellungen-Fenster (Musik, Motorklang, Spur)
 # 2026-11-11 10:40 – Klang-Sicherung (SoundGuard): Klangstufe Fein/Mittel/Einfach, Klangerzeuger werden bei Stufenwechsel neu gebaut
 # 2026-11-11 02:55 – Ladeanzeige (Luftschiff fliegt die Acht) während des Aufbaus; Baukasten: Boxmaß-Ecke, Seitenansicht mittig zwischen den Spalten, Strecke ausgeblendet; Regler-Menü aus dem Baukasten
@@ -369,7 +370,7 @@ func _toggle_autopilot() -> void:
 		return
 	reset_ship()
 	hud.autopilot_active = true
-	hud.show_notice(tr("Autopilot") + " – " + tr("Zurücksetzen") + " = Stopp", "info", 4.0)
+	hud.show_notice(tr("Autopilot") + " – " + tr("Zurücksetzen") + I18n.t(" = Stopp"), "info", 4.0)
 	await get_tree().create_timer(0.2).timeout
 	if hud.autopilot_active:
 		autopilot.start()
@@ -401,14 +402,14 @@ func _on_race_changed() -> void:
 		return
 	# Bestenliste nur mit unveränderten Modellen aus der Auswahl (Aussehen/Regler egal)
 	if AirshipPresets.standard_model_of(ship) == "":
-		hud.show_notice("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl" % Course.format_time(course.time_s), "info", 5.0)
+		hud.show_notice(I18n.t("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl") % Course.format_time(course.time_s), "info", 5.0)
 		return
 	if Leaderboard.rank_for(course.course_key(), course.time_s) > 0:
 		fc.armed = false
 		leader_panel.show_result()
 		_set_view(View.LEADER)
 	else:
-		hud.show_notice("Ziel · %s – nicht unter den besten %d" % [Course.format_time(course.time_s), Leaderboard.MAX_ENTRIES], "info", 4.0)
+		hud.show_notice(I18n.t("Ziel · %s – nicht unter den besten %d") % [Course.format_time(course.time_s), Leaderboard.MAX_ENTRIES], "info", 4.0)
 
 
 ## Rundenzählung: Bug-Position an die Strecke melden, Anzeige im HUD.

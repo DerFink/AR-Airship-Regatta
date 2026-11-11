@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Alle Texte übersetzt (I18n.t), Kennwerte und Profilangaben mit Dezimalzeichen je Sprache, Sketch-Hinweise übersetzt (Kopfzeile im Sketch bleibt Deutsch)
 # 2026-11-11 08:25 – Profil-Kennwerte bei 3 und 9 m/s mit Reynoldszahl
 # 2026-11-11 07:40 – Leitwerk und Canards: Profil (Brettchen/NACA 00xx) mit Dicke, Kennwerte und Gewichts-Schätzung; „Endgewicht“ je Flosse/Canard
 # 2026-11-11 14:20 – .ino-Export: Mischer aus dem Modell (an/aus), Kanalzuordnung des Senders (an/aus), Hinweise zur Ausgangsbelegung
@@ -483,7 +484,7 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	var fc := ModelCodec._find_fc(ship)
 	for blk in FcBlocks.BLOCKS:
 		var cb := CheckBox.new()
-		cb.text = blk.name + ("  (fest)" if blk.get("fixed", false) else ("  (geplant)" if blk.get("planned", false) else ""))
+		cb.text = I18n.t(blk.name) + (I18n.t("  (fest)") if blk.get("fixed", false) else (I18n.t("  (geplant)") if blk.get("planned", false) else ""))
 		cb.tooltip_text = blk.desc
 		cb.button_pressed = FcBlocks.is_on(blk.id) or blk.get("fixed", false)
 		cb.disabled = blk.get("fixed", false) or blk.get("planned", false) or fc == null
@@ -554,13 +555,13 @@ func _export_ino() -> void:
 		opts["channels"] = JoystickInput.channels_for_ino()
 	var r := InoExport.build(fc, ship.model_name, opts)
 	if r.text == "":
-		_ino_info.text = "Vorlage nicht gefunden."
+		_ino_info.text = I18n.t("Vorlage nicht gefunden.")
 		return
 	var stamp := Time.get_datetime_string_from_system(false, true).replace(":", "").replace("-", "").replace("T", "_").left(13)
 	var fname := "%s_dRehmFlight_%s.ino" % [ship.model_name.replace(" ", "_").replace("(", "").replace(")", ""), stamp]
 	var where := InoExport.save(r.text, fname)
-	_ino_info.text = "%s\n%d Werte geändert\n%s%s%s" % [where, r.changed.size(), "\n".join(r.notes),
-		("\nNicht gefunden: " + ", ".join(r.missing)) if not r.missing.is_empty() else "", ("\n" + warn) if warn != "" else ""]
+	_ino_info.text = I18n.t("%s\n%d Werte geändert\n%s%s%s") % [where, r.changed.size(), "\n".join((r.notes as Array).map(func(n): return InoExport.note_ui(n))),
+		(I18n.t("\nNicht gefunden: ") + ", ".join(r.missing)) if not r.missing.is_empty() else "", ("\n" + warn) if warn != "" else ""]
 	ui_action.emit("ok")
 
 
@@ -617,7 +618,7 @@ func _on_part_selected(i: int) -> void:
 		_editor_box.add_child(UITheme.make_choice_row(["oben", "unten"], 0 if absf(mo.hull_angle_deg) < 90.0 or mo.hull_angle_deg > 270.0 else 1,
 			func(k): mo.hull_angle_deg = 0.0 if k == 0 else 180.0; _changed()))
 	_editor_box.add_child(UITheme.make_label(
-		"Für das Paar (%d Motoren)" % pair.size() if pair.size() > 1 else "Antrieb", "MutedLabel"))
+		I18n.t("Für das Paar (%d Motoren)") % pair.size() if pair.size() > 1 else "Antrieb", "MutedLabel"))
 	var set_all := func(prop: String, v, relayout: bool):
 		for m in pair: m.set(prop, v)
 		if relayout: _changed()
@@ -727,10 +728,10 @@ func _fill_look_page() -> void:
 	if l.logo_ref == "":
 		info.text = "Kein Logo. PNG mit transparentem Hintergrund wirkt am besten."
 	elif l.logo_missing():
-		info.text = "Logo „%s“ fehlt – bitte die mitgeschickte Bilddatei laden." % l.logo_ref
+		info.text = I18n.t("Logo „%s“ fehlt – bitte die mitgeschickte Bilddatei laden.") % l.logo_ref
 		info.add_theme_color_override("font_color", UITheme.color("warning"))
 	else:
-		info.text = "Datei: %s – beim Teilen separat mitschicken." % l.logo_ref
+		info.text = I18n.t("Datei: %s – beim Teilen separat mitschicken.") % l.logo_ref
 	_look_box.add_child(info)
 	_look_box.add_child(UITheme.make_slider_row("Logogröße", 0.1, 0.8, 0.01, l.logo_size,
 		func(v): l.logo_size = v, "%.2f"))
@@ -770,11 +771,11 @@ func _profile_block(box: Control, obj: Object, area: float, ar: float, on_change
 	# Kennwerte bei langsamer (3 m/s) und schneller (9 m/s) Fahrt – Re = v·c/ν
 	var p3 := cs.profile_params(cs.reynolds(3.0))
 	var p9 := cs.profile_params(cs.reynolds(9.0))
-	var info := UITheme.make_label(("%s · Tiefe %d mm\n3 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\n9 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\nSchätzung %d g bei Schaum %d kg/m³ (ohne Servo)" % [
+	var info := UITheme.make_label(I18n.dec(I18n.t("%s · Tiefe %d mm\n3 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\n9 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\nSchätzung %d g bei Schaum %d kg/m³ (ohne Servo)") % [
 		cs.profile_name(), roundi(cs.mean_chord() * 1000.0),
 		roundi(cs.reynolds(3.0) / 1000.0), roundi(p3.stall_deg), p3.cd0,
 		roundi(cs.reynolds(9.0) / 1000.0), roundi(p9.stall_deg), p9.cd0,
-		roundi(cs.estimated_mass_kg(_foam_density) * 1000.0), roundi(_foam_density)]).replace(".", ","), "MutedLabel")
+		roundi(cs.estimated_mass_kg(_foam_density) * 1000.0), roundi(_foam_density)]), "MutedLabel")
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(info)
 	box.add_child(UITheme.make_slider_row("Schaumdichte (nur für die Schätzung)", 10.0, 80.0, 1.0, _foam_density,
@@ -849,20 +850,21 @@ func _refresh() -> void:
 	var csel := _canard_list.get_selected_items()
 	_canard_list.clear()
 	for c in _canards():
-		_canard_list.add_item("%s  ·  %d cm²" % [c.display_name, roundi(c.area_m2 * 1e4)])
+		_canard_list.add_item(I18n.t("%s  ·  %d cm²") % [c.display_name, roundi(c.area_m2 * 1e4)])
 	if csel.size() > 0 and csel[0] < _canard_list.item_count:
 		_canard_list.select(csel[0])
 
 	var r := TailValidator.validate(ship.hull, ship.surfaces, ship.cg_offset)
 	var h := ship.hull
-	_stats.text = "%s\n%.2f × %.2f m\nV_T Nick %.2f\nV_T Gier %.2f\nStab. Nick %.2f\nStab. Gier %.2f\nMasse %.0f g (ohne Helium)" % [
-		ship.model_name, h.length_m, h.diameter_m, r.vt_pitch, r.vt_yaw, r.ratio_pitch, r.ratio_yaw,
-		ship.structure_mass_kg * 1000.0]
+	# Modellname getrennt, damit Punkte im Namen nicht zu Kommas werden
+	_stats.text = ship.model_name + "\n" + I18n.dec(I18n.t("%.2f × %.2f m\nV_T Nick %.2f\nV_T Gier %.2f\nStabilität Nick %.2f\nStabilität Gier %.2f\nMasse %.0f g (ohne Helium)") % [
+		h.length_m, h.diameter_m, r.vt_pitch, r.vt_yaw, r.ratio_pitch, r.ratio_yaw,
+		ship.structure_mass_kg * 1000.0])
 	_update_mass_info()
 	var level := "success"
 	if r.level == TailValidator.Level.UNSTABLE: level = "danger"
 	elif r.level == TailValidator.Level.MARGINAL: level = "warning"
-	UITheme.set_banner(_banner, r.message + ("  " + r.detail if r.detail != "" else ""), level)
+	UITheme.set_banner(_banner, I18n.t(r.message) + ("  " + r.detail if r.detail != "" else ""), level)
 	if r.level == TailValidator.Level.UNSTABLE and _last_level != r.level and _last_level != -1:
 		ui_action.emit("warn")                        # leiser Hinweiston beim Kippen ins Instabile
 	_last_level = r.level
@@ -927,11 +929,11 @@ func _update_mass_info() -> void:
 		_mass_info.text = "Zu schwer: Hülle, Motoren und Elektronik wiegen mehr, als der Auftrieb trägt."
 		_mass_info.add_theme_color_override("font_color", UITheme.color("danger"))
 	else:
-		_mass_info.text = "Akku %d g + Ballast %d g (aus dem Auftrieb) · unten an der Hülle\nSchwerpunkt %d cm unter der Achse · Gesamt %d g ohne Helium" % [
+		_mass_info.text = I18n.t("Akku %d g + Ballast %d g (aus dem Auftrieb) · unten an der Hülle\nSchwerpunkt %d cm unter der Achse · Gesamt %d g ohne Helium") % [
 			roundi(ship.battery_mass_kg * 1000.0), roundi(maxf(ship.ballast_kg, 0.0) * 1000.0), roundi(-cg.y * 100.0), roundi(ship.structure_mass_kg * 1000.0)]
 		_mass_info.remove_theme_color_override("font_color")
 		if ship.ballast_kg < 0.0:
-			_mass_info.text = "Akku zu schwer: %d g mehr, als der Auftrieb trägt (Rest nur %d g)." % [
+			_mass_info.text = I18n.t("Akku zu schwer: %d g mehr, als der Auftrieb trägt (Rest nur %d g).") % [
 				roundi(-ship.ballast_kg * 1000.0), roundi(ship.rest_mass_kg * 1000.0)]
 			_mass_info.add_theme_color_override("font_color", UITheme.color("danger"))
 	var bx: HSlider = _hull_rows.bx.get_meta("slider")
@@ -975,7 +977,7 @@ class TailPreview:
 			var l := size.x * 0.30 * s.span_m() / max_span
 			draw_line(c + d * r, c + d * (r + l), UITheme.color("accent"), 5.0, true)
 		var f := get_theme_default_font()
-		var txt := "Heckansicht"
+		var txt := I18n.t("Heckansicht")
 		var fs := UITheme.font_size("caption") - 2
 		var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string(f, Vector2(c.x - w * 0.5, size.y - 4), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.color("text_muted"))

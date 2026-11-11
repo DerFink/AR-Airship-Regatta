@@ -1,0 +1,154 @@
+# 2026-11-11 14:30 – Erstversion: Texte, die check_i18n.py fälschlich für Anzeige-Text hält oder die bewusst nicht übersetzt werden (Namen, Code, Kürzel)
+# Eine Zeile = ein Text, genau wie im Code (Zeilenumbruch als \n)
+Albacore Standard
+Massen
+Flugcontroller, Akku, Nutzlast
+Turm (entfällt – nur noch für alte Modell-Strings)
+Atmosphäre
+Rumpf-Aerodynamik
+Turm
+Chewie
+Erich Fink
+aerarium e.V.
+Simulator-Team
+RC Airship Regatta
+USS ALBACORE
+HullCollision
+MeshInstance3D
+Motoren
+Klick
+Master
+WebXR
+WebXRInterface
+local-floor, local
+DerFink/AR-Airship-Regatta
+NACA 00%02d
+wiese_%.1f
+frei_%.1f
+Ki_yaw_m3
+Kd_yaw_m3
+Kp_yaw_m3
+Mode 2
+Mode 3
+Kp (Kp_roll_m2)
+Ki (Ki_roll_m2)
+Kd (Kd_roll_m2)
+Mode 2 stick_yaw_motor
+Mode 2 stick_yaw_tail
+Mode 3 stick_yaw_motor_m3
+Mode 3 stick_yaw_tail_m3
+Mode 3 Kp_yaw_m3
+Mode 3 Ki_yaw_m3
+Mode 3 Kd_yaw_m3
+Mode 3 yaw_loop_motor_m3
+Mode 3 yaw_loop_tail_m3
+pitch.Kp
+pitch.Kd
+roll.Kp
+roll.Kd
+yaw.Kp_yaw_m3
+yaw.Ki_yaw_m3
+yaw.Kd_yaw_m3
+Teensy
+Kp_roll_m2
+Ki_roll_m2
+Kd_roll_m2
+MODE3_YAW_RATE_MAX_DPS
+MOTOR_ROLL_SIGN
+MODE3_PITCH_ANGLE_MAX
+MODE3_PITCH_RATE_MAX_DPS
+MODE3_PITCH_RETURN_DPS
+MODE3_PITCH_LEAD_MAX
+MODE3_PITCH_PROTECT_BAND
+MODE3_YAW_EXPO
+MODE3_YAW_SWIVEL_FULL_LEVER
+(^\\s*(?:const\\s+)?float\\s+(?:[^;]*,\\s*)?|,\\s*)(
+// %s | Aenderungen: Export aus RC Airship Regatta %s, Modell "%s": %s. VOR DEM ERSTFLUG: Bodentest (Propeller ab) - jede Flosse/jeden Schwenker auf Richtung pruefen
+  //DESCRIPTION: Mode 1 - Knueppel direkt auf die Servos, keine Regelung (erzeugt aus dem Modell, RC Airship Regatta)
+  //Rolle (Kunstflug): linker Knueppel links/rechts (Kanal 7), mit Totband
+  %s_command_scaled = %s_center + %s*( %s*mode1_stick_pitch_tail*pitch_des %s*mode1_stick_yaw_tail*yaw_des %s*mode1_roll_tail*rollCmd ); //%s (Pin %d)
+  %s_command_scaled = %s_center + motor_servo_dir*%s*( %s*mode1_stick_pitch_motor*pitch_des %s*mode1_stick_yaw_motor*yaw_des %s*MOTOR_ROLL_SIGN*mode1_roll_motor*rollCmd );
+  //Ausgabe je Stellglied (erzeugt aus dem Modell): Winkel n fest fuer Knueppel, n + Rollwinkel fuer die Stabilisierung
+(%s %s roll_IMU)*DEG2RAD
+  %s_command_scaled = %s_center + %s*( - tailPitchStick*sin(%s*DEG2RAD) - tailPitchStab*sin(%s) - tailYaw*cos(%s*DEG2RAD) %s*tailRoll ); //%s (Pin %d)
+  s1_command_scaled = s1_center + motor_servo_dir*( motorPitchStick*sin(n2)
+  s1_command_scaled = s1_center + throwScale*
+s%d_command_scaled
+s%d_center
+  servoOut(6, s6_command_scaled); //Servo 6 und 7: unveraendert\n
+(idx <= 5) ? SERVO_PWM_MIN_US : 900, (idx <= 5) ? SERVO_PWM_MAX_US : 2100
+(idx <= SERVO_ACT_COUNT) ? SERVO_PWM_MIN_US : 900, (idx <= SERVO_ACT_COUNT) ? SERVO_PWM_MAX_US : 2100
+(idx <= 5) ? SERVO_PWM_MIN_US : 900.0f
+(idx <= SERVO_ACT_COUNT) ? SERVO_PWM_MIN_US : 900.0f
+(idx <= 5) ? SERVO_PWM_MAX_US : 2100.0f
+(idx <= SERVO_ACT_COUNT) ? SERVO_PWM_MAX_US : 2100.0f
+  //Motor Mix (erzeugt: %d Motoren, alle mit demselben Gas)
+motor1_trim + 
+motor2_trim + 
+MOTOR_STOP_THRO
+      //Kanalzuordnung aus RC Airship Regatta (Sender): logischer Kanal k <- SBUS-Kanal CH_SRC[k], CH_REV = umkehren
+Course
+Airship
+Battery
+LTA1
+Ohne Namen
+Sammlung
+User-Agent: AR-Airship-Regatta
+Accept: application/vnd.github+json
+location.origin + location.pathname.replace(/[^/]*$/, '')
+location.href = 'ar-%d.html'
+ar-%d.html
+erich.fink ät aerarium.de
+Flight Controller
+MutedLabel
+*.png, *.jpg, *.jpeg ; Bilder
+paar%d
+%d mAh
+CCW
+CHEWIE
+NACA 00xx
+Space
+%d:%02d min
+ESC
+url(#s)
+url(#hg)
+url(#hc)
+RC Airship\nRegatta
+Label
+Button
+CheckBox
+OptionButton
+LineEdit
+ItemList
+TitleLabel
+PanelContainer
+Panel
+Pill
+PillButton
+HSlider
+TabContainer
+TextEdit
+%d_false_g
+%d_true_g
+Pilot
+Teensy-Sketch
+# Namen von Bauteilen werden im Modell-String und im Teensy-Sketch gespeichert → bleiben Deutsch
+Bugmotor rechts
+Bugmotor links
+Motor rechts (%s)
+Motor links (%s)
+Canard %d
+oben rechts
+unten rechts
+unten links
+oben links
+Leitwerk 
+Flosse
+Motor
+# Sketch-Kopfzeile bleibt Deutsch/ASCII
+Reglerwerte aus dem Simulator eingesetzt – 
+Reglerwerte = Vorlage BETA 1.4
+s%d=Pin %d %s (%d Grad)
+^(\\d+) Motoren auf ESC-Pins (.*)$
+ Grad)
+Vorlage fehlt

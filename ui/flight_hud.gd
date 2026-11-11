@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Knüppel-Beschriftung, Akku- und Fahrtanzeige übersetzt (Dezimalzeichen je Sprache); bei Sprachwechsel neu beschriftet
 # 2026-11-11 00:00 – Knopf „Perspektive“ immer gleich beschriftet (gewählte Sicht kurz als Hinweis); ohne Teensy nur „Direkt“; Tastatursteuerung
 # 2026-11-10 21:45 – Neue Knopfreihe oben (alles in einer Reihe): Modi · Autopilot · Perspektive (Pilot am Start → Hinterher → Hinterher + Lage) · Zurücksetzen · Armed · Menü; „Menü“ öffnet direkt „Modell & Bau“; Reglerwahl, Location- und Demo-Knöpfe sowie das alte Menü entfernt; Kalibrierfenster per open_calibration()
 # 2026-11-10 14:20 – Knöpfe „Halle | Wiese“ (Location) in der Knopfreihe; Akku-Anzeige links unter den Rundenzeiten (Spannung, Ladezustand, Strom, Restzeit)
@@ -192,7 +193,7 @@ func _ready() -> void:
 	# --- Sender per USB (Taranis/EdgeTX als Joystick) -------------------------
 	_joy = JoystickInput.new()
 	add_child(_joy)
-	_joy.connected.connect(func(n): show_notice(tr("Sender verbunden") + ": %s – SF = Armed, SC = Mode" % n, "info", 4.0))
+	_joy.connected.connect(func(n): show_notice(tr("Sender verbunden") + I18n.t(": %s – SF = Armed, SC = Mode") % n, "info", 4.0))
 	_joy.disconnected.connect(func():
 		if fc: fc.armed = false                     # Failsafe: Sender weg → Motoren aus
 		show_notice("Sender getrennt – Motoren aus", "warning", 4.0))
@@ -282,15 +283,22 @@ func open_calibration() -> void:
 	_calib.show_panel()
 
 
+## Sprache gewechselt → Knüppel-Beschriftung neu (sie wird beim Setzen übersetzt).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and stick_left != null:
+		_refresh_stick_captions()
+
+
 ## Knüppel-Beschriftung nach aktuellem Stick-Mode (Gier immer rechts).
 func _refresh_stick_captions() -> void:
 	if fc == null:
-		stick_left.caption = "Gas"
-		stick_right.caption = "Nick · Gier"
+		stick_left.caption = I18n.t("Gas")
+		stick_right.caption = I18n.t("Nick · Gier")
 		return
 	var labels := fc.stick_labels()
-	stick_left.caption = labels[0]
-	stick_right.caption = labels[1]
+	# Beschriftung schon hier übersetzen – die Tasten kommen danach dazu
+	stick_left.caption = I18n.t(labels[0])
+	stick_right.caption = I18n.t(labels[1])
 	if has_keyboard():                               # Tasten dazuschreiben
 		var kt := "W/S"
 		var kp := "↑↓ ←→"
@@ -306,13 +314,13 @@ func _update_battery() -> void:
 		return
 	_batt_box.visible = true
 	var pct := battery.soc * 100.0
-	_batt_top.text = ("Akku %dS · %.2f V" % [battery.cells, battery.voltage]).replace(".", ",")
+	_batt_top.text = I18n.dec(I18n.t("Akku %dS · %.2f V") % [battery.cells, battery.voltage])
 	var w := _batt_bar_bg.custom_minimum_size.x
 	_batt_bar.size = Vector2(w * battery.soc, _batt_bar_bg.custom_minimum_size.y)
 	_batt_bar.color = Color(0.25, 0.75, 0.42) if battery.soc > 0.3 else (Color(0.95, 0.75, 0.2) if battery.soc > 0.1 else Color(0.9, 0.3, 0.25))
 	var rest := battery.remaining_s()
 	var rest_txt := "–" if rest == INF or rest > 5999.0 else "%d:%02d min" % [int(rest) / 60, int(rest) % 60]
-	_batt_bottom.text = ("%d %% · %.1f A · Rest ≈ %s" % [roundi(pct), battery.current, rest_txt]).replace(".", ",")
+	_batt_bottom.text = I18n.dec(I18n.t("%d %% · %.1f A · Rest ≈ %s") % [roundi(pct), battery.current, rest_txt])
 	if battery.soc <= 0.0:
 		_batt_bottom.text = tr("Akku leer")
 
@@ -431,7 +439,7 @@ func _process(dt: float) -> void:
 	if _btn_auto.text != atxt:
 		_btn_auto.text = atxt
 	if ship:
-		_pill_speed.text = ("%.1f km/h" % (ship.airspeed * 3.6)).replace(".", ",")
+		_pill_speed.text = I18n.dec(I18n.t("%.1f km/h") % (ship.airspeed * 3.6))
 		_pill_alpha.text = "α %d°" % roundi(ship.alpha_deg)
 	_layout()                                         # Texte ändern Breiten
 	# Banner ausblenden

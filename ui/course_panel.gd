@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Feld-Beschreibung übersetzt
 # 2026-11-10 14:30 – Location „Halle | Wiese“; Pylonabstand als Zahlenfeld (kein Schieberegler, 5–500 m); Akku (Zellen, Kapazität) als Zahlenfelder
 # 2026-10-29 00:19 – Knopf „Bestenliste“
 # 2026-10-28 08:14 – Erstversion: Einstellfeld „Strecke“ (FN Hugo Eckener Cup 18 m oder frei mit Pylonabstand 5–50 m)
@@ -75,9 +76,9 @@ func _fill() -> void:
 	drow.add_child(UITheme.make_label("m  (%d–%d)" % [roundi(Course.MIN_DISTANCE), roundi(Course.MAX_DISTANCE)], "MutedLabel"))
 	_box.add_child(drow)
 	var d := course.distance()
-	var info_txt := "Feld %d × %d m · %d Runden, fliegender Start am vorderen Pylon" % [
+	var info_txt := I18n.t("Feld %d × %d m · %d Runden, fliegender Start am vorderen Pylon") % [
 		roundi(d + 2.0 * Course.FIELD_MARGIN), roundi(Course.FIELD_WIDTH), Course.LAPS]
-	info_txt += " · Halle: Wände 10 m hinter der Linie, Decke 25 m" if course.location == 0 else " · Wiese: keine Begrenzung"
+	info_txt += I18n.t(" · Halle: Wände 10 m hinter der Linie, Decke 25 m") if course.location == 0 else I18n.t(" · Wiese: keine Begrenzung")
 	var info := UITheme.make_label(info_txt, "MutedLabel")
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.custom_minimum_size.x = 500

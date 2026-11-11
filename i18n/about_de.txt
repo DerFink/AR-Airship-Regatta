@@ -1,0 +1,113 @@
+# Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
+# Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
+# Zeilen mit # am Anfang werden ignoriert.
+[b]Bewegungsgleichungen (6 Freiheitsgrade)[/b]
+Das Luftschiff ist ein starrer Körper mit 3 Verschiebungen und 3 Drehungen. Gerechnet wird im Körpersystem (Ursprung im Auftriebszentrum, Nase nach vorn) mit 60 Schritten pro Sekunde:
+
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+
+m, I: Masse und Trägheit des Schiffs (Hülle, Traggas, Motoren, Akku, Flossen)
+M_a, I_a: virtuelle Massen und Trägheiten der mitbewegten Luft
+F, T: Kräfte und Momente aus Gewicht, Auftrieb, Rumpf, Flossen und Motoren
+
+[b]Virtuelle Massen[/b]
+Ein Luftschiff ist fast so leicht wie die Luft, die es verdrängt. Beim Beschleunigen muss es diese Luft mit anschieben – und zwar quer viel mehr als längs. Der Simulator nutzt dafür die Lamb-Faktoren des Rotationsellipsoids (ATTAS-Ansatz):
+[code]längs: k1·ρ·V      quer: k2·ρ·V      Drehung: k'·I_Luft[/code]
+Bei L/D = 6 ist k1 ≈ 0,05 und k2 ≈ 0,92: quer schiebt das Schiff fast eine zweite Luftfüllung mit.
+
+[b]Munk-Moment[/b]
+Aus den ungleichen virtuellen Massen folgt direkt der letzte Term der zweiten Gleichung, [code]−v × (M_a·v)[/code]. Bei Schräganströmung unter dem Winkel α gilt näherungsweise
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
+Dieses Moment dreht die Nase weiter aus dem Wind – der Rumpf allein ist instabil. Weil die Grenzschicht am Heck einen Teil davon aufhebt, rechnet der Simulator mit 60 % des theoretischen Werts.
+
+[b]Flossen und Ruder[/b]
+Jede Flosse ist eine kleine Tragfläche mit eigener Anströmung (Fahrt + Drehung des Schiffs). Auftrieb nach Helmbold für kleine Streckungen, Strömungsabriss bei großen Winkeln, Ruderwirkung je nach Bauart (Ruderklappe, Pendelruder, flexible Depronplatte). Hinter dem Schwerpunkt wirken Flossen stabilisierend, Canards vorne destabilisierend.
+
+[b]Profilierte Flossen und Reynoldszahl[/b]
+Leitwerk und Canards können flache Platten („Brettchen“, z. B. Depron) oder symmetrische NACA-00xx-Profile sein (die letzten beiden Ziffern = Dicke in % der Tiefe, Chewie: NACA 0020). Wie sich das Profil verhält, hängt von der Reynoldszahl ab, die der Simulator in jedem Schritt aus Fahrt und mittlerer Flossentiefe bestimmt:
+[code]Re = v · c / ν      (ν = 0,000015 m²/s)[/code]
+Chewie-Flosse (c ≈ 19 cm): 2 m/s → Re ≈ 25 000, 6 m/s → 76 000, 10 m/s → 127 000 – sehr klein im Vergleich zu Flugzeugen (Millionen).
+[b]Platte:[/b] Die scharfe Vorderkante lässt die Strömung früh und abrupt abreißen (≈ 14°), fast unabhängig von Re. Stumpfe Kanten erhöhen den Grundwiderstand.
+[b]NACA 00xx:[/b] Die runde Nase hält die Strömung länger: Abriss später und weicher, je dicker desto mehr (0009 ≈ 18°, 0020 ≈ 24° bei Re 10⁵). Bei kleinem Re löst die laminare Grenzschicht früher ab – der Abriss kommt etwas früher, dicke Profile verlieren etwas Auftriebsanstieg.
+[b]Grundwiderstand:[/b] wächst mit der Dicke und bei kleinem Re (Reibung ∝ 1/√Re).
+Die Kennwerte sind Näherungen aus veröffentlichten Messreihen bei kleinen Reynoldszahlen, übertragen auf die kleinen Seitenverhältnisse der Flossen.
+
+[b]Schub[/b]
+Jeder Motor erzeugt Schub entlang seiner Achse, die Schwenkmotoren drehen diese Achse. Der Schub fällt mit der Fahrt (Propeller-Anströmung) und mit der Akkuspannung. Sitzt der Motor nicht im Schwerpunkt, entsteht zusätzlich ein Moment.
+
+[b]Gewicht und Auftrieb[/b]
+[code]Auftrieb = ρ_Luft · V · g      (ρ = 1,20 kg/m³)[/code]
+Restmasse (Akku, Ballast) wird so bemessen und gelegt, dass das Schiff leicht schwerer als Luft ist und waagrecht hängt. Liegt der Schwerpunkt unter dem Auftriebszentrum, richtet ein Pendelmoment das Schiff auf.
+@@@
+[b]Hülle nach Gertler[/b]
+Die Form der Hülle stammt aus der DTMB-Serie 58 (Gertler, 1950), umgesetzt nach dem Gertler Shape Generator von Johannes Eissing. Ein Polynom 6. Grades beschreibt den Radius über der Länge; die Parameter sind Länge/Durchmesser (L/D), Lage des dicksten Querschnitts, Nasen- und Heckradius und Völligkeit. Aus der Form folgen Volumen, Oberfläche, Auftriebszentrum und die virtuellen Massen.
+
+[b]Standardmodelle[/b]
+[b]Chewie[/b] – das echte Rennluftschiff: L/D 6, Lambda-Leitwerk aus drei leichten Pendelflossen (±50°), zwei schwenkbare Motoren seitlich unten, Teensy-Flugcontroller.
+[b]Albacore Standard[/b] – nach dem U-Boot USS Albacore, L/D 7,5, Kreuzleitwerk mit Ruderklappen, zwei Motoren seitlich unten.
+
+[b]Massen[/b]
+Hülle (verteilt über die Fläche), Motoren und Flossen am Einbauort, Elektronik und Akku unten an der Hülle. Daraus berechnet der Simulator Schwerpunkt und Trägheitsmomente; die Restmasse wird automatisch getrimmt.
+
+[b]Leitwerksgröße[/b]
+Der Baukasten prüft das Leitwerksvolumen [code]V_H = S_Flossen · Hebelarm / V_Hülle[/code]. Ist es zu klein, kann das Leitwerk das Munk-Moment nicht ausgleichen und es erscheint eine Warnung.
+
+[b]Eigene Modelle[/b]
+Unter „Modell & Bau“ → „Eigenbau“ lassen sich Hülle, Leitwerk, Antrieb und Aussehen frei einstellen. Modelle können als Datei exportiert und an den Admin geschickt werden – geprüfte Modelle kommen als Standardmodell für alle in die App.
+@@@
+[b]Der virtuelle Flugcontroller[/b]
+Er bildet den Teensy-Flugcontroller (dRehmFlight) des echten Chewie nach. Gemessen werden Drehraten und Lage (wie Kreisel und Beschleunigungssensor), gestellt werden Ruder und Schwenkmotoren. Das Gas bleibt immer beim Piloten – der Regler verändert den Schub nie.
+
+[b]PID-Regler[/b]
+[code]u = Kp·e + Ki·∫e dt + Kd·de/dt[/code]
+e ist die Abweichung zwischen Soll und Ist. P reagiert sofort, I beseitigt bleibende Abweichungen (begrenzt gegen Aufschaukeln), D dämpft schnelle Änderungen.
+
+[b]Modi[/b]
+[b]Direkt[/b]: Knüppel gehen ohne Regler auf Ruder und Schwenker.
+[b]Mode 2[/b]: Nick als Lageregler (Knüppel = Sollwinkel, loslassen = waagrecht), Gier als Ratenregler.
+[b]Mode 3[/b]: wie Mode 2, Gier mit PID-Ratenregler (max. 110 °/s), Nick-Schutz begrenzt den Nickwinkel, Rollen über die Schwenkmotoren.
+
+[b]Mischer[/b]
+Jede Flosse bekommt Nick- und Gieranteile nach ihrem Einbauwinkel. Schwenkmotoren übernehmen Nick gemeinsam und Rollen gegenläufig.
+
+[b]Autopilot[/b]
+Der Autopilot fliegt die Acht um die Pylone mit dem aktuellen Modell und den aktuellen Reglerwerten – nur über die Knüppel, wie ein Pilot. Er kann scheitern, z. B. wenn der Akku leer ist oder das Schiff die Bahn verliert.
+@@@
+[b]Akku-Modell[/b]
+Standard: LiPo 4S, 300 mAh (Chewie).
+
+[b]Spannung unter Last[/b]
+Die Leerlaufspannung E hängt vom Ladezustand ab (typische LiPo-Kurve je Zelle). Mit dem Innenwiderstand R und der Motorleistung P gilt
+[code]V = E − I·R,   I = P(V) / V[/code]
+und daraus [code]a·V² + V − E = 0[/code] mit [code]a = R·P0 / V0³[/code].
+
+[b]Leistung[/b]
+[code]P_Motor ≈ 25 W · (Schub in N)^1,5[/code]   plus 2 W für Elektronik und Servos. Die Werte sind Annahmen und können durch Messungen ersetzt werden.
+
+[b]Rückwirkung auf den Flug[/b]
+Sinkt die Spannung, drehen die Motoren langsamer: [code]Schub ∝ (V/V0)²[/code]. Ist der Akku leer, gibt es keinen Schub mehr.
+
+Grobe Flugzeiten (Chewie geradeaus): 30 % Gas ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, Vollgas ≈ 34 s. „Zurücksetzen“ lädt den Akku wieder voll.
+@@@
+[b]RC Airship Regatta[/b]
+Open-Source-Simulator für DIY-Rennluftschiffe. Gebaut mit der Godot Engine 4.
+
+{VERSION}
+
+[b]Lizenz[/b]
+MIT-Lizenz – © 2026 Erich Fink (DerFink). Der Quelltext darf frei verwendet, verändert und weitergegeben werden.
+Godot Engine: MIT-Lizenz. Schrift für Chinesisch: Noto Sans CJK (SIL Open Font License).
+
+[b]Mit KI erstellt[/b]
+Dieses Programm wurde nur dank KI erstellt: Code, Physikmodell und Texte sind im Dialog mit Claude (KI von Anthropic) entstanden. KI kann Fehler machen – bitte Ergebnisse prüfen, besonders exportierte Teensy-Sketche: vor dem Erstflug immer einen Bodentest mit abgenommenen Propellern machen.
+
+[b]Quellen[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – Hüllenform nach Gertler (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – Grundlage des Teensy-Flugcontrollers
+
+[b]Kontakt[/b]
+{CONTACT}

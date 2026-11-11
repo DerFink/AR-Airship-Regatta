@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Update-Meldungen übersetzt
 # 2026-11-08 18:15 – Browser-Version: „Nach Update suchen“ lädt die neue Seite (ar-<Build>.html, jeder Build mit eigenen Dateinamen – kein Zwischenspeicher-Problem)
 # 2026-11-07 21:10 – Erstversion: Update-Suche über die GitHub-Releases (neuester „Android-Build N“ gegen BuildInfo.BUILD); neuere APK wird im Browser heruntergeladen
 # =============================================================================
@@ -40,7 +41,7 @@ func check() -> void:
 	# GitHub verlangt einen User-Agent; keine persönlichen Daten
 	var err := _http.request(API % BuildInfo.REPO, ["User-Agent: AR-Airship-Regatta", "Accept: application/vnd.github+json"])
 	if err != OK:
-		status.emit("Update-Suche nicht möglich (Fehler %d)." % err, true)
+		status.emit(I18n.t("Update-Suche nicht möglich (Fehler %d).") % err, true)
 
 
 func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
@@ -48,7 +49,7 @@ func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedB
 		status.emit("Keine Verbindung zu GitHub – Internet prüfen.", true)
 		return
 	if code != 200:
-		status.emit("GitHub antwortet mit Fehler %d – später nochmal versuchen." % code, true)
+		status.emit(I18n.t("GitHub antwortet mit Fehler %d – später nochmal versuchen.") % code, true)
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if not (data is Dictionary):
@@ -59,15 +60,15 @@ func _on_done(result: int, code: int, _headers: PackedStringArray, body: PackedB
 		status.emit("Kein Android-Build gefunden.", true)
 		return
 	if res.build <= BuildInfo.BUILD:
-		status.emit("Du hast die neueste Version (Build %d)." % BuildInfo.BUILD, true)
+		status.emit(I18n.t("Du hast die neueste Version (Build %d).") % BuildInfo.BUILD, true)
 		return
 	if OS.has_feature("web"):
 		_web_switch(res.build)                   # Browser: neue Seite laden statt APK
 		return
 	if res.url == "":
-		status.emit("Build %d ist da, aber ohne APK – später nochmal versuchen." % res.build, true)
+		status.emit(I18n.t("Build %d ist da, aber ohne APK – später nochmal versuchen.") % res.build, true)
 		return
-	status.emit("Neuer Build %d gefunden. Der Download startet im Browser – danach die Download-Meldung antippen und „Installieren“ wählen. Deine Einstellungen bleiben erhalten." % res.build, true)
+	status.emit(I18n.t("Neuer Build %d gefunden. Der Download startet im Browser – danach die Download-Meldung antippen und „Installieren“ wählen. Deine Einstellungen bleiben erhalten.") % res.build, true)
 	OS.shell_open(res.url)
 
 
@@ -88,10 +89,10 @@ func _web_switch(build: int) -> void:
 	probe.request_completed.connect(func(result: int, code: int, _h, _b):
 		probe.queue_free()
 		if result == HTTPRequest.RESULT_SUCCESS and code == 200:
-			status.emit("Neuer Build %d gefunden – Seite wird neu geladen …" % build, true)
+			status.emit(I18n.t("Neuer Build %d gefunden – Seite wird neu geladen …") % build, true)
 			JavaScriptBridge.eval("location.href = 'ar-%d.html'" % build)
 		else:
-			status.emit("Build %d wird gerade veröffentlicht – in 2–3 Minuten noch einmal suchen." % build, true))
+			status.emit(I18n.t("Build %d wird gerade veröffentlicht – in 2–3 Minuten noch einmal suchen.") % build, true))
 	probe.request(base + "ar-%d.html" % build)
 
 

@@ -1,3 +1,4 @@
+# 2026-11-11 14:40 – Alle übrigen Anzeige-Texte aus i18n/ui_texte.txt; I18n.t() für zusammengesetzte Texte, I18n.dec() für das Dezimalzeichen je Sprache
 # 2026-11-10 22:10 – Weitere Texte (Einstellungen, Autopilot, Modell & Bau, Kalibrieren)
 # 2026-11-10 20:00 – Erstversion: Sprachwahl (Deutsch, Englisch, Französisch, Spanisch, Italienisch, Tschechisch, Polnisch, Chinesisch traditionell) mit Flaggen; Übersetzungen über den TranslationServer von Godot
 # =============================================================================
@@ -19,10 +20,18 @@ const LANGS := ["de", "en", "fr", "es", "it", "cs", "pl", "zh_TW"]
 const LANG_NAMES := {"de": "Deutsch", "en": "English", "fr": "Français", "es": "Español",
 	"it": "Italiano", "cs": "Čeština", "pl": "Polski", "zh_TW": "繁體中文"}
 const SETTINGS_PATH := "user://sprache.cfg"
+## Weitere Übersetzungen als Tabelle: eine Zeile je Text,
+## Spalten durch Tabulator getrennt: de, en, fr, es, it, cs, pl, zh_TW
+## (Zeilenumbruch im Text als \n). Prüfen mit tools/check_i18n.py.
+const UI_TABLE := "res://i18n/ui_texte.txt"
+## Sprachen, die ein Komma als Dezimalzeichen schreiben
+const COMMA_LANGS := ["de", "fr", "es", "it", "cs", "pl"]
 
 static var current := "de"
 static var _built := false
 static var _flags := {}
+## Inhalt von UI_TABLE: deutscher Text → [en, fr, es, it, cs, pl, zh_TW]
+static var _ui_rows := {}
 
 ## Übersetzungen: deutscher Text → [en, fr, es, it, cs, pl, zh_TW]
 const TEXTS := {
@@ -107,6 +116,7 @@ const TEXTS := {
 ## Beim Start einmal aufrufen: Übersetzungen anlegen, gespeicherte Sprache setzen.
 static func setup() -> void:
 	if not _built:
+		_load_ui_table()
 		for li in range(1, LANGS.size()):
 			var tr_res := Translation.new()
 			tr_res.locale = LANGS[li]
@@ -114,6 +124,10 @@ static func setup() -> void:
 				var row: Array = TEXTS[src]
 				if li - 1 < row.size() and str(row[li - 1]) != "":
 					tr_res.add_message(src, row[li - 1])
+			for src in _ui_rows:
+				var row2: Array = _ui_rows[src]
+				if li - 1 < row2.size() and str(row2[li - 1]) != "":
+					tr_res.add_message(src, row2[li - 1])
 			TranslationServer.add_translation(tr_res)
 		_built = true
 	var cfg := ConfigFile.new()
@@ -121,6 +135,32 @@ static func setup() -> void:
 	if cfg.load(SETTINGS_PATH) == OK:
 		lang = str(cfg.get_value("sprache", "code", "de"))
 	set_language(lang, false)
+
+
+## Tabelle UI_TABLE einlesen (Zeilen mit # am Anfang sind Kommentare).
+static func _load_ui_table() -> void:
+	var f := FileAccess.open(UI_TABLE, FileAccess.READ)
+	if f == null:
+		push_warning("I18n: Übersetzungstabelle fehlt: " + UI_TABLE)
+		return
+	while not f.eof_reached():
+		var line := f.get_line()
+		if line.begins_with("#") or not line.contains("\t"):
+			continue
+		var cols := line.replace("\\n", "\n").split("\t")
+		_ui_rows[cols[0]] = Array(cols.slice(1))
+
+
+## Text übersetzen – für Texte, die erst danach mit % gefüllt oder
+## zusammengesetzt werden (Godot übersetzt nur Texte, die genau passen).
+static func t(s: String) -> String:
+	return String(TranslationServer.translate(s))
+
+
+## Zahl als Text mit dem Dezimalzeichen der Sprache: Komma für de/fr/es/it/cs/pl,
+## Punkt für Englisch und Chinesisch. Erwartet einen mit "%.1f" o. ä. erzeugten Text.
+static func dec(s: String) -> String:
+	return s.replace(".", ",") if current in COMMA_LANGS else s
 
 
 ## Sprache wechseln (alle Knöpfe und Labels übersetzen sich selbst).

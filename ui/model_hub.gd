@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Modellbeschreibung und Kenndaten übersetzt (Dezimalzeichen je Sprache)
 # 2026-11-11 01:40 – Knopf „Sender kalibrieren“ hier (statt Startseite)
 # 2026-11-11 00:10 – Location-Zeile „Halle FN · Pylonabstand …“; Knopf „Bestenliste“ (zeigen und zurücksetzen wie gehabt)
 # 2026-11-10 20:40 – Erstversion: „Modell & Bau“ nach freigegebenem Entwurf – links scrollbare Location-Liste mit Bildern und Pylonabstand (Zahlenfeld), Mitte scrollbare Modellliste mit Vorschau aus den Modelldaten und Karte „Eigenbau“, rechts Details (großes Bild, Autor, Team, Beschreibung, Kennwerte) mit Fliegen / Bearbeiten / Exportieren und Hinweis zum Einsenden an den Admin
@@ -259,10 +260,10 @@ func _show_detail(name: String, tex: Texture2D, s: AirshipPhysics) -> void:
 	if meta.author != "": parts.append("%s: %s" % [tr("Autor"), meta.author])
 	if meta.team != "": parts.append("%s: %s" % [tr("Team"), meta.team])
 	_detail_meta.text = " · ".join(parts)
-	_detail_desc.text = meta.desc
+	_detail_desc.text = I18n.t(meta.desc)   # Beschreibungen der Standardmodelle sind übersetzt
 	var h := s.hull
-	_detail_data.text = ("L %.2f m · Ø %.2f m · L/D %.1f · %.2f m³ · %d Flossen · %d Motoren" % [
-		h.length_m, h.diameter_m, h.length_to_diameter, h.volume_m3, s.surfaces.size(), s.motors.size()]).replace(".", ",")
+	_detail_data.text = I18n.dec(I18n.t("L %.2f m · Ø %.2f m · L/D %.1f · %.2f m³ · %d Flossen · %d Motoren") % [
+		h.length_m, h.diameter_m, h.length_to_diameter, h.volume_m3, s.surfaces.size(), s.motors.size()])
 
 
 ## Ausgewähltes Modell auf das Luftschiff übernehmen.

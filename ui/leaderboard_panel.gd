@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Texte mit Zahlen übersetzt
 # 2026-11-09 13:40 – Ergebnis wird beim Zieleinlauf festgehalten (vorher: SH setzte zugleich das Rennen zurück → Eintrag mit 0 s); Knopf „Liste löschen“ mit Rückfrage
 # 2026-11-08 17:40 – Nach dem Ziel mit dem Sender bedienbar: rechter Knüppel wählt Eintragen/Nicht eintragen, SH bestätigt (ohne Wahl nicht gespeichert)
 # 2026-10-29 00:19 – Erstversion: Bestenliste anzeigen (Platz, Gesamtzeit, Einzelrunden, Name, Luftschiff, Datum) und nach dem Ziel Namen eintragen
@@ -70,8 +71,8 @@ func show_result() -> void:
 	_res_laps = PackedFloat32Array(course.lap_times)
 	for c in _box.get_children(): c.queue_free()
 	var place := Leaderboard.rank_for(course.course_key(), _res_total)
-	_box.add_child(UITheme.make_title("Ziel · %s · Platz %d" % [Course.format_time(_res_total), place]))
-	_box.add_child(UITheme.make_label("%s · Runden %s" % [course.title(), _laps_text(_res_laps)], "MutedLabel"))
+	_box.add_child(UITheme.make_title(I18n.t("Ziel · %s · Platz %d") % [Course.format_time(_res_total), place]))
+	_box.add_child(UITheme.make_label(I18n.t("%s · Runden %s") % [course.title(), _laps_text(_res_laps)], "MutedLabel"))
 	_box.add_child(UITheme.make_label("Name", "MutedLabel"))
 	_name_edit = LineEdit.new()
 	_name_edit.text = Leaderboard.last_name()
@@ -127,14 +128,14 @@ func _on_enter() -> void:
 
 func _fill_list() -> void:
 	for c in _box.get_children(): c.queue_free()
-	_box.add_child(UITheme.make_title("Bestenliste · %s" % course.title()))
+	_box.add_child(UITheme.make_title(I18n.t("Bestenliste · %s") % course.title()))
 	_box.add_child(UITheme.make_label("Wertung über 3 Runden · nur vollständige Rennen", "MutedLabel"))
 	var lst := Leaderboard.entries(course.course_key())
 	if lst.is_empty():
 		_box.add_child(UITheme.make_label("Noch keine Einträge – flieg 3 Runden!"))
 	for i in lst.size():
 		var e: Dictionary = lst[i]
-		var top := UITheme.make_label("%d.  %s   (Runden %s)" % [i + 1, Course.format_time(float(e.get("total", 0.0))), _laps_text(e.get("laps", []))])
+		var top := UITheme.make_label(I18n.t("%d.  %s   (Runden %s)") % [i + 1, Course.format_time(float(e.get("total", 0.0))), _laps_text(e.get("laps", []))])
 		_box.add_child(top)
 		var sub := UITheme.make_label("     %s · %s · %s" % [e.get("name", ""), e.get("model", ""), e.get("date", "")], "MutedLabel")
 		_box.add_child(sub)

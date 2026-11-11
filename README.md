@@ -52,6 +52,13 @@ godot --headless --path . -s tests/v03_test.gd
 godot --headless --path . -s tests/ui_test.gd
 ```
 
+## Übersetzungen
+Die Oberfläche gibt es in Deutsch, Englisch, Französisch, Spanisch, Italienisch, Tschechisch, Polnisch und Chinesisch (traditionell). Quelltexte im Code sind Deutsch.
+- Kurze Texte: `tools/i18n_src/teil*.py` pflegen, dann `python3 tools/build_i18n_table.py` → `i18n/ui_texte.txt`
+- Seite „Grundlagen“: `i18n/about_<sprache>.txt` (Reiter durch `@@@` getrennt)
+- Prüfen, ob etwas fehlt: `python3 tools/check_i18n.py` (läuft auch bei jedem Build mit)
+- Neue chinesische Zeichen: `python3 tools/make_cjk_font.py`
+
 ## Ordner
 | Pfad | Inhalt |
 | --- | --- |
@@ -59,7 +66,12 @@ godot --headless --path . -s tests/ui_test.gd
 | `ui/` | Oberfläche und Design-System |
 | `audio/` | Propellerklang, ruhige Baukasten-Töne (prozedural, keine Sounddateien) |
 | `models/` | Modellsammlung des Admins |
+| `i18n/` | Übersetzungen (Oberfläche und Seite „Grundlagen“) |
+| `tools/` | Hilfsskripte (Übersetzungen, Schrift, Musik) |
 | `tests/` | Headless-Tests |
 
 ## Lizenz
 MIT – siehe `LICENSE`. Eingesandte Logos bleiben Eigentum ihrer Urheber.
+
+## Mit KI erstellt
+Dieses Programm wurde nur dank KI erstellt: Code, Physikmodell und Texte sind im Dialog mit Claude (KI von Anthropic) entstanden. KI kann Fehler machen – bitte Ergebnisse prüfen, besonders exportierte Teensy-Sketche: vor dem Erstflug immer einen Bodentest mit abgenommenen Propellern machen.

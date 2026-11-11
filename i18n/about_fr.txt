@@ -1,0 +1,112 @@
+# Texte de la page « Bases du simulateur » (BBCode). Onglets séparés par une ligne @@@ :
+# Physique, Modèle de dirigeable, Régulateur (PID), Batterie, À propos / licence. Variables {VERSION} et {CONTACT}.
+[b]Équations du mouvement (6 degrés de liberté)[/b]
+Le dirigeable est un corps rigide avec 3 translations et 3 rotations. Le simulateur calcule dans le repère du corps (origine au centre de poussée, nez vers l'avant) à 60 pas par seconde :
+
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+
+m, I : masse et inertie du dirigeable (enveloppe, gaz porteur, moteurs, batterie, ailerons)
+M_a, I_a : masses et inerties ajoutées (virtuelles) de l'air entraîné
+F, T : forces et moments dus au poids, à la poussée d'Archimède, à la coque, aux ailerons et aux moteurs
+
+[b]Masses ajoutées[/b]
+Un dirigeable est presque aussi léger que l'air qu'il déplace. Quand il accélère, il doit pousser cet air avec lui – bien plus en travers qu'en longueur. Le simulateur utilise les coefficients de Lamb de l'ellipsoïde allongé (approche ATTAS) :
+[code]longitudinal : k1·ρ·V      transversal : k2·ρ·V      rotation : k'·I_air[/code]
+Pour L/D = 6, k1 ≈ 0,05 et k2 ≈ 0,92 : en travers, le dirigeable entraîne presque un second volume d'air.
+
+[b]Moment de Munk[/b]
+Les masses ajoutées inégales donnent directement le dernier terme de la seconde équation, [code]−v × (M_a·v)[/code]. Sous un angle d'incidence α, on a approximativement
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
+Ce moment écarte encore plus le nez du vent – la coque seule est instable. Comme la couche limite à l'arrière en annule une partie, le simulateur utilise 60 % de la valeur théorique.
+
+[b]Ailerons et gouvernes[/b]
+Chaque aileron est une petite aile avec son propre écoulement local (vitesse + rotation du dirigeable). Portance selon Helmbold pour les faibles allongements, décrochage aux grands angles ; l'effet de gouverne dépend du type (volet, monobloc, plaque de Depron souple). Les ailerons derrière le centre de gravité stabilisent, les canards à l'avant déstabilisent.
+
+[b]Ailerons profilés et nombre de Reynolds[/b]
+L'empennage et les canards peuvent être des plaques planes (p. ex. Depron) ou des profils symétriques NACA 00xx (les deux derniers chiffres = épaisseur en % de la corde ; Chewie : NACA 0020). Le comportement du profil dépend du nombre de Reynolds, que le simulateur calcule à chaque pas à partir de la vitesse et de la corde moyenne :
+[code]Re = v · c / ν      (ν = 0,000015 m²/s)[/code]
+Aileron de Chewie (c ≈ 19 cm) : 2 m/s → Re ≈ 25 000, 6 m/s → 76 000, 10 m/s → 127 000 – minuscule comparé aux avions (millions).
+[b]Plaque :[/b] le bord d'attaque vif fait décoller l'écoulement tôt et brutalement (≈ 14°), presque indépendamment de Re. Des bords émoussés augmentent la traînée.
+[b]NACA 00xx :[/b] le nez arrondi garde l'écoulement attaché plus longtemps : décrochage plus tardif et plus doux, d'autant plus que le profil est épais (0009 ≈ 18°, 0020 ≈ 24° à Re 10⁵). À faible Re, la couche limite laminaire décolle plus tôt – le décrochage arrive un peu plus tôt et les profils épais perdent un peu de pente de portance.
+[b]Traînée de base :[/b] augmente avec l'épaisseur et à faible Re (frottement ∝ 1/√Re).
+Les valeurs sont des approximations tirées de mesures publiées à faible nombre de Reynolds, transposées aux faibles allongements des ailerons.
+
+[b]Poussée[/b]
+Chaque moteur pousse le long de son axe ; les moteurs orientables font pivoter cet axe. La poussée diminue avec la vitesse (écoulement dans l'hélice) et avec la tension de la batterie. Un moteur éloigné du centre de gravité ajoute aussi un moment.
+
+[b]Poids et poussée d'Archimède[/b]
+[code]Poussée = ρ_air · V · g      (ρ = 1,20 kg/m³)[/code]
+La masse restante (batterie, lest) est dimensionnée et placée de sorte que le dirigeable soit légèrement plus lourd que l'air et reste à l'horizontale. Avec le centre de gravité sous le centre de poussée, un moment de pendule redresse le dirigeable.
+@@@
+[b]Enveloppe Gertler[/b]
+La forme de l'enveloppe vient de la série DTMB 58 (Gertler, 1950), mise en œuvre d'après le Gertler Shape Generator de Johannes Eissing. Un polynôme de degré 6 donne le rayon le long de la longueur ; les paramètres sont longueur/diamètre (L/D), position du maître-couple, rayons du nez et de la queue et coefficient prismatique. Volume, surface, centre de poussée et masses ajoutées découlent de la forme.
+
+[b]Modèles standard[/b]
+[b]Chewie[/b] – le vrai dirigeable de course : L/D 6, empennage lambda de trois ailerons monoblocs légers (±50°), deux moteurs orientables bas sur les côtés, contrôleur de vol Teensy.
+[b]Albacore Standard[/b] – d'après le sous-marin USS Albacore, L/D 7,5, empennage en croix avec volets, deux moteurs bas sur les côtés.
+
+[b]Masses[/b]
+Enveloppe (répartie sur la surface), moteurs et ailerons à leur emplacement, électronique et batterie sous l'enveloppe. Le simulateur en déduit le centre de gravité et les moments d'inertie ; la masse restante est équilibrée automatiquement.
+
+[b]Taille de l'empennage[/b]
+L'atelier vérifie le volume d'empennage [code]V_H = S_ailerons · bras de levier / V_enveloppe[/code]. S'il est trop petit, l'empennage ne peut pas compenser le moment de Munk et un avertissement apparaît.
+
+[b]Tes propres modèles[/b]
+Sous « Modèle & construction » → « Construction perso », tu peux régler librement l'enveloppe, l'empennage, la propulsion et l'apparence. Les modèles peuvent être exportés en fichier et envoyés à l'administrateur – les modèles vérifiés deviennent des modèles standard pour tous.
+@@@
+[b]Le contrôleur de vol virtuel[/b]
+Il reproduit le contrôleur de vol Teensy (dRehmFlight) du vrai Chewie. Il mesure les vitesses de rotation et l'assiette (comme gyroscope et accéléromètre) et commande les ailerons et les moteurs orientables. Les gaz restent toujours au pilote – le régulateur ne modifie jamais la poussée.
+
+[b]Régulateur PID[/b]
+[code]u = Kp·e + Ki·∫e dt + Kd·de/dt[/code]
+e est l'écart entre consigne et mesure. P réagit immédiatement, I supprime les écarts persistants (limité contre l'emballement), D amortit les variations rapides.
+
+[b]Modes[/b]
+[b]Direct[/b] : les manches agissent directement sur ailerons et orientations, sans régulateur.
+[b]Mode 2[/b] : tangage en régulation d'assiette (manche = angle de consigne, relâcher = horizontal), lacet en régulation de vitesse.
+[b]Mode 3[/b] : comme le mode 2, lacet avec régulateur PID de vitesse (max. 110 °/s), la protection de tangage limite l'angle, roulis par les moteurs orientables.
+
+[b]Mélangeur[/b]
+Chaque aileron reçoit des parts de tangage et de lacet selon son angle de montage. Les moteurs orientables prennent le tangage ensemble et le roulis en sens opposés.
+
+[b]Pilote automatique[/b]
+Le pilote automatique vole le huit autour des pylônes avec le modèle et les réglages actuels – uniquement par les manches, comme un pilote. Il peut échouer, p. ex. quand la batterie est vide ou que le dirigeable perd la trajectoire.
+@@@
+[b]Modèle de batterie[/b]
+Par défaut : LiPo 4S, 300 mAh (Chewie).
+
+[b]Tension sous charge[/b]
+La tension à vide E dépend de l'état de charge (courbe LiPo typique par cellule). Avec la résistance interne R et la puissance moteur P :
+[code]V = E − I·R,   I = P(V) / V[/code]
+d'où [code]a·V² + V − E = 0[/code] avec [code]a = R·P0 / V0³[/code].
+
+[b]Puissance[/b]
+[code]P_moteur ≈ 25 W · (poussée en N)^1,5[/code]   plus 2 W pour l'électronique et les servos. Ce sont des hypothèses qui peuvent être remplacées par des mesures.
+
+[b]Effet sur le vol[/b]
+Quand la tension baisse, les moteurs tournent moins vite : [code]poussée ∝ (V/V0)²[/code]. Une batterie vide ne donne plus de poussée.
+
+Temps de vol approximatifs (Chewie en ligne droite) : 30 % de gaz ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, plein gaz ≈ 34 s. « Réinitialiser » recharge la batterie.
+@@@
+[b]RC Airship Regatta[/b]
+Simulateur open source pour dirigeables de course DIY. Construit avec Godot Engine 4.
+
+{VERSION}
+
+[b]Licence[/b]
+Licence MIT – © 2026 Erich Fink (DerFink). Le code source peut être utilisé, modifié et partagé librement.
+Godot Engine : licence MIT. Police pour le chinois : Noto Sans CJK (SIL Open Font License).
+
+[b]Créé avec l'IA[/b]
+Ce programme n'a pu voir le jour que grâce à l'IA : le code, le modèle physique et les textes ont été créés en dialogue avec Claude (IA d'Anthropic). L'IA peut faire des erreurs – vérifie les résultats, surtout les sketches Teensy exportés : avant le premier vol, fais toujours un test au sol avec les hélices démontées.
+
+[b]Sources[/b]
+Gertler, M. : Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes : Gertler Shape Generator – formes d'enveloppe d'après Gertler (DTMB Series 58)
+Munk, M. M. : The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H. : Hydrodynamics
+dRehmFlight (Nicholas Rehm) – base du contrôleur de vol Teensy
+
+[b]Contact[/b]
+{CONTACT}

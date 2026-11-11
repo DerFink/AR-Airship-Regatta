@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Meldungen mit Zahlen/Namen übersetzt
 # 2026-11-11 15:10 – Hinweis: Autor, Team und Beschreibung mitschicken (Angabenzeile in der Sammlung)
 # 2026-10-28 00:15 – Import meldet model_applied (PID-Vorgaben übernehmen)
 # 2026-10-27 12:22 – Fix: Vollbild-Anker mit set_anchors_and_offsets_preset (vorher blieb die Fläche 0 px groß → Knüppel und Menüs landeten oben links)
@@ -118,7 +119,7 @@ func _export() -> void:
 	if ref == "":
 		_logo_hint.text = "Kein Logo – der String enthält alles."
 	else:
-		_logo_hint.text = "Logo separat mitschicken: Datei „%s“ (liegt im App-Ordner logos)." % ref
+		_logo_hint.text = I18n.t("Logo separat mitschicken: Datei „%s“ (liegt im App-Ordner logos).") % ref
 
 
 func _on_copy() -> void:
@@ -141,10 +142,10 @@ func _on_paste_load() -> void:
 	ship.model_applied.emit()          # PID-Vorgaben des Modells übernehmen
 	_name.text = ship.model_name
 	_export()
-	var msg := "Geladen: %s · %d Flossen, %d Motoren." % [r.name, r.data.fins.size(), r.data.motors.size()]
+	var msg := I18n.t("Geladen: %s · %d Flossen, %d Motoren.") % [r.name, r.data.fins.size(), r.data.motors.size()]
 	var level := "success"
 	if ship.livery.logo_missing():
-		msg += " Logo „%s“ fehlt – im Baukasten unter Gestaltung laden." % ship.livery.logo_ref
+		msg += I18n.t(" Logo „%s“ fehlt – im Baukasten unter Gestaltung laden.") % ship.livery.logo_ref
 		level = "warning"
 	UITheme.set_banner(_banner, msg, level)
 	ui_action.emit("ok")

@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Anzeige-Texte (Runde, Ziel, nächster Kontrollpunkt) übersetzt; Zeiten mit Dezimalzeichen je Sprache
 # 2026-11-10 14:00 – Location „Halle“ / „Wiese“ (Wiese: keine Wände/Decke, Pylonabstand Vorgabe 200 m); Pylonabstand frei 5–500 m; Halle nachgebildet nach Fotos der Windreiter-Halle (Glasdach mit Holzraster, Band mit Horizont-Wandbildern, zwei Galerien mit Geländer, weiße Säulen, Glastüren, dunkler glänzender Boden)
 # 2026-11-09 09:45 – Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke 25 m, halb durchsichtig mit 5-m-Raster, Luftschiff prallt ab
 # 2026-10-29 00:19 – course_key() für die Bestenliste
@@ -117,8 +118,8 @@ func course_key() -> String:
 
 func title() -> String:
 	if location == 1:
-		return "Wiese %d m" % roundi(meadow_distance)
-	return CUP_NAME if preset == 0 else "Freie Strecke %d m" % roundi(free_distance)
+		return I18n.t("Wiese %d m") % roundi(meadow_distance)
+	return CUP_NAME if preset == 0 else I18n.t("Freie Strecke %d m") % roundi(free_distance)
 
 
 # =============================================================================
@@ -352,8 +353,8 @@ func _set_far_green(on: bool) -> void:
 func race_text() -> String:
 	match race:
 		Race.WAIT: return "Start: Pylon 1 passieren"
-		Race.RUN: return "Runde %d/%d · %s" % [lap, LAPS, format_time(time_s)]
-		_: return "Ziel · %s" % format_time(time_s)
+		Race.RUN: return I18n.t("Runde %d/%d · %s") % [lap, LAPS, format_time(time_s)]
+		_: return I18n.t("Ziel · %s") % format_time(time_s)
 
 
 ## Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten
@@ -363,7 +364,7 @@ func lap_text() -> String:
 	if race == Race.WAIT:
 		return "Pilotenseite, Richtung Pylon 2"
 	if race == Race.RUN:
-		parts.append("nächster: " + GATE_NAMES[next_gate])
+		parts.append(I18n.t("nächster: ") + I18n.t(GATE_NAMES[next_gate]))
 	var best := 0
 	for i in lap_times.size():
 		parts.append("R%d %s" % [i + 1, format_time(lap_times[i])])
@@ -371,14 +372,14 @@ func lap_text() -> String:
 	var txt := "   ".join(parts)
 	if parts.is_empty(): return ""
 	if race == Race.DONE:
-		txt += "   · beste: R%d" % (best + 1)
+		txt += I18n.t("   · beste: R%d") % (best + 1)
 	return txt
 
 
 static func format_time(t: float) -> String:
 	var m := int(t / 60.0)
 	var s := t - m * 60.0
-	return ("%d:%04.1f" % [m, s]).replace(".", ",")
+	return I18n.dec("%d:%04.1f" % [m, s])
 
 
 # =============================================================================

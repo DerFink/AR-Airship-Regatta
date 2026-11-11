@@ -1,3 +1,4 @@
+# 2026-11-11 14:50 – Hinweise für die Anzeige übersetzt (note_ui); Kopfzeile im Sketch bleibt Deutsch
 # 2026-11-11 13:30 – Parametrisch: Mischer (Mode 1 und Mode 2/3), Servo-Ausgänge und Motoren werden aus der Leitwerks- und Antriebskonfiguration des Modells erzeugt; optional Kanalzuordnung des Senders
 # 2026-11-11 11:20 – Erstversion: Teensy-Sketch (.ino) aus dem Simulator erzeugen – Vorlage ist Chewies dRehmFlight-Stand BETA 1.4; die Reglerwerte des Simulators werden in die passenden Variablen eingesetzt, oben steht eine Kopfzeile mit Zeitstempel und Liste der Änderungen
 # =============================================================================
@@ -58,12 +59,24 @@ static func check(ship: AirshipPhysics, fc: FlightController = null) -> String:
 	if fc:
 		var n := fc.actuator_table().size()
 		if n > 7:
-			notes.append("%d Servos nötig, der Teensy-Sketch hat 7 Servo-Ausgänge – die übrigen werden nicht angesteuert." % n)
+			notes.append(I18n.t("%d Servos nötig, der Teensy-Sketch hat 7 Servo-Ausgänge – die übrigen werden nicht angesteuert.") % n)
 	if ship.motors.size() > 6:
-		notes.append("Mehr als 6 Motoren – nur 6 ESC-Ausgänge.")
+		notes.append(I18n.t("Mehr als 6 Motoren – nur 6 ESC-Ausgänge."))
 	if not ship.fc_teensy:
-		notes.append("Im Modell ist kein Teensy eingebaut – der Sketch wird trotzdem erzeugt.")
+		notes.append(I18n.t("Im Modell ist kein Teensy eingebaut – der Sketch wird trotzdem erzeugt."))
 	return " ".join(notes)
+
+
+## Hinweis aus build() für die Anzeige übersetzen (im Sketch selbst bleibt er Deutsch).
+static func note_ui(n: String) -> String:
+	for prefix in ["Mischer aus dem Modell erzeugt: ", "Kanalzuordnung: "]:
+		if n.begins_with(prefix):
+			return I18n.t(prefix) + n.substr(prefix.length()).replace(" Grad)", "°)").replace(" umgekehrt", I18n.t(" umgekehrt"))
+	var re := RegEx.create_from_string("^(\\d+) Motoren auf ESC-Pins (.*)$")
+	var m := re.search(n)
+	if m:
+		return I18n.t("%d Motoren auf ESC-Pins %s") % [int(m.get_string(1)), m.get_string(2)]
+	return I18n.t(n)
 
 
 ## Sketch erzeugen. Rückgabe {"text", "changed": [Liste "NAME alt → neu"], "missing": [...]}.
@@ -312,7 +325,7 @@ static func _fmt(v: float) -> String:
 static func save(text: String, file_name: String) -> String:
 	if OS.has_feature("web"):
 		JavaScriptBridge.download_buffer(text.to_utf8_buffer(), file_name, "text/plain")
-		return "Download: " + file_name
+		return I18n.t("Download: ") + file_name
 	var dir := OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS)
 	if dir == "" or not DirAccess.dir_exists_absolute(dir) or OS.has_feature("mobile"):
 		dir = ProjectSettings.globalize_path("user://export")
@@ -320,7 +333,7 @@ static func save(text: String, file_name: String) -> String:
 	var path := dir.path_join(file_name)
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
-		return "Speichern fehlgeschlagen"
+		return I18n.t("Speichern fehlgeschlagen")
 	f.store_string(text)
 	f.close()
 	return path

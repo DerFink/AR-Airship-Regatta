@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Profilname „Platte … mm“ übersetzt, Dezimalzeichen je Sprache
 # 2026-11-11 08:20 – Reynoldszahl wird aus Fahrt und mittlerer Tiefe bestimmt (Re = v·c/ν) statt pauschal 10⁵; Profilwerte (Grundwiderstand, Abriss, Auftriebsanstieg dicker Profile) hängen von Re ab
 # 2026-11-11 07:20 – Profil: flache Platte (Dicke in mm) oder symmetrisches NACA 00xx (Dicke in % der Tiefe) – wirkt auf Auftriebsanstieg, Abrisswinkel, Weichheit des Abrisses und Grundwiderstand
 # 2026-11-11 10:05 – Eigene Masse je Fläche (mass_kg, für Canards)
@@ -268,7 +269,7 @@ func mean_chord() -> float:
 func profile_name() -> String:
 	if profile_naca:
 		return "NACA 00%02d" % roundi(naca_thickness * 100.0)
-	return ("Platte %.1f mm" % plate_thickness_mm).replace(".0 ", " ").replace(".", ",")
+	return I18n.dec((I18n.t("Platte %.1f mm") % plate_thickness_mm).replace(".0 ", " "))
 
 
 ## Geschätzte Masse der Fläche ohne Servo (kg) bei Schaumdichte rho_foam (kg/m³).

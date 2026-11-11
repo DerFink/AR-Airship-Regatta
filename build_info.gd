@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Version 0.21.0; Versionstext übersetzt
 # 2026-11-11 08:45 – Version 0.20.1
 # 2026-11-11 08:00 – Version 0.20.0
 # 2026-11-11 17:30 – Version 0.19.0
@@ -19,7 +20,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "0.20.1"
+const VERSION := "0.21.0"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)
@@ -29,5 +30,5 @@ const REPO := "DerFink/AR-Airship-Regatta"
 ## Anzeige für das Menü, z. B. "Version 0.9.7 (Build 32)"
 static func text() -> String:
 	if BUILD > 0:
-		return "Version %s (Build %d)" % [VERSION, BUILD]
-	return "Version %s (lokal gebaut)" % VERSION
+		return I18n.t("Version %s (Build %d)") % [VERSION, BUILD]
+	return I18n.t("Version %s (lokal gebaut)") % VERSION

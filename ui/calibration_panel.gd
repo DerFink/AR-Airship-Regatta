@@ -1,3 +1,4 @@
+# 2026-11-11 17:45 – Anleitung als ein Text (übersetzbar); Knüppelfelder-Beschriftung übersetzt
 # 2026-11-11 14:10 – Kanalzuordnung: je Funktion Kanal wählen oder „Anlernen“ (Knüppel/Schalter bewegen → Kanal wird erkannt); Kanalnamen folgen der Zuordnung; 8 Kanäle
 # 2026-11-09 14:10 – Auch Sender mit kleinem Ausschlag (z. B. nur ±60 %) werden erfasst: Knüppel gelten als bewegt, sobald sie je Seite ≥ 30 % über die Mitte hinaus waren; der erreichte Anschlag wird zu 100 %
 # 2026-11-09 14:20 – Erstversion: Fenster „Sender kalibrieren“ nach freigegebenem Entwurf (beide Knüppelfelder, Kanalliste mit Min/Mitte/Max, Status und Richtungsumkehr, Schalterstellungen; Motoren aus, solange offen)
@@ -72,9 +73,7 @@ func _ready() -> void:
 	box.add_child(head)
 
 	# --- Anleitung ------------------------------------------------------------
-	var how := UITheme.make_label("1. Beide Knüppel einmal ganz im Kreis an alle Anschläge, alle Schalter durchschalten.  "
-		+ "2. Knüppel loslassen, Gas in die Mitte → „Mitte übernehmen“.  "
-		+ "3. Läuft ein Punkt verkehrt herum: Kanal auf „umgekehrt“.  4. „Speichern“.")
+	var how := UITheme.make_label("1. Beide Knüppel einmal ganz im Kreis an alle Anschläge, alle Schalter durchschalten.  2. Knüppel loslassen, Gas in die Mitte → „Mitte übernehmen“.  3. Läuft ein Punkt verkehrt herum: Kanal auf „umgekehrt“.  4. „Speichern“.")
 	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	how.custom_minimum_size.x = 1060
 	box.add_child(how)
@@ -227,7 +226,7 @@ func _process(_dt: float) -> void:
 	if not visible or joy == null:
 		return
 	var on := joy.active()
-	_dev.text = ("● %s · Motoren aus" % Input.get_joy_name(joy.device)) if on else "Kein Sender angeschlossen"
+	_dev.text = (I18n.t("● %s · Motoren aus") % Input.get_joy_name(joy.device)) if on else "Kein Sender angeschlossen"
 	# Anlernen: erster Kanal mit deutlicher Bewegung (> 60 %) gehört zur Funktion
 	if _learn != "":
 		for i in JoystickInput.CHANNELS:
@@ -242,7 +241,7 @@ func _process(_dt: float) -> void:
 		var nm := []
 		for fn in JoystickInput.FUNCS:
 			if int(_wmap.get(fn, 0)) - 1 == i: nm.append(SHORT[fn])
-		var t := "CH%d %s" % [i + 1, " + ".join(nm) if not nm.is_empty() else "frei"]
+		var t := I18n.t("CH%d %s") % [i + 1, " + ".join(nm) if not nm.is_empty() else "frei"]
 		if _names[i].text != t: _names[i].text = t
 	# Erfassung: jeder Rohwert erweitert den Bereich seines Kanals
 	for i in JoystickInput.CHANNELS:
@@ -262,7 +261,7 @@ func _process(_dt: float) -> void:
 	var sf := JoystickInput.apply_cal(joy.raw(_wax("arm")), _effective(_wax("arm")))
 	var sc := JoystickInput.apply_cal(joy.raw(_wax("mode")), _effective(_wax("mode")))
 	var sh := JoystickInput.apply_cal(joy.raw(_wax("reset")), _effective(_wax("reset")))
-	_switches.text = "SF: %s     SC: %s     SH: %s" % [
+	_switches.text = I18n.t("SF: %s     SC: %s     SH: %s") % [
 		"oben · scharf" if sf < -0.5 else "unten · aus",
 		"oben · Direkt" if sc < -0.5 else ("unten · Mode 3" if sc > 0.5 else "Mitte · Mode 2"),
 		"oben" if sh < -0.5 else "unten"]
@@ -348,7 +347,7 @@ class StickField extends Control:
 		var fs := UITheme.font_size("body")
 		var cs := UITheme.font_size("caption")
 		var muted := UITheme.color("text_muted")
-		draw_string(font, Vector2(SIDE, 22), title, HORIZONTAL_ALIGNMENT_CENTER, S, fs, UITheme.color("text"))
+		draw_string(font, Vector2(SIDE, 22), I18n.t(title), HORIZONTAL_ALIGNMENT_CENTER, S, fs, UITheme.color("text"))
 		# Hintergrund und Achsen
 		draw_rect(Rect2(SIDE, TOP, S, S), UITheme.color("surface_alt"))
 		draw_line(Vector2(SIDE + S * 0.5, TOP), Vector2(SIDE + S * 0.5, TOP + S), Color(1, 1, 1, 0.15))
@@ -365,7 +364,7 @@ class StickField extends Control:
 		# Jetzige Stellung (gelber Punkt)
 		draw_circle(_pt(cur), 8.0, Color("ffd166"))
 		# Beschriftung der Achsen
-		draw_string(font, Vector2(SIDE, TOP + S + 22), x_label, HORIZONTAL_ALIGNMENT_CENTER, S, cs, muted)
+		draw_string(font, Vector2(SIDE, TOP + S + 22), I18n.t(x_label), HORIZONTAL_ALIGNMENT_CENTER, S, cs, muted)
 		draw_set_transform(Vector2(18, TOP + S * 0.5), -PI * 0.5)
-		draw_string(font, Vector2(-S * 0.5, 0), y_label, HORIZONTAL_ALIGNMENT_CENTER, S, cs, muted)
+		draw_string(font, Vector2(-S * 0.5, 0), I18n.t(y_label), HORIZONTAL_ALIGNMENT_CENTER, S, cs, muted)
 		draw_set_transform(Vector2.ZERO)

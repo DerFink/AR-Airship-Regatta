@@ -1,0 +1,112 @@
+# Testi della pagina «Fondamenti del simulatore» (BBCode). Schede separate da una riga @@@:
+# Fisica, Modello del dirigibile, Regolatore (PID), Batteria, Info / licenza. Variabili {VERSION} e {CONTACT}.
+[b]Equazioni del moto (6 gradi di libertà)[/b]
+Il dirigibile è un corpo rigido con 3 traslazioni e 3 rotazioni. Il simulatore calcola negli assi corpo (origine nel centro di spinta, prua in avanti) a 60 passi al secondo:
+
+[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
+(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+
+m, I: massa e inerzia del dirigibile (involucro, gas portante, motori, batteria, pinne)
+M_a, I_a: masse e inerzie aggiunte (virtuali) dell'aria trascinata
+F, T: forze e momenti da peso, spinta aerostatica, scafo, pinne e motori
+
+[b]Masse aggiunte[/b]
+Un dirigibile è leggero quasi quanto l'aria che sposta. Quando accelera deve spingere con sé quest'aria – molto più di lato che in lunghezza. Il simulatore usa i coefficienti di Lamb dell'ellissoide allungato (approccio ATTAS):
+[code]assiale: k1·ρ·V      laterale: k2·ρ·V      rotazione: k'·I_aria[/code]
+Con L/D = 6, k1 ≈ 0,05 e k2 ≈ 0,92: di lato il dirigibile trascina quasi un secondo volume d'aria.
+
+[b]Momento di Munk[/b]
+Le masse aggiunte disuguali danno direttamente l'ultimo termine della seconda equazione, [code]−v × (M_a·v)[/code]. Con un angolo d'incidenza α, approssimativamente
+[code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
+Questo momento allontana ancora di più la prua dal vento – lo scafo da solo è instabile. Poiché lo strato limite in coda ne annulla una parte, il simulatore usa il 60 % del valore teorico.
+
+[b]Pinne e timoni[/b]
+Ogni pinna è una piccola ala con il proprio flusso locale (velocità + rotazione del dirigibile). Portanza secondo Helmbold per piccoli allungamenti, stallo ad angoli grandi; l'effetto del timone dipende dal tipo (flap, interamente mobile, lastra di Depron flessibile). Le pinne dietro il baricentro stabilizzano, i canard davanti destabilizzano.
+
+[b]Pinne profilate e numero di Reynolds[/b]
+Impennaggio e canard possono essere lastre piane (p. es. Depron) o profili simmetrici NACA 00xx (le ultime due cifre = spessore in % della corda; Chewie: NACA 0020). Il comportamento del profilo dipende dal numero di Reynolds, che il simulatore calcola a ogni passo dalla velocità e dalla corda media:
+[code]Re = v · c / ν      (ν = 0,000015 m²/s)[/code]
+Pinna di Chewie (c ≈ 19 cm): 2 m/s → Re ≈ 25 000, 6 m/s → 76 000, 10 m/s → 127 000 – minuscolo rispetto agli aerei (milioni).
+[b]Lastra:[/b] il bordo d'attacco vivo fa separare il flusso presto e di colpo (≈ 14°), quasi indipendentemente da Re. Bordi smussati aumentano la resistenza.
+[b]NACA 00xx:[/b] il bordo arrotondato mantiene il flusso attaccato più a lungo: stallo più tardi e più dolce, tanto più quanto il profilo è spesso (0009 ≈ 18°, 0020 ≈ 24° a Re 10⁵). A basso Re lo strato limite laminare si separa prima – lo stallo arriva un po' prima e i profili spessi perdono un po' di pendenza della portanza.
+[b]Resistenza di base:[/b] cresce con lo spessore e a basso Re (attrito ∝ 1/√Re).
+I valori sono approssimazioni da misure pubblicate a basso numero di Reynolds, trasferite ai piccoli allungamenti delle pinne.
+
+[b]Spinta[/b]
+Ogni motore spinge lungo il proprio asse; i motori orientabili ruotano quest'asse. La spinta cala con la velocità (flusso nell'elica) e con la tensione della batteria. Un motore lontano dal baricentro aggiunge anche un momento.
+
+[b]Peso e spinta aerostatica[/b]
+[code]Spinta = ρ_aria · V · g      (ρ = 1,20 kg/m³)[/code]
+La massa residua (batteria, zavorra) è dimensionata e posizionata in modo che il dirigibile sia leggermente più pesante dell'aria e resti orizzontale. Con il baricentro sotto il centro di spinta, un momento pendolare raddrizza il dirigibile.
+@@@
+[b]Involucro Gertler[/b]
+La forma dell'involucro deriva dalla serie DTMB 58 (Gertler, 1950), realizzata secondo il Gertler Shape Generator di Johannes Eissing. Un polinomio di 6° grado dà il raggio lungo la lunghezza; i parametri sono lunghezza/diametro (L/D), posizione della sezione massima, raggi di prua e di coda e coefficiente prismatico. Volume, superficie, centro di spinta e masse aggiunte derivano dalla forma.
+
+[b]Modelli standard[/b]
+[b]Chewie[/b] – il vero dirigibile da corsa: L/D 6, impennaggio lambda con tre pinne interamente mobili leggere (±50°), due motori orientabili in basso ai lati, flight controller Teensy.
+[b]Albacore Standard[/b] – dal sottomarino USS Albacore, L/D 7,5, impennaggio a croce con flap, due motori in basso ai lati.
+
+[b]Masse[/b]
+Involucro (distribuito sulla superficie), motori e pinne nel punto di montaggio, elettronica e batteria sotto l'involucro. Da questi il simulatore calcola baricentro e momenti d'inerzia; la massa residua viene bilanciata automaticamente.
+
+[b]Dimensione dell'impennaggio[/b]
+Il costruttore controlla il volume dell'impennaggio [code]V_H = S_pinne · braccio / V_involucro[/code]. Se è troppo piccolo, l'impennaggio non riesce a compensare il momento di Munk e compare un avviso.
+
+[b]I tuoi modelli[/b]
+In «Modello e costruzione» → «Costruzione propria» puoi impostare liberamente involucro, impennaggio, propulsione e aspetto. I modelli si possono esportare come file e inviare all'amministratore – i modelli verificati diventano modelli standard per tutti.
+@@@
+[b]Il flight controller virtuale[/b]
+Riproduce il flight controller Teensy (dRehmFlight) del vero Chewie. Misura velocità di rotazione e assetto (come giroscopio e accelerometro) e comanda pinne e motori orientabili. Il gas resta sempre al pilota – il regolatore non modifica mai la spinta.
+
+[b]Regolatore PID[/b]
+[code]u = Kp·e + Ki·∫e dt + Kd·de/dt[/code]
+e è lo scarto tra riferimento e misura. P reagisce subito, I elimina gli scarti permanenti (limitato contro il wind-up), D smorza i cambiamenti rapidi.
+
+[b]Modalità[/b]
+[b]Diretto[/b]: le leve vanno direttamente su pinne e brandeggi, senza regolatore.
+[b]Mode 2[/b]: beccheggio come regolatore d'assetto (leva = angolo voluto, rilasciare = orizzontale), imbardata come regolatore di velocità.
+[b]Mode 3[/b]: come il mode 2, imbardata con regolatore PID di velocità (max. 110 °/s), la protezione del beccheggio limita l'angolo, rollio tramite i motori orientabili.
+
+[b]Mixer[/b]
+Ogni pinna riceve quote di beccheggio e imbardata secondo il suo angolo di montaggio. I motori orientabili prendono il beccheggio insieme e il rollio in senso opposto.
+
+[b]Pilota automatico[/b]
+Il pilota automatico vola l'otto attorno ai piloni con il modello e le impostazioni attuali – solo tramite le leve, come un pilota. Può fallire, p. es. quando la batteria è scarica o il dirigibile perde la traiettoria.
+@@@
+[b]Modello della batteria[/b]
+Predefinita: LiPo 4S, 300 mAh (Chewie).
+
+[b]Tensione sotto carico[/b]
+La tensione a vuoto E dipende dallo stato di carica (tipica curva LiPo per cella). Con la resistenza interna R e la potenza del motore P vale
+[code]V = E − I·R,   I = P(V) / V[/code]
+quindi [code]a·V² + V − E = 0[/code] con [code]a = R·P0 / V0³[/code].
+
+[b]Potenza[/b]
+[code]P_motore ≈ 25 W · (spinta in N)^1,5[/code]   più 2 W per elettronica e servo. Sono ipotesi che possono essere sostituite da misure.
+
+[b]Effetto sul volo[/b]
+Quando la tensione cala, i motori girano più piano: [code]spinta ∝ (V/V0)²[/code]. Una batteria scarica non dà più spinta.
+
+Tempi di volo indicativi (Chewie in linea retta): 30 % di gas ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, tutto gas ≈ 34 s. «Ripristina» ricarica la batteria.
+@@@
+[b]RC Airship Regatta[/b]
+Simulatore open source per dirigibili da corsa fai-da-te. Realizzato con Godot Engine 4.
+
+{VERSION}
+
+[b]Licenza[/b]
+Licenza MIT – © 2026 Erich Fink (DerFink). Il codice sorgente può essere usato, modificato e condiviso liberamente.
+Godot Engine: licenza MIT. Font per il cinese: Noto Sans CJK (SIL Open Font License).
+
+[b]Creato con l'IA[/b]
+Questo programma è nato solo grazie all'IA: codice, modello fisico e testi sono stati creati in dialogo con Claude (IA di Anthropic). L'IA può commettere errori – controlla i risultati, soprattutto gli sketch Teensy esportati: prima del primo volo fai sempre una prova a terra senza eliche.
+
+[b]Fonti[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – forme dell'involucro secondo Gertler (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – base del flight controller Teensy
+
+[b]Contatto[/b]
+{CONTACT}
