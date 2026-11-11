@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – Senderfunktionen f_thr/f_pitch/f_yaw/f_roll für den Stickmode
 # 2026-11-11 14:00 – Kanalzuordnung einstellbar (Funktion → Kanal 1…8, wird mit der Kalibrierung gespeichert) und Anlernen per Bewegung; Belegung geht auf Wunsch in den .ino-Export
 # 2026-11-09 14:20 – Kalibrierung je Kanal (Min/Mitte/Max, Richtung umkehren), gespeichert in user://sender_kalibrierung.cfg; während der Kalibrierung keine Schalter-Signale
 # 2026-11-08 17:15 – Sender automatisch unter mehreren Geräten finden (Name FrSky/Taranis/EdgeTX oder ausgelenkte Schalterkanäle), alle 0,5 s neu prüfen
@@ -56,7 +57,7 @@ const INVERT_THROTTLE := false
 const CHANNELS := 8
 ## Funktionen und ihre Standard-Kanäle (1-basiert) – Belegung des Simulator-Modells
 const FUNCS := ["yaw", "pitch", "thr", "roll", "arm", "mode", "reset"]
-const FUNC_NAMES := {"yaw": "Gier (Seite)", "pitch": "Nick (Höhe)", "thr": "Gas", "roll": "Rolle (linker Knüppel)",
+const FUNC_NAMES := {"yaw": "Gier (Seite)", "pitch": "Nick (Höhe)", "thr": "Gas", "roll": "Rolle",
 	"arm": "Armed / Motorfreigabe", "mode": "Modus-Schalter", "reset": "Zurücksetzen (nur Simulator)"}
 const DEFAULT_MAP := {"yaw": 1, "pitch": 2, "thr": 3, "roll": 4, "arm": 5, "mode": 6, "reset": 7}
 ## Aktuelle Zuordnung Funktion → Kanal (1-basiert)
@@ -86,6 +87,12 @@ var calibrating := false:
 var device := -1                    ## Godot-Gerätenummer, −1 = kein Sender
 var left := Vector2.ZERO            ## wie der linke Bildschirmknüppel (x = Rolle, y = Gas)
 var right := Vector2.ZERO           ## wie der rechte Bildschirmknüppel (x = Gier, y = Nick)
+## Senderfunktionen −1…+1 (Gas, Nick, Gier, Rolle) – daraus baut der Flugcontroller
+## je nach Stickmode die Knüppel
+var f_thr := 0.0
+var f_pitch := 0.0
+var f_yaw := 0.0
+var f_roll := 0.0
 var _arm_state := -1                ## −1 = unbekannt, 0 = oben, 1 = unten
 var _arm_seen_off := false          ## SF war seit dem Einstecken mindestens einmal oben
 var _mode_state := -1
@@ -133,6 +140,7 @@ func _pick_device() -> void:
 		return
 	_arm_state = -1; _arm_seen_off = false; _mode_state = -1; _reset_state = -1
 	left = Vector2.ZERO; right = Vector2.ZERO
+	f_thr = 0.0; f_pitch = 0.0; f_yaw = 0.0; f_roll = 0.0
 	if device >= 0:
 		connected.emit(Input.get_joy_name(device))
 	else:
@@ -157,6 +165,8 @@ func _process(dt: float) -> void:
 	var roll := value(axis("roll"))
 	left = Vector2(_dz(roll), _dz(thr))                # Gas: Mitte = Stopp
 	right = Vector2(_dz(yaw), _dz(pitch))
+	# Funktionen (unabhängig vom Stickmode – der Sender liefert sie je Kanal)
+	f_thr = _dz(thr); f_pitch = _dz(pitch); f_yaw = _dz(yaw); f_roll = _dz(roll)
 
 	if calibrating:
 		return                                       # Kalibrierung: Schalter lösen nichts aus

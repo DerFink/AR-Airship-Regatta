@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – „Alle Einstellungen zurücksetzen“ stellt auch den Stickmode auf Mode 4
 # 2026-11-11 14:40 – Geplatzte Hülle: Meldung, Rennen und Autopilot beendet; Einstellungen Platzen an das Schiff
 # 2026-11-11 17:45 – Meldungen (Ziel, Bestenliste, Autopilot-Stopp) übersetzt
 # 2026-11-11 16:40 – Werkstatt-Musik außerhalb des Flugs, Bodenspur (CourseTrack), Einstellungen-Fenster (Musik, Motorklang, Spur)
@@ -451,6 +452,9 @@ func _physics_process(dt: float) -> void:
 func reset_all_settings() -> void:
 	fc.armed = false
 	fc.reset_to_defaults(ship.fc_gains)
+	fc.stick_mode = FlightController.STICK_MODE_DEFAULT  # Standard: Mode 4 (Gas links, Nick + Gier rechts)
+	fc.save_settings()
+	fc.stick_mode_changed.emit()
 	FcBlocks.clear()                                  # Bausteine wieder alle an (Werte sind jetzt Werkseinstellung)
 	course.set_course(0, 25.0)
 	reset_ship()

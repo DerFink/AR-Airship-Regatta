@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – Stickmode 1–4 (gleiche Einstellung wie beim Sender-Kalibrieren)
 # 2026-11-07 23:00 – Mischer-Werte aus FlightController.MIX_PARAMS (Namen wie im Teensy-Code)
 # 2026-11-07 20:45 – Modi Direkt / Mode 2 / Mode 3 mit Kurzbeschreibung; Nick-Sollwert: Max-Winkel, Mode-3-Nickrate, Rückkehr, Vorlauf (Ruheband und Gas-Anpassung entfallen); Anzeigeformat je Regler (z. B. 0,0014)
 # 2026-10-29 03:38 – Knopf „Alle Einstellungen zurücksetzen“ mit Rückfrage; linke Spalte wird beim Öffnen neu aufgebaut
@@ -150,10 +151,10 @@ func _fill_left() -> void:
 	_left_box.add_child(UITheme.make_label("Stick-Belegung", "MutedLabel"))
 	var sm := OptionButton.new()
 	sm.custom_minimum_size.y = UITheme.size("control_height")
-	sm.add_item("Mode 2: links Gas")
-	sm.add_item("Mode 1: links Nick")
-	sm.select(0 if fc.stick_mode == 2 else 1)
-	sm.item_selected.connect(func(k): fc.stick_mode = 2 if k == 0 else 1; fc.save_settings())
+	for m in [1, 2, 3, 4]:
+		sm.add_item(FlightController.stick_mode_text(m), m)
+	sm.select(sm.get_item_index(fc.stick_mode))
+	sm.item_selected.connect(func(k): fc.stick_mode = sm.get_item_id(k); fc.save_settings(); fc.stick_mode_changed.emit())
 	_left_box.add_child(sm)
 	# Nick-Sollwert (Mode 2: Winkel, Mode 3: Rate mit Grenzen)
 	_left_box.add_child(UITheme.make_title("Nick-Sollwert"))

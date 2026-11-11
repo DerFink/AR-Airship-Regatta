@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – set_stick_functions statt fester Knüppelbelegung
 # 2026-11-09 13:20 – Knüppel-Verzögerung "lag" (Physikschritte) für robuste Ergebnisse
 # 2026-11-09 13:10 – Ausgabe h_rms (Höhenschwankung um die Sollhöhe)
 # 2026-11-09 12:30 – FEHLER BEHOBEN: "mode" ist jetzt die Modusnummer wie am Sender (1 = Direkt, 2 = Mode 2, 3 = Mode 3). Vorher wurde sie direkt als enum genommen: "mode":3 war ungültig und flog wie Mode 2, "mode":2 war Mode 3
@@ -395,7 +396,7 @@ func _step(r: Dictionary, dt: float) -> void:
 		if r.q.size() > lag: r.q.pop_front()
 		fc.set_sticks(e[0], e[1])
 	else:
-		fc.set_sticks(Vector2(0, thr), Vector2(yaw, pitch_stick))
+		fc.set_stick_functions(thr, pitch_stick, yaw)
 	# Rundenwertung mit der echten Streckenlogik (Bug-Position)
 	var nose: Vector3 = s.global_transform * Vector3(0, 0, -s.hull.cb_from_nose) - r.off
 	var course: Course = r.course

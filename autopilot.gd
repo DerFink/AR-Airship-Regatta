@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – Autopilot gibt Funktionen vor (unabhängig vom Stickmode)
 # 2026-11-11 16:00 – Acht als statische Funktion figure_eight() (auch für die Bodenspur)
 # 2026-11-10 21:30 – Umbenannt zu Autopilot (ersetzt den Demo-Flug): fliegt live die aktuelle Strecke mit dem aktuellen Modell und den aktuellen Reglerwerten; kann scheitern (Akku leer, Bahn verloren) und meldet das per Signal failed
 # 2026-11-09 17:00 – Demo fliegt mit den echten Reglerwerten (Teensy-Werkseinstellung, Mode 3), Flugweise dafür neu optimiert (12,3 s)
@@ -132,7 +133,7 @@ func _physics_process(dt: float) -> void:
 	# Höhe halten (Nickknüppel nach hinten = Nase hoch = negatives y):
 	# Sollhöhe h_target, Verstärkung auf Höhenfehler h_kp und Steigrate h_kd
 	var pitch_stick := clampf(-(FLY.h_kp * (FLY.h_target - p3.y) - FLY.h_kd * ship.linear_velocity.y), -1.0, 1.0)
-	fc.set_sticks(Vector2(0, thr), Vector2(clampf(yaw_cmd, -1.0, 1.0), pitch_stick))
+	fc.set_stick_functions(thr, pitch_stick, clampf(yaw_cmd, -1.0, 1.0))   # unabhängig vom Stickmode
 
 
 ## Sollbahn: Acht aus Kreisen um beide Pylone mit tangentialen Diagonalen

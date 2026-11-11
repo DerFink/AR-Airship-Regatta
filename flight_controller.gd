@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – Stickmode 1–4 nach heli-planet-Nomenklatur (Standard Mode 4: Gas+Rolle links, Nick+Gier rechts); Funktionen ↔ Knüppel über STICK_LAYOUT; alte Einstellungen werden umgerechnet
 # 2026-11-11 13:00 – actuator_table(): Stellglieder mit Einbauwinkel und Richtungen für den parametrischen .ino-Export
 # 2026-11-11 10:00 – Modell-Regler aus dem Modell-String (gen = Mischer/Vorsteuerung) übernehmen; Stick-Mode bleibt beim Piloten
 # 2026-11-10 23:45 – Ohne eingebauten Teensy (Baukasten) gilt immer „Direkt“
@@ -101,7 +102,27 @@ var settings_outdated := true
 ## Stick-Belegung. Gier liegt IMMER auf dem rechten Knüppel (links/rechts).
 ##   Mode 2 (Standard): links hoch/runter = Gas,  rechts hoch/runter = Nick
 ##   Mode 1:            links hoch/runter = Nick, rechts hoch/runter = Gas
-@export_range(1, 2, 1) var stick_mode: int = 2
+## Stickmode nach der üblichen Nomenklatur (heli-planet.com, Mode 1–4):
+## welche Funktion liegt auf [links waagrecht, links senkrecht, rechts waagrecht, rechts senkrecht].
+## „roll“ = Rolle (nur im Direkt-Modus), „yaw“ = Gier/Seite, „pitch“ = Nick/Höhe, „thr“ = Gas.
+const STICK_LAYOUT := {
+	1: ["yaw", "pitch", "roll", "thr"],    # links Nick + Gier, rechts Gas + Rolle
+	2: ["yaw", "thr", "roll", "pitch"],    # links Gas + Gier, rechts Nick + Rolle
+	3: ["roll", "pitch", "yaw", "thr"],    # links Nick + Rolle, rechts Gas + Gier
+	4: ["roll", "thr", "yaw", "pitch"],    # links Gas + Rolle, rechts Nick + Gier (Standard)
+}
+const STICK_MODE_DEFAULT := 4
+const FN_NAMES := {"thr": "Gas", "pitch": "Nick", "yaw": "Gier", "roll": "Rolle"}
+## Stickmode wurde umgestellt (Beschriftungen nachziehen)
+signal stick_mode_changed
+
+
+## „Mode 4 · links Gas + Rolle · rechts Nick + Gier“ (übersetzt)
+static func stick_mode_text(m: int) -> String:
+	var lay: Array = STICK_LAYOUT[m]
+	return I18n.t("Mode %d · links %s + %s · rechts %s + %s") % [m,
+		I18n.t(FN_NAMES[lay[1]]), I18n.t(FN_NAMES[lay[0]]), I18n.t(FN_NAMES[lay[3]]), I18n.t(FN_NAMES[lay[2]])]
+@export_range(1, 4, 1) var stick_mode: int = STICK_MODE_DEFAULT
 
 # --- Nick-Sollwert (Teensy: maxPitch und MODE3_PITCH_*) -------------------------
 ## Größter Nick-Sollwinkel bei vollem Knüppel (maxPitch, Mode 2) bzw. Grenze des
@@ -326,14 +347,38 @@ func _notification(what: int) -> void:
 func set_sticks(left: Vector2, right: Vector2) -> void:
 	stick_left = left
 	stick_right = right
-	cmd_yaw = expo(right.x, yaw_expo)     # Gier: immer rechts, links/rechts, mit Expo
-	cmd_aux = left.x                      # Mode 1: Rolle
+	var fn := stick_functions(left, right)
+	cmd_yaw = expo(fn.yaw, yaw_expo)      # Gier mit Expo
+	cmd_aux = fn.roll                     # Rolle (Direkt-Modus)
+	cmd_throttle = fn.thr
 	# Nick wie beim RC-Sender: Knüppel nach vorn (hoch) = Nase runter,
 	# Knüppel zu sich ziehen = Nase hoch. Deshalb das Minus.
-	if stick_mode == 1:
-		cmd_pitch = -left.y; cmd_throttle = right.y
-	else:                                 # Mode 2 (Standard)
-		cmd_throttle = left.y; cmd_pitch = -right.y
+	cmd_pitch = -fn.pitch
+
+
+## Knüppelstellungen → Funktionen (nach dem eingestellten Stickmode).
+func stick_functions(left: Vector2, right: Vector2) -> Dictionary:
+	var lay: Array = STICK_LAYOUT.get(stick_mode, STICK_LAYOUT[STICK_MODE_DEFAULT])
+	var vals := [left.x, left.y, right.x, right.y]
+	var fn := {}
+	for i in 4:
+		fn[lay[i]] = vals[i]
+	return fn
+
+
+## Funktionen → Knüppelstellungen (für Sender, Tastatur und Autopilot, die
+## Funktionen liefern; die Bildschirmknüppel zeigen sie dann richtig an).
+func sticks_for(thr: float, pitch: float, yaw: float, roll := 0.0) -> Array[Vector2]:
+	var lay: Array = STICK_LAYOUT.get(stick_mode, STICK_LAYOUT[STICK_MODE_DEFAULT])
+	var fn := {"thr": thr, "pitch": pitch, "yaw": yaw, "roll": roll}
+	return [Vector2(fn[lay[0]], fn[lay[1]]), Vector2(fn[lay[2]], fn[lay[3]])]
+
+
+## Funktionen direkt vorgeben (Sender, Tastatur, Autopilot).
+func set_stick_functions(thr: float, pitch: float, yaw: float, roll := 0.0) -> Array[Vector2]:
+	var s := sticks_for(thr, pitch, yaw, roll)
+	set_sticks(s[0], s[1])
+	return s
 
 
 ## Expo wie am RC-Sender: feinfühlig um die Mitte, Vollausschlag unverändert.
@@ -344,9 +389,9 @@ static func expo(x: float, e: float) -> float:
 
 ## Beschriftung der Knüppel für das HUD (passt sich dem Stick-Mode an).
 func stick_labels() -> Array[String]:
-	if stick_mode == 1:
-		return ["Nick", "Gas · Gier"]
-	return ["Gas", "Nick · Gier"]
+	var lay: Array = STICK_LAYOUT.get(stick_mode, STICK_LAYOUT[STICK_MODE_DEFAULT])
+	# senkrecht zuerst: „Gas · Rolle“, „Nick · Gier“ …
+	return [FN_NAMES[lay[1]] + " · " + FN_NAMES[lay[0]], FN_NAMES[lay[3]] + " · " + FN_NAMES[lay[2]]]
 
 
 # =============================================================================
@@ -697,6 +742,7 @@ func save_settings() -> void:
 	for k in GENERAL_KEYS:
 		cfg.set_value("general", k, get(k))
 	cfg.set_value("general", "preset", preset)
+	cfg.set_value("general", "stick_nomenklatur", 2)   # 2 = Mode 1–4 nach heli-planet
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -705,7 +751,12 @@ func load_settings() -> void:
 	if cfg.load(SETTINGS_PATH) != OK:
 		return
 	settings_outdated = int(cfg.get_value("general", "version", 1)) < SETTINGS_VERSION
-	stick_mode = cfg.get_value("general", "stick_mode", stick_mode)
+	stick_mode = int(cfg.get_value("general", "stick_mode", stick_mode))
+	# Bis 0.22: 2 = Gas links/Nick+Gier rechts (heute Mode 4), 1 = Nick links (heute Mode 3)
+	if int(cfg.get_value("general", "stick_nomenklatur", 1)) < 2:
+		stick_mode = 4 if stick_mode != 1 else 3
+	if not STICK_LAYOUT.has(stick_mode):
+		stick_mode = STICK_MODE_DEFAULT
 	if settings_outdated:
 		return                    # alte Reglerwerte passen nicht zum neuen Regler
 	for a in params:

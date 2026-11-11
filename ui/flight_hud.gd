@@ -1,3 +1,4 @@
+# 2026-11-11 15:20 – Sender und Tastatur liefern Funktionen, Anzeige auf den Knüppeln nach Stickmode 1–4
 # 2026-11-11 17:45 – Knüppel-Beschriftung, Akku- und Fahrtanzeige übersetzt (Dezimalzeichen je Sprache); bei Sprachwechsel neu beschriftet
 # 2026-11-11 00:00 – Knopf „Perspektive“ immer gleich beschriftet (gewählte Sicht kurz als Hinweis); ohne Teensy nur „Direkt“; Tastatursteuerung
 # 2026-11-10 21:45 – Neue Knopfreihe oben (alles in einer Reihe): Modi · Autopilot · Perspektive (Pilot am Start → Hinterher → Hinterher + Lage) · Zurücksetzen · Armed · Menü; „Menü“ öffnet direkt „Modell & Bau“; Reglerwahl, Location- und Demo-Knöpfe sowie das alte Menü entfernt; Kalibrierfenster per open_calibration()
@@ -185,6 +186,8 @@ func _ready() -> void:
 	for s in [stick_left, stick_right]:
 		add_child(s)
 	_refresh_stick_captions()
+	if fc:
+		fc.stick_mode_changed.connect(_refresh_stick_captions)
 
 	# --- Hinweis-Banner unten mittig ---------------------------------------
 	_banner = UITheme.make_banner(360)
@@ -208,6 +211,7 @@ func _ready() -> void:
 	# Fenster „Sender kalibrieren“ (über allem; geöffnet von der Startseite)
 	_calib = CalibrationPanel.new()
 	_calib.joy = _joy
+	_calib.fc = fc
 	add_child(_calib)
 	# Tastenkürzel grau auf den Knöpfen (nur wo es eine Tastatur gibt)
 	if has_keyboard():
@@ -300,10 +304,13 @@ func _refresh_stick_captions() -> void:
 	stick_left.caption = I18n.t(labels[0])
 	stick_right.caption = I18n.t(labels[1])
 	if has_keyboard():                               # Tasten dazuschreiben
-		var kt := "W/S"
-		var kp := "↑↓ ←→"
-		stick_left.caption += "  (%s)" % (kp if fc.stick_mode == 1 else kt)
-		stick_right.caption += "  (%s)" % (kt + " ←→" if fc.stick_mode == 1 else kp)
+		# Tasten je Funktion; Rolle hat keine Taste
+		var keys := {"thr": "W/S", "pitch": "↑↓", "yaw": "←→", "roll": ""}
+		var lay: Array = FlightController.STICK_LAYOUT.get(fc.stick_mode, FlightController.STICK_LAYOUT[4])
+		var kl: String = (keys[lay[1]] + " " + keys[lay[0]]).strip_edges()
+		var kr: String = (keys[lay[3]] + " " + keys[lay[2]]).strip_edges()
+		stick_left.caption += "  (%s)" % kl
+		stick_right.caption += "  (%s)" % kr
 
 
 ## Akku-Anzeige: oben Zellen und Spannung, Balken = Ladezustand (grün → gelb →
@@ -366,15 +373,10 @@ func _keyboard(dt: float) -> bool:
 			_kb_used = false
 	if not _kb_used:
 		return false
-	var thr := Vector2(0, _kb_throttle)
-	var stk := Vector2(_kb_yaw, _kb_pitch)
-	var left := thr
-	var right := stk
-	if fc.stick_mode == 1:                           # Mode 1: Nick links, Gas rechts
-		left = Vector2(0, _kb_pitch); right = Vector2(_kb_yaw, _kb_throttle)
-	fc.set_sticks(left, right)
-	stick_left.show_external(left)
-	stick_right.show_external(right)
+	# Tasten liefern Funktionen; der Stickmode legt fest, welcher Knüppel sie zeigt
+	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw)
+	stick_left.show_external(ks[0])
+	stick_right.show_external(ks[1])
 	return true
 
 
@@ -418,9 +420,11 @@ func _process(dt: float) -> void:
 		elif _keyboard(dt):
 			pass                                      # Tastatur steuert (Bildschirmknüppel zeigen sie)
 		elif _joy and _joy.active():
-			fc.set_sticks(_joy.left, _joy.right)      # Sender angeschlossen: er steuert
-			stick_left.show_external(_joy.left)       # Bildschirmknüppel zeigen die Senderknüppel
-			stick_right.show_external(_joy.right)
+			# Sender angeschlossen: er liefert Funktionen, der Stickmode legt fest,
+			# auf welchem Bildschirmknüppel sie angezeigt werden
+			var js := fc.set_stick_functions(_joy.f_thr, _joy.f_pitch, _joy.f_yaw, _joy.f_roll)
+			stick_left.show_external(js[0])
+			stick_right.show_external(js[1])
 		else:
 			fc.set_sticks(stick_left.value, stick_right.value)
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen

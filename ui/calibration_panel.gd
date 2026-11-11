@@ -1,3 +1,4 @@
+# 2026-11-11 15:30 – Stickmode 1–4 wählbar (Standard Mode 4); Knüppelfelder zeigen die Funktionen nach dem Stickmode
 # 2026-11-11 17:45 – Anleitung als ein Text (übersetzbar); Knüppelfelder-Beschriftung übersetzt
 # 2026-11-11 14:10 – Kanalzuordnung: je Funktion Kanal wählen oder „Anlernen“ (Knüppel/Schalter bewegen → Kanal wird erkannt); Kanalnamen folgen der Zuordnung; 8 Kanäle
 # 2026-11-09 14:10 – Auch Sender mit kleinem Ausschlag (z. B. nur ±60 %) werden erfasst: Knüppel gelten als bewegt, sobald sie je Seite ≥ 30 % über die Mitte hinaus waren; der erreichte Anschlag wird zu 100 %
@@ -34,6 +35,8 @@ const SHORT := {"yaw": "Seite", "pitch": "Höhe", "thr": "Gas", "roll": "Rolle",
 const STICKS := ["yaw", "pitch", "thr", "roll"]
 
 var joy: JoystickInput
+var fc: FlightController                 ## für den Stickmode (Mode 1–4)
+var _mode_btns := {}                     ## Stickmode → Knopf
 
 var _panel: PanelContainer
 var _dev: Label
@@ -77,6 +80,20 @@ func _ready() -> void:
 	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	how.custom_minimum_size.x = 1060
 	box.add_child(how)
+
+	# --- Stickmode (Mode 1–4 nach heli-planet-Nomenklatur), Standard Mode 4 ---
+	box.add_child(UITheme.make_label("Stickmode (gilt für Sender-Anzeige, Bildschirmknüppel und Tastatur)", "MutedLabel"))
+	var modes := UITheme.make_hbox("xs")
+	var grp := ButtonGroup.new()
+	for m in [1, 2, 3, 4]:
+		# dreizeilig („Mode 4“ / „links …“ / „rechts …“), damit das Fenster nicht breiter wird
+		var b := UITheme.make_button(FlightController.stick_mode_text(m).replace(" · ", "\n"), true)
+		b.button_group = grp
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(func(): _set_stick_mode(m))
+		modes.add_child(b)
+		_mode_btns[m] = b
+	box.add_child(modes)
 
 	# --- Mitte: Knüppelfelder links, Kanalliste rechts ------------------------
 	var mid := UITheme.make_hbox("lg")
@@ -161,6 +178,7 @@ func show_panel() -> void:
 	_work = joy.cal.duplicate(true)
 	_wmap = JoystickInput.fmap.duplicate()
 	_learn = ""
+	_sync_stick_mode()
 	for fn in _map_opts:
 		_map_opts[fn].select(int(_wmap[fn]) - 1)
 		_learn_btns[fn].text = "Anlernen"
@@ -255,8 +273,9 @@ func _process(_dt: float) -> void:
 		_rows[i].status.text = "✓" if ok else "noch bewegen"
 		_rows[i].status.modulate = UITheme.color("success") if ok else UITheme.color("warning")
 	# Knüppelfelder (Rohwerte; bei Umkehr gespiegelt, damit man die Richtung sieht)
-	_fill_field(_left, _wax("roll"), _wax("thr"))
-	_fill_field(_right, _wax("yaw"), _wax("pitch"))
+	var lay: Array = _stick_layout()
+	_fill_field(_left, _wax(lay[0]), _wax(lay[1]))
+	_fill_field(_right, _wax(lay[2]), _wax(lay[3]))
 	# Schalterstellungen im Klartext (mit der Arbeitskopie umgerechnet)
 	var sf := JoystickInput.apply_cal(joy.raw(_wax("arm")), _effective(_wax("arm")))
 	var sc := JoystickInput.apply_cal(joy.raw(_wax("mode")), _effective(_wax("mode")))
@@ -322,6 +341,32 @@ func _layout() -> void:
 # =============================================================================
 # StickField – ein Knüppelweg als Quadrat (−1…+1 in beiden Richtungen)
 # =============================================================================
+## aktuelle Knüppelbelegung [links x, links y, rechts x, rechts y]
+func _stick_layout() -> Array:
+	var m := fc.stick_mode if fc else FlightController.STICK_MODE_DEFAULT
+	return FlightController.STICK_LAYOUT.get(m, FlightController.STICK_LAYOUT[FlightController.STICK_MODE_DEFAULT])
+
+
+func _set_stick_mode(m: int) -> void:
+	if fc:
+		fc.stick_mode = m
+		fc.save_settings()
+		fc.stick_mode_changed.emit()
+	_sync_stick_mode()
+
+
+## Knöpfe und Beschriftung der Knüppelfelder nach dem Stickmode
+func _sync_stick_mode() -> void:
+	var m := fc.stick_mode if fc else FlightController.STICK_MODE_DEFAULT
+	for k in _mode_btns:
+		_mode_btns[k].set_pressed_no_signal(k == m)
+	var lay := _stick_layout()
+	var names := FlightController.FN_NAMES
+	_left.x_label = names[lay[0]]; _left.y_label = names[lay[1]]
+	_right.x_label = names[lay[2]]; _right.y_label = names[lay[3]]
+	_left.queue_redraw(); _right.queue_redraw()
+
+
 class StickField extends Control:
 	var title := ""
 	var x_label := ""
