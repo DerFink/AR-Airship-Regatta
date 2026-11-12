@@ -1,3 +1,4 @@
+# 2026-11-12 20:45 – Knopf „Zurücksetzen“ (zwischen Einstellungen und Teilen) mit Auswahl: Luftschiff, Regler, Sender, Knüppelbelegung + Strecke
 # 2026-11-12 12:50 – Zahlenfelder statt Schieberegler (Regler nur noch für Lagen); Volumen ohne Obergrenze; Hüllenmasse berechnet (Folie g/m² + 7 %); Flossen/Canards: Gewichtsvorschlag Depron + Pauschale, eigenes Gewicht überschreibt (Vorschlag ausgegraut); Propeller in Zoll/cm/mm ab 2 cm; Rennfaktor F7B bei den Kennwerten; Schrift/Logo auch aufs Leitwerk; Logo laden im Browser über die Dateiauswahl des Geräts, am Handy aus Download/Bilder
 # 2026-11-11 19:45 – Bug-/Hecklastigkeit: Ansicht pendelt auf den Hängewinkel, roter Hinweis ab 2°; Stabilitätsmaß und Leitwerkswarnung nur im Reiter Leitwerk, Kennwerte rechts nur Maße und Masse
 # 2026-11-11 17:50 – Knopf „⚙ Einstellungen“ über „Teilen“
@@ -43,6 +44,8 @@ signal closed
 signal share_requested
 signal view_reset_requested
 signal settings_requested          ## ⚙ → Einstellungen
+## „Zurücksetzen“: opts = {"ship", "fc", "sender", "sticks"} (je true/false), main.gd führt aus
+signal reset_requested(opts: Dictionary)
 signal pid_requested              ## Regler (PID) einstellen – aus dem Reiter Flight Controller
 ## Für ruhige Töne: "add", "select", "remove", "ok", "warn"
 signal ui_action(kind: String)
@@ -89,6 +92,9 @@ const PROP_FACTOR := [1.0, 2.54, 25.4]
 var _last_level := -1
 var _file_dialog: FileDialog
 var _factor_lbl: Label                ## „Rennfaktor F7B ×0,72“ unter den Kennwerten
+var _reset_dlg: Control               ## Fenster „Zurücksetzen“ (Auswahl mit Häkchen)
+var _reset_checks := {}               ## "ship"/"fc"/"sender"/"sticks" → CheckBox
+var _reset_ship_lbl: Label            ## Beschriftung „Dieses Luftschiff („Chewie“)“
 var _left: PanelContainer
 var _right: PanelContainer
 
@@ -151,6 +157,10 @@ func _ready() -> void:
 	b_set.add_theme_constant_override("icon_max_width", 24)
 	b_set.pressed.connect(func(): settings_requested.emit())
 	rcol.add_child(b_set)
+	# Zurücksetzen: Auswahl, was wieder wie ab Werk sein soll (Fenster _reset_dlg)
+	var b_reset := UITheme.make_button("Zurücksetzen")
+	b_reset.pressed.connect(_open_reset)
+	rcol.add_child(b_reset)
 	var share := UITheme.make_button("Teilen")
 	share.pressed.connect(func(): ui_action.emit("select"); share_requested.emit())
 	rcol.add_child(share)
@@ -985,6 +995,87 @@ func _refresh() -> void:
 		visual.set_validation_level(r.level)
 	_preview.queue_redraw()
 	_layout.call_deferred()
+
+
+# =============================================================================
+# Fenster „Zurücksetzen“
+# =============================================================================
+#   ┌ Zurücksetzen ────────────────────────────────────────────┐
+#   │ Was soll wieder wie ab Werk sein?                         │
+#   │ [✓] Dieses Luftschiff („Chewie“)   Hülle, Leitwerk, …     │
+#   │ [✓] Regler                         PID, Bausteine, Angle  │
+#   │ [ ] Sender                         Kalibrierung, Zuordnung│
+#   │ [ ] Knüppelbelegung und Strecke    Mode 4 · Hugo Eckener  │
+#   │ Bleibt erhalten: Bestenliste, eigene Modelle, Sprache …   │
+#   │              [Abbrechen]  [Zurücksetzen]                  │
+#   └───────────────────────────────────────────────────────────┘
+func _open_reset() -> void:
+	if _reset_dlg == null:
+		_build_reset_dlg()
+	_reset_ship_lbl.text = I18n.t("Dieses Luftschiff („%s“)") % ship.model_name
+	for k in _reset_checks:
+		_reset_checks[k].button_pressed = k == "ship" or k == "fc"     # Vorauswahl
+	_reset_dlg.visible = true
+
+
+func _build_reset_dlg() -> void:
+	_reset_dlg = ColorRect.new()
+	(_reset_dlg as ColorRect).color = Color(0, 0, 0, 0.6)
+	_reset_dlg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_reset_dlg.visible = false
+	add_child(_reset_dlg)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_reset_dlg.add_child(center)
+	var panel := UITheme.make_panel(600)
+	center.add_child(panel)
+	var v := UITheme.make_vbox("sm")
+	panel.add_child(v)
+	v.add_child(UITheme.make_title("Zurücksetzen"))
+	v.add_child(UITheme.make_label("Was soll wieder wie ab Werk sein?", "MutedLabel"))
+	var items := [
+		["ship", "", "Hülle, Leitwerk, Antrieb, Massen und Optik wie das Standardmodell. Bei eigenen Modellen: letzter gespeicherter Stand."],
+		["fc", "Regler", "PID-Werte des Modells, Bausteine alle an, Flugmodus Angle"],
+		["sender", "Sender", "Kalibrierung, Umkehr und Kanalzuordnung – danach neu kalibrieren"],
+		["sticks", "Knüppelbelegung und Strecke", "Mode 4 (Gas links) · FN Hugo Eckener Cup"]]
+	for it in items:
+		var row := UITheme.make_hbox("sm")
+		var cb := CheckBox.new()
+		cb.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.add_child(cb)
+		var col := UITheme.make_vbox("xs")
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var t := UITheme.make_label(it[1])
+		if it[0] == "ship": _reset_ship_lbl = t
+		col.add_child(t)
+		var d := UITheme.make_label(it[2], "MutedLabel")
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+		col.add_child(d)
+		row.add_child(col)
+		# ganze Zeile antippbar
+		t.mouse_filter = Control.MOUSE_FILTER_STOP
+		t.gui_input.connect(func(e): if e is InputEventMouseButton and e.pressed: cb.button_pressed = not cb.button_pressed)
+		_reset_checks[it[0]] = cb
+		v.add_child(row)
+	var keep := UITheme.make_label("Bleibt erhalten: Bestenliste, eigene Modelle, Sprache, Lautstärke", "MutedLabel")
+	keep.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	keep.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	v.add_child(keep)
+	var btns := UITheme.make_hbox("md")
+	var b_no := UITheme.make_button("Abbrechen")
+	b_no.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_no.pressed.connect(func(): _reset_dlg.visible = false)
+	var b_yes := UITheme.make_primary_button(tr("Zurücksetzen"))
+	b_yes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_yes.pressed.connect(func():
+		var opts := {}
+		for k in _reset_checks: opts[k] = _reset_checks[k].button_pressed
+		_reset_dlg.visible = false
+		reset_requested.emit(opts))
+	btns.add_child(b_no)
+	btns.add_child(b_yes)
+	v.add_child(btns)
 
 
 ## Rennfaktor aus dem Boxmaß des sichtbaren Modells (wie vor dem Rennen gemessen).

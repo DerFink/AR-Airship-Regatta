@@ -1,3 +1,4 @@
+# 2026-11-12 20:45 – _reset_selected(): Baukasten-Knopf „Zurücksetzen“ (Luftschiff, Regler, Sender, Knüppelbelegung + Strecke einzeln)
 # 2026-11-12 11:00 – Modell & Bau erfährt, ob ein Flug begonnen wurde (Weiterfliegen / Rückfrage)
 # 2026-11-12 10:40 – Platzen nicht mehr abschaltbar (Grundregel)
 # 2026-11-12 10:05 – Platz-Grenze nicht mehr aus den Einstellungen (fest 20 km/h)
@@ -375,6 +376,7 @@ func _build_ui() -> void:
 		fc.apply_model_gains(ship.fc_gains)
 	builder.closed.connect(func(): _set_view(View.HUB))
 	builder.share_requested.connect(func(): _set_view(View.SHARE))
+	builder.reset_requested.connect(_reset_selected)
 	builder.pid_requested.connect(func(): _pid_back = View.BUILD; _set_view(View.PID))
 	builder.view_reset_requested.connect(reset_view)
 	builder.ui_action.connect(ui_sounds.chime)
@@ -484,6 +486,51 @@ func _physics_process(dt: float) -> void:
 		_update_race_box()
 		ship.config_changed.connect(_update_race_box)
 	hud.set_race_text(course.race_text(), course.hint_text())
+
+
+## Knopf „Zurücksetzen“ im Baukasten: nur die gewählten Teile wie ab Werk.
+##   ship   – Luftschiff neu aus der Modell-Liste (Standardmodell bzw. letzter
+##            gespeicherter Stand eines eigenen Modells)
+##   fc     – Regler: Werkseinstellung + PID-Vorgaben des Modells, Bausteine an,
+##            Flugmodus Angle; die Knüppelbelegung bleibt
+##   sender – Kalibrierung, Umkehr und Kanalzuordnung
+##   sticks – Knüppelbelegung Mode 4 und Strecke FN Hugo Eckener Cup
+## Bestenliste, eigene Modelle, Sprache und Lautstärke bleiben immer.
+func _reset_selected(opts: Dictionary) -> void:
+	fc.armed = false
+	var done := []
+	if opts.get("ship", false):
+		for e in AirshipPresets.list():
+			if e.name == ship.model_name:
+				e.build.call(ship)
+				ship.model_applied.emit()             # übernimmt auch die PID-Vorgaben des Modells
+				builder._sync_from_ship()             # Eingabefelder des Baukastens nachziehen
+				done.append(tr("Luftschiff"))
+				break
+	if opts.get("fc", false):
+		var sm := fc.stick_mode
+		fc.reset_to_defaults(ship.fc_gains)
+		fc.stick_mode = sm                            # Knüppelbelegung gehört dem Piloten
+		fc.save_settings()
+		FcBlocks.clear()
+		pid._sync()
+		done.append(tr("Regler"))
+	if opts.get("sender", false):
+		var joy := hud._joy
+		JoystickInput.fmap = JoystickInput.DEFAULT_MAP.duplicate()
+		if joy:
+			joy.cal = JoystickInput.default_cal()
+			joy.save_cal()
+		done.append(tr("Sender"))
+	if opts.get("sticks", false):
+		fc.stick_mode = FlightController.STICK_MODE_DEFAULT
+		fc.save_settings()
+		fc.stick_mode_changed.emit()
+		course.set_course(0, 25.0)
+		done.append(tr("Knüppelbelegung und Strecke"))
+	reset_ship()
+	if done.size() > 0:
+		hud.show_notice(tr("Zurückgesetzt: ") + ", ".join(done), "info", 2.5)
 
 
 ## Knopf „Alle Einstellungen zurücksetzen“ (PID-Menü): Flugcontroller auf
