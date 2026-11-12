@@ -1,3 +1,4 @@
+# 2026-11-12 22:30 – compact_theme(): kleinere Schrift für den Baukasten
 # 2026-11-12 11:30 – Neu: make_number_row() (Zahlenfeld mit −/+), set_row_value()
 # 2026-11-12 10:50 – Neu: make_primary_button() (fett, blauer Rand) für Weiterfliegen und „Dieses Luftschiff fliegen“
 # 2026-11-11 17:45 – Wertanzeige der Schieberegler: Einheit übersetzt, Dezimalzeichen je Sprache
@@ -121,6 +122,21 @@ static func box(bg: Color, border := Color(0, 0, 0, 0), r := -1, pad := -1) -> S
 # =============================================================================
 # Godot-Theme aus den Tokens
 # =============================================================================
+## Kleinere Schrift für dichte Seiten (Baukasten, Wunsch 12.11.2026): Kopie des
+## App-Themes, alle Schriftgrößen × k (Standard 0,85 → Fließtext 19 → 16 px).
+static var _compact: Theme
+static func compact_theme(k := 0.85) -> Theme:
+	if _compact:
+		return _compact
+	var t: Theme = build_theme().duplicate(true)
+	t.default_font_size = roundi(font_size("body") * k)
+	for type in t.get_font_size_type_list():
+		for name in t.get_font_size_list(type):
+			t.set_font_size(name, type, roundi(t.get_font_size(name, type) * k))
+	_compact = t
+	return t
+
+
 static func build_theme() -> Theme:
 	if _theme:
 		return _theme

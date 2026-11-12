@@ -1,3 +1,4 @@
+# 2026-11-12 22:30 – Kleinere Schrift (compact_theme); Anzahl Flossen immer wählbar (andere Zahl → Anordnung „gleichmäßig“)
 # 2026-11-13 03:10 – Flossen einzeln einstellen (Bauart fest/Klappe/Pendel, Fläche, Streckung, Pfeilung, Klappentiefe, Ausschlag; symmetrisch); Restmasse in den Kennwerten
 # 2026-11-12 23:10 – Reiter „Steuerung“ (statt Flight Controller): ① Mischer (Tabelle von Hand, Vorschlag aus Einbaulage) ② FC einbauen ③ Regler ④ Bausteine (Untermenü); ohne FC ausgegraut; Teensy-Sketch nur noch unter „Admin“; Leitwerk 2–10 Flossen, Klappentiefe; Motor „schwenkbar“ + Abstand zur Hülle; Akku an eigener Stelle; Name + Kurzbeschreibung; beginnt bei der Hülle
 # 2026-11-12 20:45 – Knopf „Zurücksetzen“ (zwischen Einstellungen und Teilen) mit Auswahl: Luftschiff, Regler, Sender, Knüppelbelegung + Strecke
@@ -114,6 +115,7 @@ func setup(airship: AirshipPhysics, airship_visual: AirshipVisual) -> void:
 
 
 func _ready() -> void:
+	theme = UITheme.compact_theme()                     # kleinere Schrift im Baukasten (Wunsch 12.11.2026)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE      # Mitte bleibt frei für Drehen/Zoomen
 
@@ -121,7 +123,7 @@ func _ready() -> void:
 	_left = UITheme.make_panel(UITheme.size("panel_side_width"))
 	add_child(_left)
 	var tabs := TabContainer.new()
-	tabs.add_theme_font_size_override("font_size", 15)          # fünf Reiter passen nebeneinander
+	tabs.add_theme_font_size_override("font_size", 14)          # fünf Reiter passen nebeneinander
 	tabs.clip_tabs = false                                      # alle Reiter immer sichtbar (Seitenleiste wird breit genug)
 	_left.add_child(tabs)
 	tabs.add_child(_scroll_page("Hülle", _build_hull_page))
@@ -404,9 +406,15 @@ func _fill_tail_page() -> void:
 	_tail_box.add_child(UITheme.make_label("Anordnung (von hinten gesehen)", "MutedLabel"))
 	_tail_box.add_child(UITheme.make_choice_row(TailConfig.LAYOUT_NAMES, t.layout,
 		func(i): t.layout = i; _tail_changed(true)))
+	# Anzahl Flossen immer wählbar: bei +, ×, Y, λ ist sie durch die Anordnung
+	# fest – eine andere Zahl stellt auf „gleichmäßig“ um
+	_tail_box.add_child(UITheme.make_stepper("Anzahl Flossen (2–10)", 2, 10, t.angles().size(),
+		func(v):
+			if t.layout != TailConfig.Layout.EVEN:
+				t.layout = TailConfig.Layout.EVEN
+			t.count = v
+			_tail_changed(true), LABEL_W))
 	if t.layout == TailConfig.Layout.EVEN:
-		_tail_box.add_child(UITheme.make_stepper("Anzahl Flossen (2–10)", 2, 10, maxi(t.count, 2),
-			func(v): t.count = v; _tail_changed(false), LABEL_W))
 		_tail_box.add_child(UITheme.make_slider_row("Drehung", 0.0, 359.0, 1.0, t.rotation_deg,
 			func(v): t.rotation_deg = v; _tail_changed(false), "%d°"))
 	elif t.layout == TailConfig.Layout.Y or t.layout == TailConfig.Layout.LAMBDA:
