@@ -1,3 +1,4 @@
+# 2026-11-13 03:30 – Modusknöpfe nach Index der eigenen Modi
 # 2026-11-11 03:00 – wartet, bis main.gd fertig aufgebaut ist (Ladeanzeige)
 # 2026-11-11 01:50 – Baukasten mit Boxmaß-Ecke (Bild), Nutzlast, Akku, ohne Teensy nur Direkt
 # 2026-11-10 22:30 – Erstversion: neue Ansichten – Startseite, Modell & Bau, Grundlagen, Autopilot, Perspektiven, Sprachwechsel; speichert auf Wunsch Bildschirmfotos (Argument --shots=<Ordner>, braucht echte Grafik)
@@ -124,7 +125,7 @@ func _process(_dt: float) -> bool:
 	if f == 1292:
 		main.hub.closed.emit()
 	if f == 1298:
-		print("Ohne Teensy: Mode-3-Knopf gesperrt=%s, Direkt gedrückt=%s" % [main.hud._mode_btns[FlightController.Mode.MODE3].disabled, main.hud._mode_btns[FlightController.Mode.DIRECT].button_pressed])
+		print("Ohne Teensy: Mode-3-Knopf gesperrt=%s, Direkt gedrückt=%s" % [main.hud._mode_btns[main.fc.modes.size() - 1].disabled, main.hud._mode_btns[0].button_pressed])
 		AirshipPresets.chewie(main.ship)
 		print("ENDE")
 		return true

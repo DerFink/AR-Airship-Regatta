@@ -1,3 +1,4 @@
+# 2026-11-13 03:30 – Modusknopf: letzter der eigenen Modi (Standard 2 Modi)
 # 2026-11-13 02:45 – PID-Menü: Mitte heißt _mid_box (neuer Aufbau)
 # 2026-11-11 03:00 – wartet, bis main.gd fertig aufgebaut ist (Ladeanzeige)
 # 2026-11-10 14:35 – Strecke: Abstand jetzt per course.set_distance (Zahlenfeld statt Schieberegler)
@@ -25,7 +26,7 @@ func _process(_dt: float) -> bool:
 	f += 1
 	match f:
 		5:
-			main.hud._mode_btns[FlightController.Mode.MODE3].emit_signal("pressed")   # Schalter testen
+			main.hud._mode_btns[main.fc.modes.size() - 1].emit_signal("pressed")   # Schalter testen (letzter Modus)
 			print("Modus nach Schalter: ", FlightController.MODE_NAMES[main.fc.mode])
 			main.fc.mode = FlightController.Mode.MODE2
 			main.hud._btn_arm.button_pressed = true          # Motoren an über den Schalter
