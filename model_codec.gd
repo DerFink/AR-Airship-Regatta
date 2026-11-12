@@ -1,3 +1,4 @@
+# 2026-11-13 02:00 – Leitwerk: Flossen einzeln (ind, sym, fcfg)
 # 2026-11-12 22:55 – Mischer von Hand im Modell-String (mix)
 # 2026-11-12 22:35 – Leitwerk: bis 10 Flossen, Klappentiefe (tail.flap)
 # 2026-11-12 22:20 – Akku-Lage (bo, bxa) im Modell-String
@@ -136,7 +137,8 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 	# Symmetrisches Leitwerk als Beschreibung (nicht Flosse für Flosse)
 	if ship.tail:
 		var t := ship.tail
-		data["tail"] = {"lay": int(t.layout), "cnt": t.count, "flap": t.flap_chord_ratio, "v": t.v_angle_deg, "rot": t.rotation_deg,
+		data["tail"] = {"lay": int(t.layout), "cnt": t.count, "flap": t.flap_chord_ratio,
+			"ind": t.individual, "sym": t.symmetric, "fcfg": t.fin_cfg, "v": t.v_angle_deg, "rot": t.rotation_deg,
 			"k": int(t.kind), "area": t.area_m2, "split": t.split_hv, "ah": t.area_h_m2, "av": t.area_v_m2,
 			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex,
 			"naca": t.profile_naca, "tk": t.naca_thickness, "pmm": t.plate_thickness_mm}
@@ -264,6 +266,9 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		t.area_h_m2 = td.ah; t.area_v_m2 = td.av; t.aspect_ratio = td.ar; t.taper = td.tp
 		t.hull_x = td.tx; t.max_deflection_deg = td.defl; t.pseudo_flex = td.flex
 		t.flap_chord_ratio = float(td.get("flap", 0.3))
+		t.individual = bool(td.get("ind", false))
+		t.symmetric = bool(td.get("sym", true))
+		t.fin_cfg = (td.get("fcfg", []) as Array).duplicate(true)
 		t.profile_naca = td.naca; t.naca_thickness = td.tk; t.plate_thickness_mm = td.pmm
 		ship.tail = t
 
@@ -344,6 +349,19 @@ static func _txt(src: Dictionary, key: String, def: String, max_len: int) -> Str
 	return str(v).left(max_len) if v is String else def
 
 
+## Einzel-Einstellungen der Leitwerksflossen prüfen (höchstens 10, Werte begrenzt).
+static func _fin_cfgs(v) -> Array:
+	var out := []
+	if not v is Array:
+		return out
+	for c in (v as Array).slice(0, 10):
+		if not c is Dictionary: continue
+		out.append({"area": clampf(_num(c, "area", 0.08), 0.0005, 50.0), "ar": clampf(_num(c, "ar", 1.5), 0.3, 6.0),
+			"tp": clampf(_num(c, "tp", 1.0), 0.2, 1.0), "kind": clampi(int(_num(c, "kind", 1)), 0, 2),
+			"flap": clampf(_num(c, "flap", 0.3), 0.1, 0.6), "defl": clampf(_num(c, "defl", 25.0), 0.0, 80.0)})
+	return out
+
+
 static func _flag(src: Dictionary, key: String, def: bool) -> bool:
 	var v = src.get(key, def)
 	return v if v is bool else def
@@ -419,6 +437,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 	if td is Dictionary:
 		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 10),
 			"flap": clampf(_num(td, "flap", 0.3), 0.1, 0.6),
+			"ind": _flag(td, "ind", false), "sym": _flag(td, "sym", true), "fcfg": _fin_cfgs(td.get("fcfg", [])),
 			"v": _num(td, "v", 45.0), "rot": _num(td, "rot", 0.0), "k": clampi(int(_num(td, "k", 0)), 0, 2),
 			"area": _num(td, "area", 0.08), "split": _flag(td, "split", false),
 			"ah": _num(td, "ah", 0.08), "av": _num(td, "av", 0.08), "ar": _num(td, "ar", 1.5),

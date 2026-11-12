@@ -1,3 +1,4 @@
+# 2026-11-13 00:50 – Modus-Kanal je nach Anzahl der Flugmodi (1–5) in gleich große Bereiche geteilt
 # 2026-11-11 15:20 – Senderfunktionen f_thr/f_pitch/f_yaw/f_roll für den Stickmode
 # 2026-11-11 14:00 – Kanalzuordnung einstellbar (Funktion → Kanal 1…8, wird mit der Kalibrierung gespeichert) und Anlernen per Bewegung; Belegung geht auf Wunsch in den .ino-Export
 # 2026-11-09 14:20 – Kalibrierung je Kanal (Min/Mitte/Max, Richtung umkehren), gespeichert in user://sender_kalibrierung.cfg; während der Kalibrierung keine Schalter-Signale
@@ -37,6 +38,12 @@ signal disconnected
 signal arm_switched(armed: bool)
 ## Schalter SC umgelegt: 0 = Mode 1 (Direkt), 1 = Mode 2, 2 = Mode 3
 signal mode_switched(mode: int)
+## Anzahl der Flugmodi (vom Flugcontroller) – so viele Bereiche hat der Modus-Kanal
+var mode_count := 2:
+	set(v):
+		if v != mode_count:
+			mode_count = v
+			_mode_state = -1                 # neu einteilen und Stellung gleich melden
 ## Schalter SH nach oben gelegt: Luftschiff zurücksetzen (an den Start)
 signal reset_switched
 
@@ -181,8 +188,11 @@ func _process(dt: float) -> void:
 		elif _arm_seen_off:
 			arm_switched.emit(true)                  # nur nach echtem Umlegen von unten nach oben
 	# Schalter SC: oben / Mitte / unten
+	# Modus-Kanal in so viele gleich große Bereiche teilen, wie Modi angelegt sind
+	# (3 Modi: SC oben / Mitte / unten; 4–5 Modi: Mehrstufen-Schalter oder Drehregler)
 	var mv := value(axis("mode"))
-	var m := 0 if mv < -0.5 else (2 if mv > 0.5 else 1)
+	var n := clampi(mode_count, 1, 5)
+	var m := clampi(int(floor((mv + 1.0) * 0.5 * n)), 0, n - 1)
 	if m != _mode_state:
 		_mode_state = m
 		mode_switched.emit(m)

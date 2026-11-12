@@ -1,3 +1,4 @@
+# 2026-11-13 02:00 – fixed: feste Flosse ohne Ruder (Finne)
 # 2026-11-12 11:45 – Vorgeschlagenes Gewicht: Depron 120 g/m² (profiliert 2 Lagen) + Pauschale 2–5 g je nach Fläche; mass_auto (von Hand eingetragenes Gewicht nur, wenn aus)
 # 2026-11-11 17:45 – Profilname „Platte … mm“ übersetzt, Dezimalzeichen je Sprache
 # 2026-11-11 08:20 – Reynoldszahl wird aus Fahrt und mittlerer Tiefe bestimmt (Re = v·c/ν) statt pauschal 10⁵; Profilwerte (Grundwiderstand, Abriss, Auftriebsanstieg dicker Profile) hängen von Re ab
@@ -61,6 +62,8 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 @export_range(0.0, 50.0, 0.001, "or_greater") var mass_kg: float = 0.0
 ## true = Masse nach suggested_mass_kg() (Depron + Pauschale), false = mass_kg
 @export var mass_auto: bool = true
+## Feste Flosse ohne Ruder (Finne): bekommt keine Stellbefehle
+@export var fixed: bool = false
 @export var tail_member: bool = false
 ## true = fester Turm unter/über der Hülle (wie beim U-Boot): ohne Ruder,
 ## wird aus den Turm-Einstellungen von AirshipPhysics neu erzeugt.

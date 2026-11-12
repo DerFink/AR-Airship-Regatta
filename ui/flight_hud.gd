@@ -1,3 +1,4 @@
+# 2026-11-13 00:50 – Modusknöpfe aus den Flugmodi des Piloten (1–5, frei benannt), Tasten 1–5, Modus-Kanal in N Bereiche
 # 2026-11-11 20:05 – Zählt, womit gesteuert wird (Sender/Tastatur/Touch) für „gespielt mit“ in der Bestenliste
 # 2026-11-11 17:50 – Knopf ⚙ (Einstellungen) neben „Menü“
 # 2026-11-11 16:35 – Rundenzeiten rechts oben (RacePanel) mit Gesamtzeit und gewerteter Zeit (F7B); oben links nur noch nächster Kontrollpunkt
@@ -67,7 +68,8 @@ var _laps: Label                          ## Hinweis unter der Telemetrie (vor d
 ## Womit wurde gesteuert? (Bildzahl je Eingabe, für „gespielt mit“ in der Bestenliste)
 var input_frames := {"Sender": 0, "Tastatur": 0, "Touch": 0}
 var race_panel: RacePanel                 ## Rundenzeiten, Gesamt- und gewertete Zeit (rechts oben)
-var _mode_box: HBoxContainer             ## Modusschalter oben Mitte
+var _mode_box: HBoxContainer
+var _mode_btn_box: HBoxContainer            ## Knöpfe der Flugmodi (1–5)             ## Modusschalter oben Mitte
 var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
 var _btn_auto: Button                     ## Autopilot
@@ -128,17 +130,12 @@ func _ready() -> void:
 	# Beim Umschalten erklärt ein kurzes Banner, was die Knüppel jetzt tun.
 	_mode_box = UITheme.make_hbox("xs")
 	add_child(_mode_box)
-	var grp := UITheme.make_toggle_group()
-	for md in [FlightController.Mode.DIRECT, FlightController.Mode.MODE2, FlightController.Mode.MODE3]:
-		var b := UITheme.make_pill(FlightController.MODE_NAMES[md], true)
-		b.toggle_mode = true
-		b.button_group = grp
-		b.pressed.connect(func():
-			if fc:
-				fc.mode = md
-				show_notice(FlightController.MODE_HINTS[md], "info", 3.0))
-		_mode_box.add_child(b)
-		_mode_btns[md] = b
+	# Ein Knopf je Flugmodus des Piloten (1–5, Namen aus dem Reglermenü)
+	_mode_btn_box = UITheme.make_hbox("xs")
+	_mode_box.add_child(_mode_btn_box)
+	_rebuild_mode_buttons()
+	if fc:
+		fc.modes_changed.connect(_rebuild_mode_buttons)
 
 	# --- Gleich daneben: Autopilot und Perspektive (alle Knöpfe in einer Reihe) ---
 	var gap := Control.new()                   # kleiner Abstand zwischen den Gruppen
@@ -221,9 +218,9 @@ func _ready() -> void:
 		if fc: fc.armed = on)
 	_joy.reset_switched.connect(func(): reset_requested.emit())   # SH oben = Zurücksetzen
 	_joy.mode_switched.connect(func(m):
-		if fc and int(fc.mode) != m:
-			fc.mode = m
-			show_notice(FlightController.MODE_HINTS[m], "info", 3.0))
+		if fc and fc.mode_index != m and m < fc.modes.size():
+			fc.mode_index = m
+			show_notice(fc.mode_hint(m), "info", 3.0))
 
 	# Fenster „Sender kalibrieren“ (über allem; geöffnet von der Startseite)
 	_calib = CalibrationPanel.new()
@@ -232,12 +229,35 @@ func _ready() -> void:
 	add_child(_calib)
 	# Tastenkürzel grau auf den Knöpfen (nur wo es eine Tastatur gibt)
 	if has_keyboard():
-		for pair in [[_mode_btns[FlightController.Mode.DIRECT], "1"], [_mode_btns[FlightController.Mode.MODE2], "2"],
-				[_mode_btns[FlightController.Mode.MODE3], "3"], [_btn_auto, "A"], [_btn_persp, "P"],
+		for pair in [[_btn_auto, "A"], [_btn_persp, "P"],
 				[b_reset, "R"], [_btn_arm, "Space"], [b_menu, "M"]]:
 			_key_hint(pair[0], pair[1])
 	resized.connect(_layout)
 	_layout.call_deferred()
+
+
+## Modusknöpfe neu aufbauen (Anzahl/Namen im Reglermenü geändert).
+func _rebuild_mode_buttons() -> void:
+	for c in _mode_btn_box.get_children():
+		_mode_btn_box.remove_child(c)
+		c.queue_free()
+	_mode_btns.clear()
+	if fc == null:
+		return
+	var grp := UITheme.make_toggle_group()
+	for i in fc.modes.size():
+		var b := UITheme.make_pill(str(fc.modes[i].get("name", "Modus %d" % (i + 1))), true)
+		b.toggle_mode = true
+		b.button_group = grp
+		var idx := i
+		b.pressed.connect(func():
+			if fc:
+				fc.mode_index = idx
+				show_notice(fc.mode_hint(idx), "info", 3.0))
+		_mode_btn_box.add_child(b)
+		_mode_btns[i] = b
+		if has_keyboard() and i < 5:
+			_key_hint(b, str(i + 1))
 
 
 # =============================================================================
@@ -420,9 +440,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_btn_arm.button_pressed = not _btn_arm.button_pressed
 		KEY_R:
 			reset_requested.emit()
-		KEY_1, KEY_2, KEY_3:
-			var md: int = [FlightController.Mode.DIRECT, FlightController.Mode.MODE2, FlightController.Mode.MODE3][event.physical_keycode - KEY_1]
-			if not _mode_btns[md].disabled:
+		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5:
+			var md: int = event.physical_keycode - KEY_1
+			if _mode_btns.has(md) and not _mode_btns[md].disabled:
 				_mode_btns[md].emit_signal("pressed")
 		KEY_P:
 			_btn_persp.emit_signal("pressed")
@@ -467,10 +487,13 @@ func _process(dt: float) -> void:
 			_btn_arm.set_pressed_no_signal(fc.armed)
 			_btn_arm.text = tr("Armed") if fc.armed else tr("Disarmed")
 		var teensy: bool = ship == null or ship.fc_teensy
+		if _joy: _joy.mode_count = fc.modes.size()
 		for mm in _mode_btns:                         # Stellung nachziehen (auch nach PID-Menü)
-			# ohne Teensy (Baukasten) nur „Direkt“: Mode 2/3 gesperrt
-			_mode_btns[mm].disabled = not teensy and int(mm) != int(FlightController.Mode.DIRECT)
-			var on: bool = (int(fc.mode) == int(mm)) if teensy else int(mm) == int(FlightController.Mode.DIRECT)
+			if mm >= fc.modes.size(): continue
+			# ohne FC (Baukasten) nur Modi der Art „Direkt“
+			var is_direct: bool = str(fc.modes[mm].get("art", "")) == "direkt"
+			_mode_btns[mm].disabled = not teensy and not is_direct
+			var on: bool = fc.mode_index == mm
 			if _mode_btns[mm].button_pressed != on:
 				_mode_btns[mm].set_pressed_no_signal(on)
 	_update_battery()

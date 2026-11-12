@@ -1,3 +1,4 @@
+# 2026-11-13 02:45 – PID-Menü: Mitte heißt _mid_box (neuer Aufbau)
 # 2026-11-11 03:00 – wartet, bis main.gd fertig aufgebaut ist (Ladeanzeige)
 # 2026-11-10 14:35 – Strecke: Abstand jetzt per course.set_distance (Zahlenfeld statt Schieberegler)
 # 2026-11-07 23:30 – Reglerwert heißt jetzt wie im Teensy-Code (Kp)
@@ -47,7 +48,7 @@ func _process(_dt: float) -> bool:
 			print("Editor-Zeilen für Motor: ", main.builder._editor_box.get_child_count())
 			main._set_view(main.View.PID)
 		260:
-			print("PID-Regler-Zeilen: ", main.pid._gain_box.get_child_count())
+			print("PID-Zeilen (Mitte): ", main.pid._mid_box.get_child_count())
 			main.fc.set_param(FlightController.Axis.PITCH, "Kp", 1.2)
 			print("Kp Nick = ", main.fc.get_param(FlightController.Axis.PITCH, "Kp"))
 			main.pid.emit_signal("reset_all_requested")

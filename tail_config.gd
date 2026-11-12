@@ -1,3 +1,4 @@
+# 2026-11-13 02:00 – Flossen einzeln einstellen (individual, fin_cfg: Fläche, Streckung, Pfeilung, Bauart fest/Klappe/Pendel, Klappentiefe, Ausschlag), symmetrisch gekoppelt
 # 2026-11-12 22:35 – 2–10 Flossen (gleichmäßig); Klappentiefe flap_chord_ratio für Ruderklappen
 # 2026-11-11 07:25 – Profil (Platte/NACA, Dicke) für alle Leitwerksflossen
 # 2026-11-07 23:00 – größter Ausschlag bis 80° (Chewie ±50°)
@@ -53,6 +54,40 @@ const LAYOUT_NAMES := ["+", "×", "Y", "λ", "gleichm."]
 @export_range(0.0, 80.0, 1.0) var max_deflection_deg: float = 25.0
 ## Ruderklappe: Klappentiefe als Anteil der Flossentiefe (nur Bauart Ruderklappe)
 @export_range(0.1, 0.6, 0.01) var flap_chord_ratio: float = 0.30
+## Flossen einzeln einstellen (z. B. λ mit kleiner fester Finne oben). Dann gilt
+## fin_cfg je Flosse (Reihenfolge wie angles()):
+##   {"area": m², "ar": Streckung, "tp": Pfeilung, "kind": 0 fest · 1 Klappe · 2 Pendel,
+##    "flap": Klappentiefe, "defl": Ausschlag max (Grad)}
+@export var individual: bool = false
+## Gegenüberliegende Flossen (spiegelbildlich, Winkel 360° − a) gemeinsam ändern
+@export var symmetric: bool = true
+@export var fin_cfg: Array = []
+
+
+## Einstellungen einer Flosse aus den gemeinsamen Werten (Start für „einzeln“).
+func common_cfg(angle_deg: float) -> Dictionary:
+	return {"area": area_for(angle_deg), "ar": aspect_ratio, "tp": taper,
+		"kind": 2 if kind == ControlSurface.Kind.ALL_MOVING else 1,
+		"flap": flap_chord_ratio, "defl": max_deflection_deg}
+
+
+## fin_cfg auf die aktuelle Flossenzahl bringen (neue Flossen: gemeinsame Werte).
+func ensure_fin_cfg() -> void:
+	var a := angles()
+	while fin_cfg.size() < a.size():
+		fin_cfg.append(common_cfg(a[fin_cfg.size()]))
+	if fin_cfg.size() > a.size():
+		fin_cfg = fin_cfg.slice(0, a.size())
+
+
+## Index der spiegelbildlichen Flosse (Winkel 360° − a) oder −1.
+func mirror_of(i: int) -> int:
+	var a := angles()
+	var target := fposmod(360.0 - a[i], 360.0)
+	for j in a.size():
+		if j != i and absf(angle_difference(deg_to_rad(a[j]), deg_to_rad(target))) < 0.02:
+			return j
+	return -1
 @export var pseudo_flex: bool = false
 ## Profil aller Flossen: NACA 00xx (true) oder flache Platte (false)
 @export var profile_naca: bool = true
@@ -110,7 +145,11 @@ static func fin_name(angle_deg: float) -> String:
 ## AirshipPhysics.rebuild_mass_properties()).
 func generate() -> Array[ControlSurface]:
 	var out: Array[ControlSurface] = []
-	for a in angles():
+	if individual:
+		ensure_fin_cfg()
+	var al := angles()
+	for i in al.size():
+		var a: float = al[i]
 		var s := ControlSurface.new()
 		s.display_name = fin_name(a)
 		s.kind = kind
@@ -127,5 +166,20 @@ func generate() -> Array[ControlSurface]:
 		s.profile_naca = profile_naca
 		s.naca_thickness = naca_thickness
 		s.plate_thickness_mm = plate_thickness_mm
+		if individual:
+			# je Flosse eigene Fläche, Streckung, Pfeilung, Bauart und Ausschlag
+			var c: Dictionary = fin_cfg[i]
+			s.area_m2 = float(c.get("area", s.area_m2))
+			s.aspect_ratio = float(c.get("ar", s.aspect_ratio))
+			s.taper = float(c.get("tp", s.taper))
+			s.flap_chord_ratio = float(c.get("flap", s.flap_chord_ratio))
+			s.max_deflection_deg = float(c.get("defl", s.max_deflection_deg))
+			match int(c.get("kind", 1)):
+				0:                                   # fest (Finne ohne Ruder)
+					s.kind = ControlSurface.Kind.FLAP
+					s.fixed = true
+					s.max_deflection_deg = 0.0
+				1: s.kind = ControlSurface.Kind.FLAP
+				2: s.kind = ControlSurface.Kind.ALL_MOVING
 		out.append(s)
 	return out

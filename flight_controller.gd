@@ -1,3 +1,4 @@
+# 2026-11-13 00:30 – Flugmodi des Piloten (1–5, Name + Art: Direkt/Angle/Horizon/PID je Achse Lage oder Drehrate), Rollausgleich je Modus (Höhe und Seite mit dem Rollwinkel umgerechnet), eigene Mischtabelle je Direkt-Modus, Sprung fürs Reglermenü (trigger_step), probe_outputs() für den Signalfluss
 # 2026-11-12 22:55 – Mischer von Hand (mix_table) im Modus Direkt und ohne FC; suggest_mix() = Vorschlag aus der Einbaulage
 # 2026-11-12 09:50 – Stickmode-Korrektur: in 0.26.0 hängengebliebenes „Mode 1“ (Gas rechts) wird einmalig zu Mode 4; Einstellungen tragen jetzt Nomenklatur 5
 # 2026-11-11 19:25 – FEHLER behoben: der umgerechnete Stickmode wurde beim Laden sofort wieder mit dem alten gespeicherten Wert überschrieben (daher immer Gas rechts); Stickmode wird nach dem Laden gespeichert
@@ -76,19 +77,116 @@ class_name FlightController
 extends Node
 
 signal mode_changed(mode: int)
+## Liste der Flugmodi geändert (Anzahl, Name, Art) – HUD baut die Knöpfe neu
+signal modes_changed
+## Gewählter Flugmodus (Index in modes) geändert
+signal mode_index_changed(index: int)
 ## Für die Live-Sprungantwort im PID-Menü (Nick/Roll: Winkel, Gier: Rate).
 signal loop_sample(axis: int, setpoint: float, measurement: float)
 
-enum Mode { DIRECT, MODE2, MODE3 }
-## Namen für Schalter und Menüs
-## Flugmodi wie bei Drohnen (Teensy-Kanal 13: Mode 1/2/3 = Direkt/Angle/Horizon)
-const MODE_NAMES := ["Direkt", "Angle", "Horizon"]
+## Regelart (Rechenweg) eines Flugmodus: DIRECT/MODE2/MODE3 wie im Teensy-Code
+## (Direkt/Angle/Horizon), CUSTOM = frei zusammengestellter PID je Achse.
+enum Mode { DIRECT, MODE2, MODE3, CUSTOM }
+## Namen der Regelarten (Teensy-Kanal 13: Mode 1/2/3 = Direkt/Angle/Horizon)
+const MODE_NAMES := ["Direkt", "Angle", "Horizon", "PID"]
 ## Kurzbeschreibung je Modus (Banner beim Umschalten)
 const MODE_HINTS := [
 	"Direkt: Knüppel direkt auf Ruder und Motorschwenk, Rolle auf dem linken Knüppel",
 	"Angle: Nick und Roll geregelt · Höhe = Nickwinkel bis ±30° · Seite direkt",
 	"Horizon: wie Angle · Höhe = Nickrate 45 °/s · Seite = Gierrate bis 180 °/s",
+	"PID: je Achse frei gewählt – Lage oder Drehrate geregelt, sonst direkt",
 ]
+
+# =============================================================================
+# Flugmodi des Piloten (Wunsch 12.11.2026): 1–5 Modi, jeder mit Name und Art.
+#   art "direkt"  – Knüppel über den Mischer auf Ruder/Schwenker (eigene Tabelle möglich)
+#   art "angle"   – Chewie-Regler Angle (Teensy Mode 2)
+#   art "horizon" – Chewie-Regler Horizon (Teensy Mode 3)
+#   art "pid"     – je Achse: geregelt ja/nein, Lage oder Drehrate, eigene Kp/Ki/Kd
+#   roll_comp     – Rollausgleich: Höhen- und Seitenbefehle werden mit dem
+#                   Rollwinkel (IMU MPU-6050) umgerechnet; bei 90° Rollen übernimmt
+#                   das Höhenleitwerk die Seite und umgekehrt
+# Am Sender wird der Modus-Kanal in so viele gleich große Bereiche geteilt, wie
+# Modi angelegt sind.
+# =============================================================================
+const MAX_MODES := 5
+const ART_ENGINE := {"direkt": Mode.DIRECT, "angle": Mode.MODE2, "horizon": Mode.MODE3, "pid": Mode.CUSTOM}
+var modes: Array = default_modes()
+## Gewählter Flugmodus (Index in modes); setzt die Regelart
+var mode_index := 1:
+	set(v):
+		mode_index = clampi(v, 0, maxi(modes.size() - 1, 0))
+		mode = ART_ENGINE.get(str(modes[mode_index].get("art", "direkt")), Mode.DIRECT)
+		if not _quiet:
+			mode_index_changed.emit(mode_index)
+
+
+## Kurzer Hinweis zum Modus i (Banner beim Umschalten): „Rennen: PID · Nick Lage · …“
+func mode_hint(i: int) -> String:
+	if i < 0 or i >= modes.size():
+		return ""
+	var m: Dictionary = modes[i]
+	var art := str(m.get("art", "direkt"))
+	var txt := ""
+	match art:
+		"direkt": txt = I18n.t(MODE_HINTS[0])
+		"angle": txt = I18n.t(MODE_HINTS[1])
+		"horizon": txt = I18n.t(MODE_HINTS[2])
+		_:
+			var parts := []
+			var ax: Dictionary = m.get("axes", default_axes())
+			for k in ["pitch", "roll", "yaw"]:
+				var a: Dictionary = ax.get(k, {})
+				var nm: String = I18n.t({"pitch": "Nick", "roll": "Roll", "yaw": "Gier"}[k])
+				if not bool(a.get("on", false)):
+					parts.append(nm + " " + I18n.t("direkt"))
+				elif str(a.get("kind", "rate")) == "angle" and k != "yaw":
+					parts.append(nm + " " + I18n.t("Lage"))
+				else:
+					parts.append(nm + " " + I18n.t("Drehrate"))
+			txt = "PID: " + " · ".join(parts)
+	if bool(m.get("roll_comp", false)):
+		txt += " · " + I18n.t("Rollausgleich")
+	return str(m.get("name", "")) + " – " + txt
+
+
+## Werkseinstellung: 2 Modi – Direkt und Angle.
+static func default_modes() -> Array:
+	return [{"name": "Direkt", "art": "direkt", "roll_comp": false},
+		{"name": "Angle", "art": "angle", "roll_comp": false}]
+
+
+## Achsen eines PID-Modus (Werte wie die Chewie-Regler als Startpunkt).
+## kind "angle" = Lage geregelt (Sollwinkel = Knüppel · max in Grad),
+## kind "rate" = Drehrate geregelt (Sollrate = Knüppel · max in °/s).
+static func default_axes(all_on := false) -> Dictionary:
+	return {
+		"pitch": {"on": true, "kind": "angle", "Kp": 0.6, "Ki": 0.4, "Kd": 0.15, "max": 30.0},
+		"roll": {"on": all_on, "kind": "angle", "Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "max": 30.0},
+		"yaw": {"on": true, "kind": "rate", "Kp": 1.0, "Ki": 0.4, "Kd": 0.0, "max": 110.0},
+	}
+
+
+## Einstellungen des aktiven Flugmodus ({} wenn die Regelart von außen gesetzt
+## wurde, z. B. vom Demo-Flug).
+func mode_cfg() -> Dictionary:
+	if mode_index >= 0 and mode_index < modes.size():
+		var m: Dictionary = modes[mode_index]
+		if ART_ENGINE.get(str(m.get("art", "")), -1) == mode:
+			return m
+	return {}
+
+
+## Anzahl der Modi ändern (1–5); neue Modi sind „PID“-Kopien, gekürzt wird hinten.
+func set_mode_count(n: int) -> void:
+	n = clampi(n, 1, MAX_MODES)
+	while modes.size() < n:
+		modes.append({"name": "Modus %d" % (modes.size() + 1), "art": "pid", "roll_comp": false, "axes": default_axes()})
+	while modes.size() > n:
+		modes.pop_back()
+	mode_index = mini(mode_index, n - 1)
+	modes_changed.emit()
+	save_settings()
 enum Axis { ROLL, PITCH, YAW }
 const AXIS_KEYS := {Axis.ROLL: "roll", Axis.PITCH: "pitch", Axis.YAW: "yaw"}
 
@@ -105,7 +203,8 @@ var settings_outdated := true
 		mode = v
 		_reset_integrators()                   # resetControllers(): keine Integrator-Sprünge
 		_pitch_sp_m3 = 0.0
-		mode_changed.emit(v)
+		if not _quiet:
+			mode_changed.emit(v)
 ## Stick-Belegung. Gier liegt IMMER auf dem rechten Knüppel (links/rechts).
 ##   Mode 2 (Standard): links hoch/runter = Gas,  rechts hoch/runter = Nick
 ##   Mode 1:            links hoch/runter = Nick, rechts hoch/runter = Gas
@@ -176,6 +275,21 @@ var _gyro_yaw_prev := 0.0
 var _yaw_acc_f := 0.0    ## gefilterte Drehbeschleunigung (°/s²) für den D-Anteil
 ## Mode 3 Gier-Integral begrenzen (°/s · s) – Ki 1 ⇒ höchstens 0,3 Servoweg
 const I_LIMIT_YAW := 30.0
+# PID-Modus (Art „pid“): Integrale und letzte Drehrate je Achse
+var _cint := {"pitch": 0.0, "roll": 0.0, "yaw": 0.0}
+var _cprev := {"pitch": 0.0, "roll": 0.0, "yaw": 0.0}
+# Sprung fürs Reglermenü: Achse, Höhe (Grad bzw. °/s), Restdauer (s)
+var _step_axis := -1
+var _step_amount := 0.0
+var _step_left := 0.0
+## true während probe_outputs() – keine Messwerte an die Sprungantwort
+var _probing := false
+## true während probe_outputs() – Moduswechsel ohne Signale (Menüs nicht neu aufbauen)
+var _quiet := false
+## true während suggest_mix() – Mischer nach Einbaulage ohne Rollausgleich/Tabellen
+var _suggesting := false
+var _sugg_cache := {}
+var _sugg_key := ""
 
 
 # =============================================================================
@@ -302,7 +416,9 @@ func reset_to_defaults(model_gains: Dictionary) -> void:
 	for k in _factory.general:
 		set(k, _factory.general[k])
 	preset = "teensy"                          # Werkseinstellung = Teensy-Werte
-	mode = Mode.MODE2
+	modes = default_modes()
+	mode_index = 1                             # Angle
+	modes_changed.emit()
 	_reset_integrators()
 	apply_model_gains(model_gains)     # speichert auch
 	save_settings()
@@ -419,15 +535,24 @@ func _physics_process(dt: float) -> void:
 	var gyro_pitch := rad_to_deg(w_b.x)                                 # Nase hoch = +
 	var gyro_yaw := rad_to_deg(-w_b.y)                                  # Gier rechts = +
 
+	if _step_left > 0.0 and not _probing:
+		_step_left -= dt
+
 	# --- getDesState(): Knüppel → Sollwerte -----------------------------------
 	var pitch_des := clampf(cmd_pitch, -1.0, 1.0) * pitch_max_deg      # ±maxPitch (Grad)
 	var yaw_des := clampf(cmd_yaw, -1.0, 1.0) * MAX_YAW                # ±maxYaw
 
 	if mode == Mode.DIRECT or not airship.fc_teensy:   # ohne Teensy kein Regler
-		_mix_direct(pitch_des, yaw_des)
-		loop_sample.emit(Axis.PITCH, deg_to_rad(pitch_des), deg_to_rad(pitch_imu))
-		loop_sample.emit(Axis.ROLL, 0.0, deg_to_rad(roll_imu))
-		loop_sample.emit(Axis.YAW, 0.0, deg_to_rad(gyro_yaw))
+		# Sprung (Reglermenü): wirkt hier ungeregelt auf den Knüppel
+		pitch_des += _step_for(Axis.PITCH)
+		yaw_des += _step_for(Axis.YAW) / 110.0 * MAX_YAW
+		_mix_direct(pitch_des, yaw_des, roll_imu, _step_for(Axis.ROLL) / 30.0)
+		_sample(Axis.PITCH, pitch_des, pitch_imu)
+		_sample(Axis.ROLL, _step_for(Axis.ROLL), roll_imu)
+		_sample(Axis.YAW, _step_for(Axis.YAW), gyro_yaw)
+		return
+	if mode == Mode.CUSTOM:
+		_run_custom(mode_cfg(), dt, pitch_imu, roll_imu, gyro_pitch, gyro_roll, gyro_yaw)
 		return
 
 	# --- rateModeUpdate(): nur Mode 3 -------------------------------------------
@@ -465,12 +590,17 @@ func _physics_process(dt: float) -> void:
 			var acc := (gyro_yaw - _gyro_yaw_prev) / d
 			_yaw_acc_f += (acc - _yaw_acc_f) * clampf(d / 0.02, 0.0, 1.0)
 		_gyro_yaw_prev = gyro_yaw
+		err_yaw += _step_for(Axis.YAW)                                 # Sprung (Reglermenü)
 		yaw_rate_pid = 0.01 * (Y.Kp_yaw_m3 * err_yaw + Y.Ki_yaw_m3 * _int_yaw - Y.Kd_yaw_m3 * _yaw_acc_f)
+	elif _step_for(Axis.YAW) != 0.0:
+		yaw_des += _step_for(Axis.YAW) / maxf(float(Y.yaw_rate_max), 1.0) * MAX_YAW   # Angle: Gier ungeregelt
+	pitch_des += _step_for(Axis.PITCH)                                   # Sprung (Reglermenü)
 
 	# --- controlANGLE(): PID Roll und Nick (Grad, ×0,01) ------------------------
 	var R: Dictionary = params[Axis.ROLL]
 	var P: Dictionary = params[Axis.PITCH]
-	var err_roll := 0.0 - roll_imu                                       # Roll-Sollwert immer 0 (USE_ROLL_STICK = false)
+	var roll_sp := _step_for(Axis.ROLL)                                  # Roll-Sollwert 0 (USE_ROLL_STICK = false), Sprung fürs Menü
+	var err_roll := roll_sp - roll_imu
 	_int_roll = clampf(_int_roll + err_roll * dt, -I_LIMIT, I_LIMIT)
 	var roll_pid: float = 0.01 * (R.Kp * err_roll + R.Ki * _int_roll - R.Kd * gyro_roll)
 	var err_pitch := pitch_des - pitch_imu
@@ -478,9 +608,9 @@ func _physics_process(dt: float) -> void:
 	var pitch_pid: float = 0.01 * (P.Kp * err_pitch + P.Ki * _int_pitch - P.Kd * gyro_pitch)
 	var pitch_pid_sp: float = 0.01 * P.Kp * pitch_des                    # Knüppelanteil (lageunabhängig verteilt)
 
-	loop_sample.emit(Axis.PITCH, deg_to_rad(pitch_des), deg_to_rad(pitch_imu))
-	loop_sample.emit(Axis.ROLL, 0.0, deg_to_rad(roll_imu))
-	loop_sample.emit(Axis.YAW, deg_to_rad(yaw_des / MAX_YAW * Y.yaw_rate_max) if mode == Mode.MODE3 else 0.0, deg_to_rad(gyro_yaw))
+	_sample(Axis.PITCH, pitch_des, pitch_imu)
+	_sample(Axis.ROLL, roll_sp, roll_imu)
+	_sample(Axis.YAW, (yaw_des / MAX_YAW * Y.yaw_rate_max + _step_for(Axis.YAW)) if mode == Mode.MODE3 else 0.0, gyro_yaw)
 
 	# --- controlMixer() / mixServosStabilized() ---------------------------------
 	var ys_m: float = Y.stick_yaw_motor_m3 if mode == Mode.MODE3 else Y.stick_yaw_motor
@@ -518,6 +648,9 @@ func _physics_process(dt: float) -> void:
 	yaw_swivel_scale = 1.0 if lever <= yaw_swivel_full_lever else pow(yaw_swivel_full_lever / lever, 2.0)
 
 	_calibrate()
+	# Rollausgleich (je Modus schaltbar): auch Knüppel-Nick und Gier mit n + Rollwinkel
+	# verteilen – bei 90° Rollen übernimmt das Höhenleitwerk die Seite und umgekehrt
+	var rc := bool(mode_cfg().get("roll_comp", false))
 	# Leitwerke: s = Mitte − (NickKnüppel·sin n + NickStab·sin(n+Roll) + Gier·cos n + Roll)
 	for i in airship.surfaces.size():
 		var srf: ControlSurface = airship.surfaces[i]
@@ -527,8 +660,9 @@ func _physics_process(dt: float) -> void:
 			continue
 		var n: float = c.n
 		var a: float = n + c.m * roll_imu
-		var delta: float = -(tail_pitch_stick * sin(deg_to_rad(n)) + tail_pitch_stab * sin(deg_to_rad(a)) \
-				+ tail_yaw * cos(deg_to_rad(n)) + c.r * tail_roll)
+		var ns: float = a if rc else n
+		var delta: float = -(tail_pitch_stick * sin(deg_to_rad(ns)) + tail_pitch_stab * sin(deg_to_rad(a)) \
+				+ tail_yaw * cos(deg_to_rad(ns)) + c.r * tail_roll)
 		srf.command = _servo_to_cmd(c.s * delta, servo_throw_m23, srf.max_deflection_deg)
 	# Motorschwenker: s = Mitte + dir·(NickKnüppel·sin n + NickStab·sin(n+Roll) + Gier·cos n + Roll)
 	for i in airship.motors.size():
@@ -536,8 +670,9 @@ func _physics_process(dt: float) -> void:
 		var c: Dictionary = _mot_cal[i]
 		var n: float = c.n
 		var a: float = n + c.m * roll_imu
-		var dp: float = motor_pitch_stick * sin(deg_to_rad(n)) * c.wp + motor_pitch_stab * sin(deg_to_rad(a)) * c.wp
-		var dy: float = (motor_yaw * cos(deg_to_rad(n)) + motor_roll) * c.wy
+		var ns: float = a if rc else n
+		var dp: float = motor_pitch_stick * sin(deg_to_rad(ns)) * c.wp + motor_pitch_stab * sin(deg_to_rad(a)) * c.wp
+		var dy: float = (motor_yaw * cos(deg_to_rad(ns)) + motor_roll) * c.wy
 		dy *= yaw_swivel_scale                                          # Gierschwenk ab yaw_swivel_full_lever zurücknehmen
 		var delta: float = dp + dy
 		mot.swivel_cmd = _servo_to_cmd(c.s * delta, servo_throw_m23, mot.max_swivel_deg)
@@ -545,16 +680,29 @@ func _physics_process(dt: float) -> void:
 
 
 ## Mode 1 (mixServosDirect): Knüppel direkt auf die Servos, Rolle auf dem linken Knüppel.
-func _mix_direct(pitch_des: float, yaw_des: float) -> void:
+func _mix_direct(pitch_des: float, yaw_des: float, roll_imu := 0.0, roll_extra := 0.0) -> void:
 	var roll_stick := clampf(cmd_aux, -1.0, 1.0)
 	var roll_cmd := 0.0
 	if absf(roll_stick) > MODE1_ROLL_DEADBAND:                       # nur bei bewusstem Ausschlag
 		var over := (absf(roll_stick) - MODE1_ROLL_DEADBAND) / (1.0 - MODE1_ROLL_DEADBAND)
 		roll_cmd = signf(roll_stick) * over
-	if airship.mix_manual and manual_mix_valid():
-		_mix_manual(pitch_des / maxf(pitch_max_deg, 1e-3), yaw_des / MAX_YAW, roll_cmd)
-		return
+	roll_cmd = clampf(roll_cmd + roll_extra, -1.0, 1.0)
 	_calibrate()
+	var cfg := {} if _suggesting else mode_cfg()
+	# Rollausgleich: Höhen- und Seitenbefehl mit dem Rollwinkel umrechnen
+	if bool(cfg.get("roll_comp", false)):
+		var pb := roll_rotate(pitch_des / maxf(pitch_max_deg, 1e-3), yaw_des / MAX_YAW, roll_imu)
+		pitch_des = pb.x * pitch_max_deg
+		yaw_des = pb.y * MAX_YAW
+	if not _suggesting:
+		# eigene Tabelle des Modus, sonst die Tabelle aus „Mischer einstellen“
+		var own = cfg.get("mix")
+		if own is Dictionary and _table_valid(own):
+			_mix_manual(pitch_des / maxf(pitch_max_deg, 1e-3), yaw_des / MAX_YAW, roll_cmd, own)
+			return
+		if airship.mix_manual and manual_mix_valid():
+			_mix_manual(pitch_des / maxf(pitch_max_deg, 1e-3), yaw_des / MAX_YAW, roll_cmd)
+			return
 	for i in airship.surfaces.size():
 		var srf: ControlSurface = airship.surfaces[i]
 		var c: Dictionary = _fin_cal[i]
@@ -588,7 +736,7 @@ static func mix_outputs(ship: AirshipPhysics) -> Array:
 	var out := []
 	for i in ship.surfaces.size():
 		var s: ControlSurface = ship.surfaces[i]
-		if s.sail_member: continue
+		if s.sail_member or s.fixed or s.max_deflection_deg <= 0.0: continue   # Turm und feste Finnen haben kein Ruder
 		out.append({"key": "s%d" % i, "name": s.display_name, "max_deg": s.max_deflection_deg})
 	for i in ship.motors.size():
 		var m: VectorMotor = ship.motors[i]
@@ -599,22 +747,167 @@ static func mix_outputs(ship: AirshipPhysics) -> Array:
 
 ## Passt die Tabelle zu den Bauteilen? (sonst Mischer nach Einbaulage)
 func manual_mix_valid() -> bool:
+	return _table_valid(airship.mix_table)
+
+
+func _table_valid(tbl: Dictionary) -> bool:
 	for o in mix_outputs(airship):
-		if not airship.mix_table.has(o.key):
+		if not tbl.has(o.key):
 			return false
 	return true
 
 
-func _mix_manual(p: float, y: float, r: float) -> void:
+## Tabelle anwenden (Standard: die aus „Mischer einstellen“).
+func _mix_manual(p: float, y: float, r: float, tbl = null) -> void:
+	var t: Dictionary = airship.mix_table if tbl == null else tbl
 	for i in airship.surfaces.size():
 		var srf: ControlSurface = airship.surfaces[i]
-		var k = airship.mix_table.get("s%d" % i)
+		var k = t.get("s%d" % i)
 		srf.command = 0.0 if k == null or srf.sail_member else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
 	for i in airship.motors.size():
 		var mot: VectorMotor = airship.motors[i]
-		var k = airship.mix_table.get("m%d" % i)
+		var k = t.get("m%d" % i)
 		mot.swivel_cmd = 0.0 if k == null else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
 		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)
+
+
+## Rollausgleich: Höhen- (p) und Seitenbefehl (y) aus Sicht des Piloten in die
+## Achsen des gerollten Schiffs umrechnen (gleiche Drehung wie die Stabilisierung
+## im Teensy-Code: Einbauwinkel n + Rollwinkel). Ergebnis: (Nick, Gier) am Schiff.
+func roll_rotate(p: float, y: float, roll_deg: float) -> Vector2:
+	_calibrate()
+	var m := 1.0
+	for c in _fin_cal:
+		if c.active:
+			m = c.m
+			break
+	var a := deg_to_rad(m * roll_deg)
+	return Vector2(p * cos(a) - y * sin(a), p * sin(a) + y * cos(a))
+
+
+## Mischtabelle für den PID-Modus: eigene des Modus, sonst „Mischer einstellen“,
+## sonst Vorschlag aus der Einbaulage (zwischengespeichert).
+func _table_for(cfg: Dictionary) -> Dictionary:
+	var own = cfg.get("mix")
+	if own is Dictionary and _table_valid(own):
+		return own
+	if airship.mix_manual and manual_mix_valid():
+		return airship.mix_table
+	var key := _cal_key + "/%s/%s" % [servo_throw_m1, airship.motors.size()]
+	if key != _sugg_key or _sugg_cache.is_empty():
+		_sugg_cache = suggest_mix()
+		_sugg_key = key
+	return _sugg_cache
+
+
+# =============================================================================
+# Art „pid“: je Achse geregelt (Lage oder Drehrate) oder direkt
+#   Lage:     Soll = Knüppel · max (Grad),  Fehler = Soll − IMU-Winkel,  D auf die Drehrate
+#   Drehrate: Soll = Knüppel · max (°/s),   Fehler = Soll − Kreisel,     D auf die Drehbeschleunigung
+#   Ausgang = 0,01 · (Kp·Fehler + Ki·∫Fehler − Kd·D)  (≈ −1…1 = Vollausschlag)
+#   danach Rollausgleich (wenn an) und die Mischtabelle; Gas bleibt beim Piloten
+# =============================================================================
+func _run_custom(cfg: Dictionary, dt: float, pitch_imu: float, roll_imu: float,
+		gyro_pitch: float, gyro_roll: float, gyro_yaw: float) -> void:
+	var axes: Dictionary = cfg.get("axes", default_axes())
+	var roll_stick := clampf(cmd_aux, -1.0, 1.0)
+	if absf(roll_stick) <= MODE1_ROLL_DEADBAND:
+		roll_stick = 0.0
+	var stick := {"pitch": clampf(cmd_pitch, -1.0, 1.0), "yaw": clampf(cmd_yaw, -1.0, 1.0), "roll": roll_stick}
+	var angle := {"pitch": pitch_imu, "roll": roll_imu, "yaw": 0.0}
+	var rate := {"pitch": gyro_pitch, "roll": gyro_roll, "yaw": gyro_yaw}
+	var axis_id := {"pitch": Axis.PITCH, "roll": Axis.ROLL, "yaw": Axis.YAW}
+	var out := stick.duplicate()
+	var d := clampf(dt, 1e-4, 0.05)
+	for k in ["pitch", "roll", "yaw"]:
+		var a: Dictionary = axes.get(k, {})
+		var ax: int = axis_id[k]
+		if not bool(a.get("on", false)):
+			_cint[k] = 0.0
+			_sample(ax, _step_for(ax), rate[k] if k == "yaw" else angle[k])
+			continue
+		var use_angle: bool = str(a.get("kind", "rate")) == "angle" and k != "yaw"   # Gier nur als Drehrate
+		var sp: float = stick[k] * float(a.get("max", 30.0)) + _step_for(ax)
+		var meas: float = angle[k] if use_angle else rate[k]
+		var err := sp - meas
+		if armed or _probing:
+			_cint[k] = clampf(_cint[k] + err * d, -I_LIMIT, I_LIMIT)
+		var dterm: float = rate[k] if use_angle else (rate[k] - _cprev[k]) / d
+		_cprev[k] = rate[k]
+		out[k] = clampf(0.01 * (float(a.Kp) * err + float(a.Ki) * _cint[k] - float(a.Kd) * dterm), -1.0, 1.0)
+		_sample(ax, sp, meas)
+	var py := Vector2(out.pitch, out.yaw)
+	if bool(cfg.get("roll_comp", false)):
+		py = roll_rotate(py.x, py.y, roll_imu)
+	_mix_manual(py.x, py.y, out.roll, _table_for(cfg))
+
+
+## Messwert an die Sprungantwort (Grad bzw. °/s → Bogenmaß), nicht beim Abfragen.
+func _sample(axis: int, sp_deg: float, meas_deg: float) -> void:
+	if not _probing:
+		loop_sample.emit(axis, deg_to_rad(sp_deg), deg_to_rad(meas_deg))
+
+
+# =============================================================================
+# Sprung fürs Reglermenü: Sollwert der Achse für duration Sekunden um amount
+# (Grad bzw. °/s) verschieben – das Schiff fliegt dabei weiter.
+# =============================================================================
+func trigger_step(axis: int, amount: float, duration := 3.0) -> void:
+	_step_axis = axis
+	_step_amount = amount
+	_step_left = duration
+
+
+func _step_for(axis: int) -> float:
+	return _step_amount if axis == _step_axis and _step_left > 0.0 else 0.0
+
+
+# =============================================================================
+# Signalfluss: welche Stellbefehle ergibt ein Impuls auf einer Achse im Modus i?
+# Rechnet einen Reglerschritt mit dem aktuellen Fluglage-Zustand, ohne etwas
+# zu verändern (Integrale, Befehle und Modus werden zurückgesetzt).
+# Rückgabe: {key: Stellbefehl −1…1} für alle Ausgänge (wie mix_outputs).
+# =============================================================================
+func probe_outputs(index: int, fn: String, amount: float) -> Dictionary:
+	var keep := {"idx": mode_index, "p": cmd_pitch, "y": cmd_yaw, "r": cmd_aux, "t": cmd_throttle,
+		"ip": _int_pitch, "ir": _int_roll, "iy": _int_yaw, "acc": _yaw_acc_f, "gp": _gyro_yaw_prev,
+		"m3": _pitch_sp_m3, "ci": _cint.duplicate(), "cp": _cprev.duplicate()}
+	var cmds := []
+	for srf in airship.surfaces: cmds.append(srf.command)
+	var sw := []
+	for m in airship.motors: sw.append([m.swivel_cmd, m.throttle_cmd])
+	_probing = true
+	_quiet = true
+	var base := _probe_once(index, "", 0.0)
+	var hit := _probe_once(index, fn, amount)
+	_probing = false
+	for k in hit:
+		hit[k] = hit[k] - base[k]                    # nur die Wirkung des Impulses
+	# alles zurück
+	mode_index = keep.idx
+	_quiet = false
+	cmd_pitch = keep.p; cmd_yaw = keep.y; cmd_aux = keep.r; cmd_throttle = keep.t
+	_int_pitch = keep.ip; _int_roll = keep.ir; _int_yaw = keep.iy; _yaw_acc_f = keep.acc
+	_gyro_yaw_prev = keep.gp; _pitch_sp_m3 = keep.m3; _cint = keep.ci; _cprev = keep.cp
+	for i in airship.surfaces.size(): airship.surfaces[i].command = cmds[i]
+	for i in airship.motors.size():
+		airship.motors[i].swivel_cmd = sw[i][0]; airship.motors[i].throttle_cmd = sw[i][1]
+	return hit
+
+
+func _probe_once(index: int, fn: String, amount: float) -> Dictionary:
+	mode_index = index
+	cmd_pitch = amount if fn == "pitch" else 0.0
+	cmd_yaw = amount if fn == "yaw" else 0.0
+	cmd_aux = amount if fn == "roll" else 0.0
+	_int_pitch = 0.0; _int_roll = 0.0; _int_yaw = 0.0; _yaw_acc_f = 0.0; _pitch_sp_m3 = 0.0
+	_cint = {"pitch": 0.0, "roll": 0.0, "yaw": 0.0}
+	_physics_process(1.0 / 60.0)
+	var res := {}
+	for o in mix_outputs(airship):
+		var i := int(str(o.key).substr(1))
+		res[o.key] = airship.surfaces[i].command if str(o.key).begins_with("s") else airship.motors[i].swivel_cmd
+	return res
 
 
 ## Vorschlag aus der Einbaulage: der bisherige automatische Mischer (Modus
@@ -624,6 +917,7 @@ func suggest_mix() -> Dictionary:
 	var keep_manual := airship.mix_manual
 	var keep := [cmd_aux]
 	airship.mix_manual = false
+	_suggesting = true
 	var tbl := {}
 	for o in mix_outputs(airship):
 		tbl[o.key] = [0.0, 0.0, 0.0]
@@ -639,6 +933,7 @@ func suggest_mix() -> Dictionary:
 				tbl["m%d" % i][ci] = roundf(airship.motors[i].swivel_cmd * 100.0)
 	cmd_aux = keep[0]
 	airship.mix_manual = keep_manual
+	_suggesting = false
 	return tbl
 
 
@@ -765,6 +1060,7 @@ func _reset_integrators() -> void:
 	_int_pitch = 0.0
 	_int_yaw = 0.0
 	_yaw_acc_f = 0.0
+	_cint = {"pitch": 0.0, "roll": 0.0, "yaw": 0.0}
 
 
 # =============================================================================
@@ -818,9 +1114,28 @@ func save_settings() -> void:
 	for k in GENERAL_KEYS:
 		cfg.set_value("general", k, get(k))
 	cfg.set_value("general", "preset", preset)
+	cfg.set_value("modi", "liste", JSON.stringify(modes))
+	cfg.set_value("modi", "aktiv", mode_index)
 	cfg.set_value("general", "stick_nomenklatur", 5)   # ab 2 = Mode 1–4 nach heli-planet; 5 = nach der Korrektur von 0.28.1
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
+
+## Flugmodi laden (fehlen sie: Werkseinstellung Direkt + Angle).
+func _load_modes(cfg: ConfigFile) -> void:
+	var parsed = JSON.parse_string(str(cfg.get_value("modi", "liste", "")))
+	if parsed is Array and parsed.size() >= 1:
+		var list := []
+		for m in parsed.slice(0, MAX_MODES):
+			if m is Dictionary and ART_ENGINE.has(str(m.get("art", ""))):
+				var e: Dictionary = m
+				e["name"] = str(e.get("name", "Modus")).left(20)
+				if e.art == "pid" and not e.get("axes") is Dictionary:
+					e["axes"] = default_axes()
+				list.append(e)
+		if list.size() > 0:
+			modes = list
+	mode_index = int(cfg.get_value("modi", "aktiv", mini(1, modes.size() - 1)))
+
 
 func _save_stick_mode_later() -> void:
 	save_settings()
@@ -857,6 +1172,7 @@ func load_settings() -> void:
 			continue              # schon oben geladen und umgerechnet – NICHT mit dem alten Rohwert überschreiben
 		set(k, cfg.get_value("general", k, get(k)))
 	preset = str(cfg.get_value("general", "preset", "teensy"))
+	_load_modes(cfg)
 	# 10.11.2026: alte Werkseinstellung 180 °/s → neue 110 °/s (eigene andere Werte bleiben)
 	if is_equal_approx(float(params[Axis.YAW].yaw_rate_max), 180.0):
 		params[Axis.YAW].yaw_rate_max = 110.0

@@ -165,3 +165,5 @@ Best Forever
 /storage/emulated/0/Download
 /storage/emulated/0/Pictures
 %[-+0-9.]*[dfs]
+PID
+PID: 

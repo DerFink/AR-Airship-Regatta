@@ -1,3 +1,4 @@
+# 2026-11-13 02:00 – feste Finne ohne Klappe
 # 2026-11-12 22:40 – Ruderklappe sichtbar: fester Flossenteil + Klappe (Klappentiefe), nur die Klappe dreht
 # 2026-11-12 22:20 – Akku an eigener Stelle als eigener Block
 # 2026-11-12 12:20 – Schriftzug auf eher waagrechten, Logo auf eher senkrechten Leitwerksflossen (wählbar in der Gestaltung)
@@ -168,7 +169,7 @@ func rebuild() -> void:
 			mi.mesh = _sail_mesh(span, chord)
 			mi.material_override = _sail_mat
 		else:
-			var flap_f := s.flap_chord_ratio if s.kind == ControlSurface.Kind.FLAP else 0.0
+			var flap_f := s.flap_chord_ratio if s.kind == ControlSurface.Kind.FLAP and not s.fixed else 0.0
 			mi.mesh = _fin_mesh(span, chord, s.taper, inset, flap_f)
 			mi.material_override = _fin_mat
 			if flap_f > 0.0:

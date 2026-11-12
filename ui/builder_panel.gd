@@ -1,3 +1,4 @@
+# 2026-11-13 03:10 – Flossen einzeln einstellen (Bauart fest/Klappe/Pendel, Fläche, Streckung, Pfeilung, Klappentiefe, Ausschlag; symmetrisch); Restmasse in den Kennwerten
 # 2026-11-12 23:10 – Reiter „Steuerung“ (statt Flight Controller): ① Mischer (Tabelle von Hand, Vorschlag aus Einbaulage) ② FC einbauen ③ Regler ④ Bausteine (Untermenü); ohne FC ausgegraut; Teensy-Sketch nur noch unter „Admin“; Leitwerk 2–10 Flossen, Klappentiefe; Motor „schwenkbar“ + Abstand zur Hülle; Akku an eigener Stelle; Name + Kurzbeschreibung; beginnt bei der Hülle
 # 2026-11-12 20:45 – Knopf „Zurücksetzen“ (zwischen Einstellungen und Teilen) mit Auswahl: Luftschiff, Regler, Sender, Knüppelbelegung + Strecke
 # 2026-11-12 12:50 – Zahlenfelder statt Schieberegler (Regler nur noch für Lagen); Volumen ohne Obergrenze; Hüllenmasse berechnet (Folie g/m² + 7 %); Flossen/Canards: Gewichtsvorschlag Depron + Pauschale, eigenes Gewicht überschreibt (Vorschlag ausgegraut); Propeller in Zoll/cm/mm ab 2 cm; Rennfaktor F7B bei den Kennwerten; Schrift/Logo auch aufs Leitwerk; Logo laden im Browser über die Dateiauswahl des Geräts, am Handy aus Download/Bilder
@@ -412,39 +413,54 @@ func _fill_tail_page() -> void:
 		_tail_box.add_child(UITheme.make_number_row("V-Winkel (gegen waagrecht)", 0.0, 85.0, 1.0, t.v_angle_deg,
 			func(v): t.v_angle_deg = v; _tail_changed(false), "%d°"))
 
-	_tail_box.add_child(UITheme.make_label("Bauart", "MutedLabel"))
-	var kind_idx := 1 if t.kind == ControlSurface.Kind.ALL_MOVING else 0
-	_tail_box.add_child(UITheme.make_choice_row(["Ruderklappe", "Pendel"], kind_idx,
-		func(i): t.kind = ControlSurface.Kind.ALL_MOVING if i == 1 else ControlSurface.Kind.FLAP; _tail_changed(true)))
-
-	var split := CheckBox.new()
-	split.text = "Höhen- und Seitenleitwerk getrennt"
-	split.button_pressed = t.split_hv
-	split.toggled.connect(func(on):
-		t.split_hv = on
-		if on: t.area_h_m2 = t.area_m2; t.area_v_m2 = t.area_m2
+	# Flossen einzeln (z. B. λ mit kleiner fester Finne oben) oder alle gleich
+	var ind := CheckBox.new()
+	ind.text = "Flossen einzeln einstellen"
+	ind.button_pressed = t.individual
+	ind.toggled.connect(func(on):
+		t.individual = on
+		if on:
+			t.fin_cfg = []
+			t.ensure_fin_cfg()                        # Start: die gemeinsamen Werte
 		_tail_changed(true))
-	_tail_box.add_child(split)
-	if t.split_hv:
-		_tail_box.add_child(UITheme.make_number_row("Fläche Höhenleitwerk (je Flosse)", 5.0, 100000.0, 1.0,
-			t.area_h_m2 * 1e4, func(v): t.area_h_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
-		_tail_box.add_child(UITheme.make_number_row("Fläche Seitenleitwerk (je Flosse)", 5.0, 100000.0, 1.0,
-			t.area_v_m2 * 1e4, func(v): t.area_v_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
+	_tail_box.add_child(ind)
+	if t.individual:
+		_fin_blocks(t)
 	else:
-		_tail_box.add_child(UITheme.make_number_row("Fläche je Flosse", 5.0, 100000.0, 1.0,
-			t.area_m2 * 1e4, func(v): t.area_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
-	_tail_box.add_child(UITheme.make_number_row("Streckung", 0.3, 6.0, 0.1, t.aspect_ratio,
-		func(v): t.aspect_ratio = v; _tail_changed(false), "%.1f"))
-	_tail_box.add_child(UITheme.make_number_row("Pfeilung (Endtiefe/Wurzeltiefe)", 0.2, 1.0, 0.05, t.taper,
-		func(v): t.taper = v; _tail_changed(false), "%.2f"))
+		_tail_box.add_child(UITheme.make_label("Bauart", "MutedLabel"))
+		var kind_idx := 1 if t.kind == ControlSurface.Kind.ALL_MOVING else 0
+		_tail_box.add_child(UITheme.make_choice_row(["Ruderklappe", "Pendel"], kind_idx,
+			func(i): t.kind = ControlSurface.Kind.ALL_MOVING if i == 1 else ControlSurface.Kind.FLAP; _tail_changed(true)))
+
+		var split := CheckBox.new()
+		split.text = "Höhen- und Seitenleitwerk getrennt"
+		split.button_pressed = t.split_hv
+		split.toggled.connect(func(on):
+			t.split_hv = on
+			if on: t.area_h_m2 = t.area_m2; t.area_v_m2 = t.area_m2
+			_tail_changed(true))
+		_tail_box.add_child(split)
+		if t.split_hv:
+			_tail_box.add_child(UITheme.make_number_row("Fläche Höhenleitwerk (je Flosse)", 5.0, 100000.0, 1.0,
+				t.area_h_m2 * 1e4, func(v): t.area_h_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
+			_tail_box.add_child(UITheme.make_number_row("Fläche Seitenleitwerk (je Flosse)", 5.0, 100000.0, 1.0,
+				t.area_v_m2 * 1e4, func(v): t.area_v_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
+		else:
+			_tail_box.add_child(UITheme.make_number_row("Fläche je Flosse", 5.0, 100000.0, 1.0,
+				t.area_m2 * 1e4, func(v): t.area_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
+		_tail_box.add_child(UITheme.make_number_row("Streckung", 0.3, 6.0, 0.1, t.aspect_ratio,
+			func(v): t.aspect_ratio = v; _tail_changed(false), "%.1f"))
+		_tail_box.add_child(UITheme.make_number_row("Pfeilung (Endtiefe/Wurzeltiefe)", 0.2, 1.0, 0.05, t.taper,
+			func(v): t.taper = v; _tail_changed(false), "%.2f"))
 	_tail_box.add_child(UITheme.make_slider_row("Position am Heck", 0.5, 1.0, 0.01, t.hull_x,
 		func(v): t.hull_x = v; _tail_changed(false), "%.2f"))
-	if t.kind == ControlSurface.Kind.FLAP:
-		# Klappentiefe: nur der hintere Teil der Flosse dreht (wirkt schwächer als ein Pendelruder)
-		_tail_box.add_child(UITheme.make_number_row("Klappentiefe (Anteil der Flossentiefe)", 10.0, 60.0, 1.0, t.flap_chord_ratio * 100.0,
-			func(v): t.flap_chord_ratio = v / 100.0; _tail_changed(false), "%d %%"))
-	_tail_box.add_child(UITheme.make_number_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
-		func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
+	if not t.individual:
+		if t.kind == ControlSurface.Kind.FLAP:
+			# Klappentiefe: nur der hintere Teil der Flosse dreht (wirkt schwächer als ein Pendelruder)
+			_tail_box.add_child(UITheme.make_number_row("Klappentiefe (Anteil der Flossentiefe)", 10.0, 60.0, 1.0, t.flap_chord_ratio * 100.0,
+				func(v): t.flap_chord_ratio = v / 100.0; _tail_changed(false), "%d %%"))
+		_tail_box.add_child(UITheme.make_number_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
+			func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
 	# Profil der Flossen (Platte oder NACA 00xx) mit Dicke und Gewichts-Schätzung
 	_profile_block(_tail_box, t, t.area_m2, t.aspect_ratio, func(): _tail_changed(false), _fill_tail_page)
 	# Gewicht je Flosse: Vorschlag (Depron + Pauschale) oder von Hand eingetragen
@@ -468,6 +484,43 @@ func _fill_tail_page() -> void:
 	flex.button_pressed = t.pseudo_flex
 	flex.toggled.connect(func(on): t.pseudo_flex = on; _tail_changed(false))
 	_tail_box.add_child(flex)
+
+
+## Je Flosse: Bauart (fest/Klappe/Pendel), Fläche, Streckung, Pfeilung,
+## Klappentiefe und Ausschlag. „symmetrisch“: die Gegenflosse ändert sich mit.
+func _fin_blocks(t: TailConfig) -> void:
+	t.ensure_fin_cfg()
+	var sym := CheckBox.new()
+	sym.text = "symmetrisch (Gegenflosse ändert sich mit)"
+	sym.button_pressed = t.symmetric
+	sym.toggled.connect(func(on): t.symmetric = on; _tail_changed(false))
+	_tail_box.add_child(sym)
+	var al := t.angles()
+	for i in al.size():
+		var c: Dictionary = t.fin_cfg[i]
+		var fi := i
+		var setv := func(key: String, v, rebuild: bool):
+			c[key] = v
+			var j := t.mirror_of(fi) if t.symmetric else -1
+			if j >= 0: t.fin_cfg[j][key] = v
+			_tail_changed(rebuild)
+		var head := UITheme.make_title(I18n.t(TailConfig.fin_name(al[i])))
+		head.add_theme_font_size_override("font_size", 17)
+		_tail_box.add_child(head)
+		_tail_box.add_child(UITheme.make_choice_row(["fest", "Klappe", "Pendel"], int(c.get("kind", 1)),
+			func(k): setv.call("kind", k, true)))
+		_tail_box.add_child(UITheme.make_number_row("Fläche", 5.0, 100000.0, 1.0, float(c.area) * 1e4,
+			func(v): setv.call("area", v / 1e4, false), "%d cm²"))
+		_tail_box.add_child(UITheme.make_number_row("Streckung", 0.3, 6.0, 0.1, float(c.ar),
+			func(v): setv.call("ar", v, false), "%.1f"))
+		_tail_box.add_child(UITheme.make_number_row("Pfeilung (Endtiefe/Wurzeltiefe)", 0.2, 1.0, 0.05, float(c.tp),
+			func(v): setv.call("tp", v, false), "%.2f"))
+		if int(c.get("kind", 1)) == 1:
+			_tail_box.add_child(UITheme.make_number_row("Klappentiefe (Anteil der Flossentiefe)", 10.0, 60.0, 1.0, float(c.flap) * 100.0,
+				func(v): setv.call("flap", v / 100.0, false), "%d %%"))
+		if int(c.get("kind", 1)) != 0:
+			_tail_box.add_child(UITheme.make_number_row("Ausschlag max", 0.0, 80.0, 1.0, float(c.defl),
+				func(v): setv.call("defl", v, false), "%d°"))
 
 
 func _tail_changed(rebuild_page: bool) -> void:
@@ -1201,6 +1254,13 @@ func _refresh() -> void:
 	# Kennwerte rechts: nur Maße und Masse (Stabilität steht im Reiter Leitwerk)
 	_stats.text = ship.model_name + "\n" + I18n.dec(I18n.t("%.2f × %.2f m\nMasse %.0f g (ohne Helium)") % [
 		h.length_m, h.diameter_m, ship.structure_mass_kg * 1000.0])
+	# Restmasse (was zum Austrimmen bleibt): Akku + Ballast
+	if ship.battery_own_x:
+		_stats.text += "\n" + I18n.t("Restmasse %d g (Ballast) · Akku %d g eigene Stelle") % [
+			roundi(maxf(ship.ballast_kg, 0.0) * 1000.0), roundi(ship.battery_mass_kg * 1000.0)]
+	else:
+		_stats.text += "\n" + I18n.t("Restmasse %d g = Akku %d g + Ballast %d g") % [
+			roundi(ship.rest_mass_kg * 1000.0), roundi(ship.battery_mass_kg * 1000.0), roundi(maxf(ship.ballast_kg, 0.0) * 1000.0)]
 	_update_mass_info()
 	_update_fin_mass_info()
 	_update_factor.call_deferred()      # erst nach dem Neuaufbau des 3D-Modells messen
