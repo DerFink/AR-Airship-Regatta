@@ -1,3 +1,4 @@
+# 2026-11-12 11:00 – Kopfzeile: ▶ Weiterfliegen (nur bei begonnenem Flug) · Startseite · Bestenliste · Sender kalibrieren; Knopf „Dieses Luftschiff fliegen“ mit Rückfrage „Der begonnene Flug wird beendet“ (Verwerfen/Bestätigen); Rennfaktor (F7B) hinter jedem Modellnamen
 # 2026-11-11 17:45 – Modellbeschreibung und Kenndaten übersetzt (Dezimalzeichen je Sprache)
 # 2026-11-11 01:40 – Knopf „Sender kalibrieren“ hier (statt Startseite)
 # 2026-11-11 00:10 – Location-Zeile „Halle FN · Pylonabstand …“; Knopf „Bestenliste“ (zeigen und zurücksetzen wie gehabt)
@@ -5,20 +6,24 @@
 # =============================================================================
 # ModelHub.gd
 # -----------------------------------------------------------------------------
-#   ┌ Modell & Bau ─────────────────────────────── [Startseite] [Zurück zum Flug] ┐
+#   ┌ Modell & Bau ── [▶ Weiterfliegen] [Startseite] [Bestenliste] [Sender kalibrieren] ┐
 #   │ Location          │ Modell              │ [großes Vorschaubild]             │
 #   │ ┌──────────────┐  │ ┌───────────────┐   │ Chewie                            │
-#   │ │ Bild  Halle  │  │ │ Bild  Chewie  │   │ Autor · Team                      │
+#   │ │ Bild  Halle  │  │ │ Chewie ×0,72  │   │ Autor · Team                      │
 #   │ │ Bild  Wiese  │  │ │ Bild  Albacore│   │ Beschreibung …                    │
 #   │ │ (scrollt)    │  │ │ ＋ Eigenbau    │   │ L · Ø · L/D · Motoren             │
-#   │ └──────────────┘  │ └───────────────┘   │ [Fliegen] [Bearbeiten] [Export.]  │
+#   │ └──────────────┘  │ └───────────────┘   │ [Dieses Luftschiff fliegen] [Bearbeiten] [Export.] │
 #   │ Pylonabstand [18] │                     │ Hinweis: an den Admin schicken     │
 #   └─────────────────────────────────────────────────────────────────────────────┘
+# Hinter jedem Modellnamen steht der Rennfaktor (F7B): die Zahl, mit der die
+# gemessene Zeit malgenommen wird (∛(L·B·H·π/6), Boxmaß in m).
+# „Weiterfliegen“ gibt es nur, wenn schon ein Flug begonnen wurde. Wird dann
+# ein anderes Luftschiff gewählt, fragt ein Fenster, ob der Flug enden soll.
 # =============================================================================
 class_name ModelHub
 extends Control
 
-signal closed                     ## Zurück zum Flug
+signal closed                     ## Weiterfliegen (zurück in den begonnenen Flug)
 signal home_requested             ## Startseite
 signal fly_requested              ## Modell gewählt → fliegen
 signal edit_requested             ## Baukasten mit dem gewählten Modell öffnen
@@ -41,6 +46,12 @@ var _detail_meta: Label
 var _detail_desc: Label
 var _detail_data: Label
 var _selected := -1               ## Index in AirshipPresets.list(); -1 = aktuelles Modell
+## Wurde schon ein Flug begonnen? (setzt main.gd beim Wechsel in die Flugansicht)
+var flight_begun := false
+var _b_back: Button               ## „Weiterfliegen“ (nur sichtbar bei begonnenem Flug)
+var _confirm: Control             ## Rückfrage „Der begonnene Flug wird beendet“
+var _confirm_text: Label
+var _probe: Node3D                ## unsichtbarer Platz zum Ausmessen der Modelle (Rennfaktor)
 
 
 func setup(s: AirshipPhysics, c: Course) -> void:
@@ -64,18 +75,19 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 26)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	var b_cal := UITheme.make_button("Sender kalibrieren")
-	b_cal.pressed.connect(func(): calibrate_requested.emit())
-	head.add_child(b_cal)
+	# Reihenfolge: Weiterfliegen (Hauptknopf) · Startseite · Bestenliste · Sender kalibrieren
+	_b_back = UITheme.make_primary_button("▶  " + tr("Weiterfliegen"))
+	_b_back.pressed.connect(func(): closed.emit())
+	head.add_child(_b_back)
+	var b_home := UITheme.make_button("Startseite")
+	b_home.pressed.connect(func(): home_requested.emit())
+	head.add_child(b_home)
 	var b_lead := UITheme.make_button("Bestenliste")
 	b_lead.pressed.connect(func(): leaderboard_requested.emit())
 	head.add_child(b_lead)
-	var b_home := UITheme.make_button("Startseite")
-	b_home.pressed.connect(func(): home_requested.emit())
-	var b_back := UITheme.make_button("Zurück zum Flug")
-	b_back.pressed.connect(func(): closed.emit())
-	head.add_child(b_home)
-	head.add_child(b_back)
+	var b_cal := UITheme.make_button("Sender kalibrieren")
+	b_cal.pressed.connect(func(): calibrate_requested.emit())
+	head.add_child(b_cal)
 	root.add_child(head)
 	# Drei Spalten
 	var cols := UITheme.make_hbox("lg")
@@ -127,7 +139,7 @@ func _ready() -> void:
 	for c in [_detail_name, _detail_meta, _detail_desc, _detail_data]:
 		dcol.add_child(c)
 	var brow := UITheme.make_hbox("sm")
-	var b_fly := UITheme.make_button("Fliegen")
+	var b_fly := UITheme.make_primary_button(tr("Dieses Luftschiff fliegen"))
 	b_fly.pressed.connect(_on_fly)
 	var b_edit := UITheme.make_button("Bearbeiten")
 	b_edit.pressed.connect(func(): _apply_selected(); edit_requested.emit())
@@ -143,6 +155,10 @@ func _ready() -> void:
 	var contact := UITheme.make_label("%s: %s" % [tr("Kontakt"), CONTACT], "MutedLabel")
 	dcol.add_child(contact)
 	cols.add_child(dcol)
+	_probe = Node3D.new()
+	_probe.visible = false
+	add_child(_probe)
+	_build_confirm()
 	visibility_changed.connect(func(): if visible: _fill())
 
 
@@ -158,6 +174,8 @@ func _scroll(content: Control) -> ScrollContainer:
 ## Listen aufbauen (beim Öffnen).
 func _fill() -> void:
 	_selected = -1
+	_b_back.visible = flight_begun
+	_confirm.visible = false
 	for c in _loc_list.get_children(): c.queue_free()
 	for c in _mod_list.get_children(): c.queue_free()
 	# Locations
@@ -180,7 +198,7 @@ func _fill() -> void:
 		var tex := ShipPreview.texture_for_build(e.name, e.build, 220)
 		var meta := AirshipPresets.meta(e.name)
 		var sub: String = meta.get("team", "")
-		var it := _item(tex, e.name, sub, e.name == ship.model_name)
+		var it := _item(tex, "%s   ×%s" % [e.name, _factor_text(race_factor_of(e.build))], sub, e.name == ship.model_name)
 		var idx := i
 		it.pressed.connect(func(): _select(idx))
 		_mod_list.add_child(it)
@@ -264,6 +282,12 @@ func _show_detail(name: String, tex: Texture2D, s: AirshipPhysics) -> void:
 	var h := s.hull
 	_detail_data.text = I18n.dec(I18n.t("L %.2f m · Ø %.2f m · L/D %.1f · %.2f m³ · %d Flossen · %d Motoren") % [
 		h.length_m, h.diameter_m, h.length_to_diameter, h.volume_m3, s.surfaces.size(), s.motors.size()])
+	# Rennfaktor auch beim Namen in der Detailansicht
+	var e_build := Callable()
+	for e in AirshipPresets.list():
+		if e.name == name: e_build = e.build
+	if e_build.is_valid():
+		_detail_name.text = "%s   ×%s" % [name, _factor_text(race_factor_of(e_build))]
 
 
 ## Ausgewähltes Modell auf das Luftschiff übernehmen.
@@ -276,9 +300,75 @@ func _apply_selected() -> void:
 	_selected = -1
 
 
+## „Dieses Luftschiff fliegen“: läuft schon ein Flug mit einem anderen
+## Luftschiff, erst nachfragen; mit demselben geht es im Flug weiter.
 func _on_fly() -> void:
+	var name: String = ship.model_name if _selected < 0 else AirshipPresets.list()[_selected].name
+	if flight_begun and name == ship.model_name:
+		closed.emit()                              # dasselbe Luftschiff: weiterfliegen
+		return
+	if flight_begun:
+		_confirm_text.text = I18n.t("Du fliegst gerade „%s“.\nMit „%s“ neu an den Start?") % [ship.model_name, name]
+		_confirm.visible = true
+		return
+	_fly_now()
+
+
+func _fly_now() -> void:
+	_confirm.visible = false
 	_apply_selected()
 	fly_requested.emit()
+
+
+## Rückfrage-Fenster (abgedunkelter Hintergrund, Verwerfen / Bestätigen).
+func _build_confirm() -> void:
+	_confirm = ColorRect.new()
+	(_confirm as ColorRect).color = Color(0, 0, 0, 0.6)
+	_confirm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_confirm.visible = false
+	add_child(_confirm)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_confirm.add_child(center)
+	var panel := UITheme.make_panel(480)
+	center.add_child(panel)
+	var v := UITheme.make_vbox("md")
+	panel.add_child(v)
+	var t := UITheme.make_title("Der begonnene Flug wird beendet")
+	t.add_theme_font_size_override("font_size", 24)
+	v.add_child(t)
+	_confirm_text = UITheme.make_label("")
+	_confirm_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_confirm_text)
+	var row := UITheme.make_hbox("md")
+	var b_no := UITheme.make_button("Verwerfen")
+	b_no.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_no.pressed.connect(func(): _confirm.visible = false)
+	var b_yes := UITheme.make_primary_button(tr("Bestätigen"))
+	b_yes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_yes.pressed.connect(_fly_now)
+	row.add_child(b_no)
+	row.add_child(b_yes)
+	v.add_child(row)
+
+
+## Rennfaktor eines Modells (F7B): ∛(L·B·H·π/6) aus dem Boxmaß aller sichtbaren
+## Teile. Das Modell wird dazu kurz unsichtbar aufgebaut und ausgemessen.
+func race_factor_of(build: Callable) -> float:
+	var s := AirshipPhysics.new()
+	s.freeze = true
+	build.call(s)
+	var vis := AirshipVisual.new()
+	s.add_child(vis)
+	_probe.add_child(s)
+	var a := vis.local_aabb()
+	_probe.remove_child(s)
+	s.queue_free()
+	return Course.race_factor(Vector3(a.size.z, a.size.x, a.size.y))
+
+
+static func _factor_text(f: float) -> String:
+	return I18n.dec("%.2f" % f)
 
 
 func _apply_distance() -> void:

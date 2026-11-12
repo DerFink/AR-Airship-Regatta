@@ -1,3 +1,5 @@
+# 2026-11-12 12:20 – Gestaltung: Schrift/Logo auf dem Leitwerk (tf, lf)
+# 2026-11-12 11:50 – Propeller ab 0,7" (≈ 2 cm) erlaubt; Folien-Flächengewicht (hf), Flossengewicht automatisch/von Hand (fa, ma); Hüllenmasse wird beim Laden berechnet
 # 2026-11-11 07:30 – Profil je Leitwerk und Canard (naca, tk = Dicke NACA, pmm = Plattendicke mm)
 # 2026-11-11 16:50 – fingerprint(): Bauart ohne Name/Aussehen/Regler (Bestenliste nur mit unveränderten Modellen der Auswahl)
 # 2026-11-11 11:00 – Schubrichtung je Motor (td, x vorn · y rechts · z unten)
@@ -46,11 +48,11 @@ const LIMITS := {
 	"ld": [2.0, 12.0], "vol": [0.01, 10000.0],
 	"cg_y": [-5.0, 0.0], "trim": [-5.0, 5.0],
 	"sx": [0.05, 0.95], "sl": [0.02, 0.4], "sh": [0.05, 1.0],
-	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "tm": [0.0, 1.0], "tk": [0.04, 0.30], "pmm": [0.5, 20.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0],
+	"hm": [0.0, 1000.0], "bs": [1, 12], "bmah": [50.0, 100000.0], "bm": [0.0, 50.0], "tm": [0.0, 1.0], "tk": [0.04, 0.30], "pmm": [0.5, 20.0], "pl": [0.0, 50.0], "px": [0.0, 1.0], "pa": [0.0, 360.0], "el": [0.0, 1000.0], "fm": [0.0, 100.0], "bx": [0.0, 1.0], "mk": [0.0, 50.0], "hf": [0.001, 1.0],
 	"x": [0.0, 1.0], "a": [0.0, 360.0], "area": [0.001, 50.0], "ar": [0.3, 10.0],
 	"defl": [0.0, 80.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
-	"reff": [0.1, 1.0], "d": [1.0, 30.0], "pit": [1.0, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
+	"reff": [0.1, 1.0], "d": [0.7, 30.0], "pit": [0.2, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
 	"v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
 	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 0.8], "lpos": [0.05, 0.9],
 }
@@ -85,6 +87,7 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 		# (Schwerpunkt wird beim Laden daraus neu berechnet)
 		"mass": {"trim": ship.trim_heaviness_n, "hm": ship.hull_mass_kg, "el": ship.electronics_mass_kg,
 			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x, "fm": ship.fin_mass_kg,
+			"hf": ship.hull_film_kg_m2, "fa": ship.fin_mass_auto,
 			"tee": ship.fc_teensy, "tm": ship.teensy_mass_kg, "bs": ship.battery_cells, "bmah": ship.battery_mah, "bm": ship.battery_mass_kg,
 			"pl": ship.payload_mass_kg, "px": ship.payload_x, "pa": ship.payload_angle_deg},
 		"fins": [], "motors": [],
@@ -102,7 +105,7 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 			continue
 		data.fins.append({"n": s.display_name, "k": int(s.kind), "x": s.hull_x, "a": s.hull_angle_deg,
 			"area": s.area_m2, "ar": s.aspect_ratio, "defl": s.max_deflection_deg,
-			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper, "mk": s.mass_kg,
+			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper, "mk": s.mass_kg, "ma": s.mass_auto,
 			"naca": s.profile_naca, "tk": s.naca_thickness, "pmm": s.plate_thickness_mm})
 	for m in ship.motors:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
@@ -127,7 +130,7 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 	var l := ship.livery
 	data["look"] = {"mat": l.material, "fmat": l.fin_material, "fcol": l.fin_color.to_html(false), "col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
-		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides}
+		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides, "tf": l.text_on_fins, "lf": l.logo_on_fins}
 
 	return data
 
@@ -173,9 +176,11 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.set_hull(h)
 	ship.model_name = name
 	ship.trim_heaviness_n = d.mass.trim
-	ship.hull_mass_kg = d.mass.hm
+	# Hüllenmasse wird aus der Folie berechnet („hm“ steht nur zur Info im String)
+	ship.hull_film_kg_m2 = float(d.mass.get("hf", 0.027))
 	ship.electronics_mass_kg = d.mass.el
 	ship.fin_mass_kg = d.mass.fm
+	ship.fin_mass_auto = bool(d.mass.get("fa", true))   # ältere Strings: Vorschlag verwenden
 	ship.ballast_x = d.mass.bx
 	ship.ballast_auto_x = d.mass.bauto
 	ship.fc_gains = d.get("fc", {})
@@ -196,6 +201,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		s.flap_chord_ratio = f.flap; s.pseudo_flex = f.flex; s.taper = f.tp
 		s.profile_naca = f.naca; s.naca_thickness = f.tk; s.plate_thickness_mm = f.pmm
 		s.mass_kg = f.mk
+		s.mass_auto = bool(f.get("ma", true))
 		fins.append(s)
 	ship.surfaces = fins
 	ship.tail = null
@@ -227,6 +233,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	l.hull_color = Color.html(lk.col); l.text = lk.txt; l.text_color = Color.html(lk.tcol)
 	l.text_size = lk.tsize; l.text_pos = lk.tpos; l.logo_ref = lk.logo
 	l.logo_size = lk.lsize; l.logo_pos = lk.lpos; l.both_sides = lk.both
+	l.text_on_fins = bool(lk.get("tf", false)); l.logo_on_fins = bool(lk.get("lf", false))
 	ship.livery = l
 	ship.rebuild_mass_properties()
 
@@ -300,6 +307,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		# ältere Strings ohne Teilmassen bekommen die Standardwerte
 		"mass": {"trim": _num(md, "trim", 0.05), "hm": _num(md, "hm", 0.086), "el": _num(md, "el", 0.030),
 			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true), "fm": _num(md, "fm", 0.0),
+			"hf": _num(md, "hf", 0.027), "fa": _flag(md, "fa", true),
 			"tee": _flag(md, "tee", true), "tm": _num(md, "tm", 0.010), "bs": _num(md, "bs", 4), "bmah": _num(md, "bmah", 300.0),
 			"bm": _num(md, "bm", 0.038), "pl": _num(md, "pl", 0.0), "px": _num(md, "px", 0.5), "pa": _num(md, "pa", 180.0)},
 		"fins": [], "motors": [],
@@ -348,7 +356,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			out.fins.append({"n": _txt(f, "n", "Flosse", 32), "k": clampi(int(_num(f, "k", 0)), 0, 2),
 				"x": _num(f, "x", 0.9), "a": _num(f, "a", 0.0), "area": _num(f, "area", 0.08),
 				"ar": _num(f, "ar", 1.5), "defl": _num(f, "defl", 25.0), "flap": _num(f, "flap", 0.3),
-				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0), "mk": _num(f, "mk", 0.0),
+				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0), "mk": _num(f, "mk", 0.0), "ma": _flag(f, "ma", true),
 				"naca": _flag(f, "naca", true), "tk": _num(f, "tk", 0.12), "pmm": _num(f, "pmm", 3.0)})
 	var td = d.get("tail")
 	if td is Dictionary:
@@ -381,5 +389,5 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		"col": _color(lk, "col", "dfe5ea"), "txt": _txt(lk, "txt", "", 24),
 		"tcol": _color(lk, "tcol", "1b2128"), "tsize": _num(lk, "tsize", 0.3), "tpos": _num(lk, "tpos", 0.5),
 		"logo": logo, "lsize": _num(lk, "lsize", 0.45), "lpos": _num(lk, "lpos", 0.25),
-		"both": _flag(lk, "both", true)}
+		"both": _flag(lk, "both", true), "tf": _flag(lk, "tf", false), "lf": _flag(lk, "lf", false)}
 	return out

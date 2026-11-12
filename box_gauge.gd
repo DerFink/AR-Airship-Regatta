@@ -1,3 +1,4 @@
+# 2026-11-12 11:10 – Wände durchsichtig mit hellem Raster; Maßzahlen weiß mit dunklem Rand
 # 2026-11-11 17:45 – Maßzahlen mit dem Dezimalzeichen der gewählten Sprache (I18n.dec)
 # 2026-11-11 02:20 – Maßzahlen liegen wie in der technischen Zeichnung neben der Maßlinie in der Wand-/Bodenebene; Striche im Körpersystem ausgerichtet
 # 2026-11-11 02:00 – Schwerpunkt mit Abstand zur Stirnwand (x_S) und zum Boden (y_S); Wände gleichmäßig hell (unbeleuchtet) mit sichtbarem 10-cm-Raster; größere Maßzahlen
@@ -32,16 +33,18 @@ var _ink: StandardMaterial3D
 
 func _init() -> void:
 	# Raster-„Papier“: eine Zelle mit dünnem Rand, wird je 10 cm wiederholt
-	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
-	img.fill(Color("e9edf1"))
+	# Wände durchsichtig (Hintergrund bleibt sichtbar), Rasterlinien deutlicher
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 0.20))
 	for i in 64:
 		for w in 2:
-			img.set_pixel(i, w, Color("a9b6c4")); img.set_pixel(w, i, Color("a9b6c4"))
+			img.set_pixel(i, w, Color(0.85, 0.9, 0.95, 0.75)); img.set_pixel(w, i, Color(0.85, 0.9, 0.95, 0.75))
 	_paper = StandardMaterial3D.new()
 	_paper.albedo_texture = ImageTexture.create_from_image(img)
 	_paper.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_paper.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED   # gleichmäßig wie Papier
 	_paper.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_paper.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_ink = StandardMaterial3D.new()
 	_ink.albedo_color = INK
 	_ink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -129,9 +132,9 @@ func _dim(a: Vector3, b: Vector3, t: float, text: String, fs: float, where: Stri
 	lab.text = text
 	lab.pixel_size = fs / 48.0
 	lab.font_size = 48
-	lab.outline_size = 8
-	lab.modulate = INK
-	lab.outline_modulate = Color("e9edf1")
+	lab.outline_size = 14                       # hell mit dunklem Rand: lesbar vor jedem Hintergrund
+	lab.modulate = Color.WHITE
+	lab.outline_modulate = Color("0d141c")
 	lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	lab.no_depth_test = true
 	var mid := (a + b) * 0.5

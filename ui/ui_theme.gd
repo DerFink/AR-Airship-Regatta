@@ -1,3 +1,5 @@
+# 2026-11-12 11:30 – Neu: make_number_row() (Zahlenfeld mit −/+), set_row_value()
+# 2026-11-12 10:50 – Neu: make_primary_button() (fett, blauer Rand) für Weiterfliegen und „Dieses Luftschiff fliegen“
 # 2026-11-11 17:45 – Wertanzeige der Schieberegler: Einheit übersetzt, Dezimalzeichen je Sprache
 # 2026-11-10 22:50 – Ersatzschrift über FontVariation (Kopie der Standardschrift erzeugte Punkte im Text)
 # 2026-11-10 20:15 – Schrift: Standardschrift mit chinesischer Ersatzschrift (Noto Sans CJK TC, Teilmenge) für die Sprachwahl
@@ -278,6 +280,21 @@ static func make_button(text: String, toggle := false, icon_text := "") -> Butto
 	return b
 
 
+## Hauptknopf einer Seite („Weiterfliegen“, „Dieses Luftschiff fliegen“):
+## fette Schrift und kräftiger blauer Rand – auffällig, aber ohne Signalfarbe.
+static func make_primary_button(text: String) -> Button:
+	var b := make_button(text)
+	var fv := FontVariation.new()
+	fv.base_font = ThemeDB.fallback_font if b.get_theme_default_font() == null else b.get_theme_default_font()
+	fv.variation_embolden = 0.9
+	b.add_theme_font_override("font", fv)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		var sb := box(color("surface_alt") if st != "hover" else color("surface_alt").lightened(0.1), color("accent"), radius("md"))
+		sb.set_border_width_all(2)
+		b.add_theme_stylebox_override(st, sb)
+	return b
+
+
 ## Kleine Kachel (Telemetrie-Anzeige oder Menüschalter in der Flugansicht).
 static func make_pill(text: String, clickable := false) -> Button:
 	var b := Button.new()
@@ -338,6 +355,25 @@ static func make_slider_row(label: String, min_v: float, max_v: float, step: flo
 	box.set_meta("slider", s)          # für späteres Setzen von außen
 	box.set_meta("out", out)           # Wertanzeige
 	return box
+
+
+## Zahlenfeld-Zeile (Baukasten): Beschriftung, [−] [Zahl] [+] Einheit – gleiche
+## Parameter wie make_slider_row. max_v = INF: ohne Obergrenze.
+static func make_number_row(label: String, min_v: float, max_v: float, step: float,
+		value: float, on_change: Callable, fmt := "%.2f") -> NumberField:
+	var nf := NumberField.new()
+	nf.setup(label, min_v, max_v, step, value, fmt)
+	nf.value_changed.connect(func(v: float): on_change.call(v))
+	return nf
+
+
+## Wert einer Regler- oder Zahlenfeld-Zeile von außen setzen (ohne on_change).
+static func set_row_value(row: Control, v: float, fmt: String) -> void:
+	if row is NumberField:
+		(row as NumberField).set_value_no_signal(v)
+		return
+	(row.get_meta("slider") as HSlider).set_value_no_signal(v)
+	(row.get_meta("out") as Label).text = I18n.dec(I18n.t(fmt) % v)
 
 
 ## Kleiner quadratischer −/+-Knopf mit Touch-tauglicher Größe.

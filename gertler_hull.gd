@@ -1,3 +1,4 @@
+# 2026-11-12 11:45 – surface_m2(): Oberfläche der Hülle (für die berechnete Hüllenmasse)
 # 2026-10-27 11:08 – Mesh mit Texturkoordinaten (u längs, v rund um die Hülle) für Schriftzug und Logo
 # 2026-10-27 10:20 – Erstversion: Gertler-Polynom (DTMB Series 58), Volumen-Skalierung, Auftriebszentrum, Lamb-Koeffizienten, Mesh-Generator
 # =============================================================================
@@ -141,6 +142,20 @@ func y_squared(x: float) -> float:
 		s += coeffs[i] * xp
 		xp *= x
 	return maxf(s, 0.0)
+
+
+## Oberfläche der Hülle in m² (Mantelfläche des Drehkörpers, numerisch über
+## kurze Kegelstümpfe: 2π · r · ds). Grundlage für die Hüllenmasse.
+func surface_m2(samples: int = 400) -> float:
+	var s := 0.0
+	var r0 := radius_at(0.0)
+	for i in samples:
+		var x1 := float(i + 1) / samples
+		var r1 := radius_at(x1)
+		var dx := length_m / samples
+		s += PI * (r0 + r1) * sqrt(dx * dx + (r1 - r0) * (r1 - r0))
+		r0 = r1
+	return s
 
 
 ## Lokaler Radius in Metern an der Längsposition x (0 = Nase, 1 = Heck).

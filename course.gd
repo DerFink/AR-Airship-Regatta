@@ -1,3 +1,4 @@
+# 2026-11-12 11:00 – race_factor(): Rennfaktor ∛(L·B·H·π/6) für Modellliste und Kennwerte
 # 2026-11-11 16:35 – Rennanzeige oben links nur noch nächster Kontrollpunkt; current_lap_time(), hint_text(), scored_time() (F7B: Gesamtzeit × ∛(L·B·H·π/6))
 # 2026-11-11 12:15 – aerarium-Plakate an allen vier Hallenwänden: große oben (weiße Wand über der 2. Galerie), kleine unten an den Glastüren; Seitenverhältnis kommt aus dem Bild, nie gestreckt
 # 2026-11-11 17:45 – Anzeige-Texte (Runde, Ziel, nächster Kontrollpunkt) übersetzt; Zeiten mit Dezimalzeichen je Sprache
@@ -452,6 +453,12 @@ func current_lap_time() -> float:
 ## Gewertete Zeit nach dem F7B-Reglement: Gesamtzeit × ∛V_ref, dabei ist V_ref
 ## das Ellipsoid in der Box über alles: V_ref = L · B · H · π/6 (m³).
 ## Kleine Schiffe werden damit belohnt, große bekommen eine längere Zeit.
+## Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird,
+## ∛(L·B·H·π/6) mit dem Boxmaß in m.
+static func race_factor(box_m: Vector3) -> float:
+	return pow(maxf(box_m.x * box_m.y * box_m.z * PI / 6.0, 1e-6), 1.0 / 3.0)
+
+
 static func scored_time(total_s: float, box_m: Vector3) -> float:
 	var v_ref := box_m.x * box_m.y * box_m.z * PI / 6.0
 	return total_s * pow(maxf(v_ref, 1e-6), 1.0 / 3.0)

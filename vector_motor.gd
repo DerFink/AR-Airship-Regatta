@@ -1,3 +1,4 @@
+# 2026-11-12 11:55 – Propeller ab 0,7" (≈ 2 cm) Durchmesser
 # 2026-11-11 11:00 – Schubrichtung als Vektor im Nutzer-System (x vorn, y rechts, z unten) lesen/setzen: user_dir() / set_user_dir()
 # 2026-11-10 14:10 – voltage_factor vom Akku-Modell: Schub × Faktor², Drehzahl (Klang) × Faktor
 # 2026-11-07 21:40 – Erklärung der Achsneigung: +45° = Schub schwenkt tangential (rollt stark), −45° = Schub schwenkt radial (Chewie)
@@ -61,9 +62,9 @@ extends Resource
 
 # --- Propeller (Klang und Schubabfall mit der Fahrt) --------------------------
 ## Propellerdurchmesser in Zoll (5" = 12,7 cm).
-@export_range(1.0, 30.0, 0.5) var prop_diameter_in: float = 5.0
+@export_range(0.7, 30.0, 0.01) var prop_diameter_in: float = 5.0
 ## Propellersteigung in Zoll (z. B. 4024 → 2,4"). Begrenzt die Endgeschwindigkeit.
-@export_range(1.0, 20.0, 0.1) var prop_pitch_in: float = 3.0
+@export_range(0.2, 20.0, 0.01) var prop_pitch_in: float = 3.0
 @export_range(2, 6, 1) var prop_blades: int = 2
 ## Drehzahl bei Vollgas (U/min).
 @export_range(1000.0, 60000.0, 500.0) var max_rpm: float = 18000.0

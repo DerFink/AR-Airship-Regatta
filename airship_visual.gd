@@ -1,3 +1,4 @@
+# 2026-11-12 12:20 – Schriftzug auf eher waagrechten, Logo auf eher senkrechten Leitwerksflossen (wählbar in der Gestaltung)
 # 2026-11-11 19:45 – Baukasten: Schiff pendelt auf seinen Hängewinkel (Bug-/Hecklastigkeit sichtbar)
 # 2026-11-11 14:30 – Flossen drehen jetzt in die richtige Richtung (Vorzeichen war vertauscht); Hülle federt beim Stoß sichtbar nach; geplatzte Hülle: Riss entlang der oberen Längsnaht am Heck, Gaswolke, Hülle fällt vom Heck zur Nase hin in sich zusammen, Kollisionsform schrumpft mit
 # 2026-11-11 07:00 – Motoren als Flachmotor (Glocke, Ring, Halter, Welle) mit Schwenkservo statt langer Gondel; Größe aus dem Propellerdurchmesser
@@ -157,7 +158,9 @@ func rebuild() -> void:
 		pivot.add_child(mi)
 		pivot.set_meta("surface", s)
 		pivot.set_meta("base_basis", pivot.basis)
+		pivot.set_meta("geo", Vector3(span, chord, s.taper))   # für Schrift/Logo auf der Flosse
 		_fin_nodes.append(pivot)
+	_decorate_fins()
 
 	# --- Motorgondeln -------------------------------------------------------
 	for n in _motor_nodes: n.queue_free()
@@ -333,6 +336,95 @@ func _repaint() -> void:
 	_sail_mat.albedo_color = _livery.hull_color          # Turm in Hüllenfarbe
 	_sail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_sail_mat.roughness = 0.6
+	_decorate_fins()
+
+
+# =============================================================================
+# Schriftzug und Logo auf dem Leitwerk
+# =============================================================================
+## Eher waagrechte Flossen (Normale mindestens halb senkrecht, also höchstens
+## 60° gegen waagrecht) tragen den Schriftzug, eher senkrechte das Logo – so
+## liegen Schrift und Logo nie übereinander und ein reines Höhenleitwerk hat
+## kein Logo. Beides liegt flach auf der Flosse (beidseitig, wenn „beidseitig“
+## gewählt ist) und dreht mit dem Ruderausschlag mit.
+func _decorate_fins() -> void:
+	if _livery == null:
+		return
+	var logo_tex: Texture2D = _livery.load_logo() if _livery.logo_on_fins and _livery.logo_ref != "" else null
+	for p in _fin_nodes:
+		for c in p.get_children():
+			if c.has_meta("deko"):
+				p.remove_child(c)
+				c.queue_free()
+		var s: ControlSurface = p.get_meta("surface")
+		if s.sail_member or not s.tail_member or not p.has_meta("geo"):
+			continue
+		var g: Vector3 = p.get_meta("geo")
+		var span := g.x
+		var c_r := 2.0 * g.y / (1.0 + g.z)
+		var y_mid := span * 0.5
+		var chord_mid := lerpf(c_r, c_r * g.z, 0.5)          # Tiefe in halber Spannweite
+		var z_mid := c_r * 0.5 - chord_mid * 0.5              # Mitte der Tiefe (Hinterkante gerade)
+		var flat := absf(s.normal.y) >= 0.5                    # eher waagrecht liegende Flosse
+		# Oberkante von Schrift/Logo: zur rechten Seite (waagrechte Flossen – so lesen
+		# sich linke und rechte Flosse von unten gleich) bzw. nach oben (senkrechte Flossen – Logo steht aufrecht)
+		var sp: Vector3 = (p.get_meta("base_basis") as Basis).y
+		var up := signf(sp.x) if absf(sp.x) > 0.3 else signf(sp.y)
+		if up == 0.0: up = 1.0
+		if flat and _livery.text_on_fins and _livery.text.strip_edges() != "":
+			_fin_text(p, Vector3(0, y_mid, z_mid), chord_mid * 0.82, span * 0.45, up)
+		elif not flat and logo_tex:
+			_fin_logo(p, logo_tex, Vector3(0, y_mid, z_mid), chord_mid * 0.75, span * 0.6, up)
+
+
+## Schriftzug flach auf die Flosse (lokal: X = Normale, Y = Spannweite, Z = Tiefe).
+func _fin_text(p: Node3D, center: Vector3, max_w: float, max_h: float, up := 1.0) -> void:
+	var font := ThemeDB.fallback_font
+	var fs := 64
+	var sz := font.get_string_size(_livery.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var px := minf(max_w / maxf(sz.x, 1.0), max_h / maxf(sz.y, 1.0))
+	for side in ([1.0, -1.0] if _livery.both_sides else [1.0]):
+		var l := Label3D.new()
+		l.set_meta("deko", true)
+		l.text = _livery.text
+		l.font_size = fs
+		l.pixel_size = px
+		l.outline_size = 0
+		l.modulate = _livery.text_color
+		l.double_sided = false
+		l.alpha_cut = Label3D.ALPHA_CUT_OPAQUE_PREPASS
+		# Schrift liegt in der Flossenebene (Basis: y = Oberkante, z = zur Seite hin, x = y × z)
+		# Oberseite (von oben gesehen) andersherum, damit sie von der Seite des
+		# Betrachters aus lesbar ist; Unterseite wie berechnet (Blick vom Piloten)
+		var face_up: bool = ((p.get_meta("base_basis") as Basis).x * side).y > 0.0
+		l.basis = _deko_basis(side, -up if face_up else up)
+		l.position = center + Vector3(side * 0.0015, 0, 0)
+		p.add_child(l)
+
+
+## Lage von Schrift/Logo auf der Flosse: Blickseite side (±Normale, lokal X),
+## Oberkante up (±Spannweite, lokal Y); Leserichtung x = y × z (rechtshändig).
+static func _deko_basis(side: float, up: float) -> Basis:
+	var y := Vector3(0, up, 0)
+	var z := Vector3(side, 0, 0)
+	return Basis(y.cross(z), y, z)
+
+
+## Logo flach auf die Flosse (wie der Schriftzug, Seitenverhältnis bleibt).
+func _fin_logo(p: Node3D, tex: Texture2D, center: Vector3, max_w: float, max_h: float, up := 1.0) -> void:
+	var w := float(tex.get_width())
+	var h := float(tex.get_height())
+	var px := minf(max_w / maxf(w, 1.0), max_h / maxf(h, 1.0))
+	for side in ([1.0, -1.0] if _livery.both_sides else [1.0]):
+		var sp := Sprite3D.new()
+		sp.set_meta("deko", true)
+		sp.texture = tex
+		sp.pixel_size = px
+		sp.double_sided = false
+		sp.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+		sp.basis = _deko_basis(side, up)
+		sp.position = center + Vector3(side * 0.0015, 0, 0)
+		p.add_child(sp)
 
 
 # =============================================================================

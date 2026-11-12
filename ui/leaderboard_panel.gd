@@ -1,3 +1,4 @@
+# 2026-11-12 12:55 – Aufklapp-Pfeile ▶/▼ (▸/▾ fehlten in der Schrift)
 # 2026-11-11 20:00 – Neu nach freigegebenem Entwurf: echte Tabelle (eine Zeile je Pilot, Spaltenüberschrift bleibt oben, Zeilen abwechselnd hinterlegt), 100 Plätze mit Scrollen, neuer Eintrag: Liste scrollt hin und die Zeile blinkt; Reiter Aktuell (Quartal) / Best Forever (je Quartal die 3 Besten, aufklappbar 10) / So funktioniert's; Online-Liste von flinkfink.de, ohne Netz die Liste des Geräts
 # 2026-11-11 19:20 – „Fertig“ auch oben in der Liste; Tippen aufs Spielfeld schließt die Liste
 # 2026-11-11 18:30 – Platz und Liste nach gewerteter Zeit (F7B), gemessene Zeit daneben
@@ -301,7 +302,7 @@ func _fill_forever(list: Array) -> void:
 		var top3 := []
 		for k in mini(3, entries.size()):
 			top3.append("%d. %s %s" % [k + 1, entries[k].get("name", ""), Course.format_time(Leaderboard.score_of(entries[k]))])
-		var btn := UITheme.make_button("▸  %s   %s" % [_quarter_text(str(q.get("quarter", ""))), "  ·  ".join(top3)], true)
+		var btn := UITheme.make_button("▶  %s   %s" % [_quarter_text(str(q.get("quarter", ""))), "  ·  ".join(top3)], true)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		v.add_child(btn)
 		var detail := VBoxContainer.new()
@@ -315,7 +316,7 @@ func _fill_forever(list: Array) -> void:
 		v.add_child(detail)
 		btn.toggled.connect(func(on: bool):
 			detail.visible = on
-			btn.text = ("▾" if on else "▸") + btn.text.substr(1))
+			btn.text = ("▼" if on else "▶") + btn.text.substr(1))
 
 
 static func _quarter_text(q: String) -> String:

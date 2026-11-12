@@ -1,3 +1,5 @@
+# 2026-11-12 11:45 – Hüllenmasse berechnet (Oberfläche × Folie 27 g/m² + 7 % für Nähte, Ränder, Ventil); Flossen/Canards nach Vorschlag (Depron + Pauschale) oder von Hand: fin_mass_of()
+# 2026-11-12 10:40 – Platzen ist Grundregel (nicht abschaltbar)
 # 2026-11-12 10:05 – Hülle platzt pauschal ab 20 km/h Fahrt beim Aufprall (fester Wert, nicht mehr einstellbar)
 # 2026-11-11 18:05 – repair(): heile Hülle auch beim Wechsel in Baukasten/Menü (vorher blieb sie dort schlaff)
 # 2026-11-11 14:10 – Aufprall: Stoß wird gemessen (Hülle federt sichtbar), über der Grenzgeschwindigkeit platzt die Hülle hinten (Druckwelle läuft nach hinten), Gas entweicht vom Heck zur Nase, Auftrieb und Auftriebspunkt wandern mit, Motoren aus
@@ -63,14 +65,21 @@ signal bumped(strength: float)
 @export var tail: TailConfig
 
 @export_group("Massen")
-## Hülle mit Nähten (ohne Traggas), in kg. Verteilt über die Hüllenfläche.
+## Hülle (ohne Traggas), in kg. Verteilt über die Hüllenfläche. Wird bei jedem
+## Neuaufbau BERECHNET: Oberfläche × Folien-Flächengewicht × (1 + HULL_EXTRA).
 @export_range(0.0, 10000.0, 0.001, "or_greater") var hull_mass_kg: float = 0.086
+## Flächengewicht der Hüllenfolie (kg/m²), Standard 27 g/m²
+@export_range(0.001, 1.0, 0.001, "or_greater") var hull_film_kg_m2: float = 0.027
+## Zuschlag zur Folie: 2 % Nähte + 5 % Ränder und Ventil
+const HULL_EXTRA := 0.07
 ## Elektronik ohne Akku (Flugcontroller, Empfänger, BEC), in kg.
 ## Sitzt zusammen mit Akku und Ballast unten an der Hülle.
 @export_range(0.0, 10000.0, 0.001, "or_greater") var electronics_mass_kg: float = 0.030
-## Masse je Leitwerksflosse (mit Servo), in kg. Sitzt im Flächenschwerpunkt
-## der Flosse; 0 = Flossen gewichtslos (ältere Modelle).
+## Masse je Leitwerksflosse (mit Servo), in kg – nur wenn fin_mass_auto aus ist
+## (von Hand eingetragen). Sitzt im Flächenschwerpunkt der Flosse.
 @export_range(0.0, 100.0, 0.001, "or_greater") var fin_mass_kg: float = 0.0
+## true = Flossengewicht nach Vorschlag (Depron + Pauschale, siehe ControlSurface)
+@export var fin_mass_auto: bool = true
 ## Längsposition der unten angeklebten Restmasse (0 = Nase, 1 = Heck).
 @export_range(0.0, 1.0, 0.01) var ballast_x: float = 0.45
 ## true = Restmasse wird so verschoben, dass der Schwerpunkt genau unter dem
@@ -183,7 +192,6 @@ var _reset_to = null                 ## Transform3D, wenn ein Zurücksetzen anst
 # entweicht von hinten nach vorn: deflate_front wandert in DEFLATE_S Sekunden
 # vom Heck (1) zur Nase (0); nur vor dieser Stelle trägt noch Gas.
 const DEFLATE_S := 1.4
-var burst_enabled := true            ## aus den Einstellungen
 const BURST_SPEED_MPS := 20.0 / 3.6  ## Hülle platzt pauschal ab 20 km/h Fahrt beim Aufprall
 const BUMP_FULL_MPS := 3.0           ## Stoß mit dieser Geschwindigkeit auf die Wand = voller Aufprall-Klang
 var burst := false                   ## Hülle ist geplatzt
@@ -217,6 +225,16 @@ func set_hull(h: GertlerHull) -> void:
 # =============================================================================
 # Massen, Trägheiten und virtuelle Massen aus der Hüllengeometrie
 # =============================================================================
+## Masse einer Leitwerksflosse oder eines Canards (kg): Vorschlag (Depron +
+## Pauschale) oder von Hand eingetragen. Turm-Teile zählen nicht.
+func fin_mass_of(s: ControlSurface) -> float:
+	if s.sail_member:
+		return 0.0
+	if s.tail_member:
+		return s.suggested_mass_kg() if fin_mass_auto else fin_mass_kg
+	return s.suggested_mass_kg() if s.mass_auto else s.mass_kg
+
+
 func rebuild_mass_properties() -> void:
 	# --- 1) Leitwerk erzeugen und alle Bauteile an die Hülle setzen ---------
 	# (zuerst, weil die Motormassen ihren Einbauort brauchen)
@@ -242,6 +260,8 @@ func rebuild_mass_properties() -> void:
 	#   Hülle        verteilt, Schwerpunkt ≈ Auftriebszentrum
 	#   Motoren      je an ihrem Einbauort (mit Schwenkservo)
 	#   Unten        Elektronik + Akku + Ballast, direkt am Hüllenboden
+	# Hülle: aus Oberfläche und Folie berechnet (kein Schieberegler mehr)
+	hull_mass_kg = hull.surface_m2() * hull_film_kg_m2 * (1.0 + HULL_EXTRA)
 	var V := hull.volume_m3
 	var a := hull.length_m * 0.5           # Halbachse längs
 	var b := hull.diameter_m * 0.5         # Halbachse quer
@@ -254,13 +274,15 @@ func rebuild_mass_properties() -> void:
 	for s in surfaces:
 		if s.tail_member:
 			fins.append(s)
-	var fin_total := fin_mass_kg * fins.size()
+	var fin_total := 0.0
+	for s in fins:
+		fin_total += fin_mass_of(s)
 	# Freie Flächen (Canards) mit eigener Masse als Punktmassen am Einbauort
 	var extra: Array = []
 	for s in surfaces:
-		if not s.tail_member and not s.sail_member and s.mass_kg > 0.0:
-			extra.append([s.mass_kg, s.position])
-			fin_total += s.mass_kg
+		if not s.tail_member and not s.sail_member and fin_mass_of(s) > 0.0:
+			extra.append([fin_mass_of(s), s.position])
+			fin_total += fin_mass_of(s)
 	var fc_mass := teensy_mass_kg if fc_teensy else 0.0
 	# Nutzlast sitzt außen an der Hülle (wie eine Gondel)
 	var pa := deg_to_rad(payload_angle_deg)
@@ -286,7 +308,7 @@ func rebuild_mass_properties() -> void:
 	for mot in motors:
 		mz_motors += mot.mass_kg * mot.position.z
 	for s in fins:
-		mz_motors += fin_mass_kg * s.position.z             # Flossen hinten: Restmasse wandert nach vorn
+		mz_motors += fin_mass_of(s) * s.position.z             # Flossen hinten: Restmasse wandert nach vorn
 	mz_motors += payload_mass_kg * payload_pos.z
 	for e in extra: mz_motors += e[0] * (e[1] as Vector3).z
 	if ballast_auto_x and bottom_mass_kg > 1e-6:
@@ -301,7 +323,7 @@ func rebuild_mass_properties() -> void:
 	for mot in motors:
 		moment += mot.position * mot.mass_kg
 	for s in fins:
-		moment += s.position * fin_mass_kg
+		moment += s.position * fin_mass_of(s)
 	moment += payload_pos * payload_mass_kg
 	for e in extra: moment += (e[1] as Vector3) * float(e[0])
 	cg_offset = moment / maxf(total_mass, 1e-6)
@@ -317,7 +339,7 @@ func rebuild_mass_properties() -> void:
 	for mot in motors:
 		pts.append([mot.mass_kg, mot.position])
 	for s in fins:
-		pts.append([fin_mass_kg, s.position])
+		pts.append([fin_mass_of(s), s.position])
 	pts.append([payload_mass_kg, payload_pos])
 	pts.append_array(extra)
 	for p in pts:
@@ -501,7 +523,7 @@ func _check_impacts(state: PhysicsDirectBodyState3D, dt: float) -> void:
 	_bump_cool = 0.25
 	bumped.emit(clampf(worst / BUMP_FULL_MPS, 0.0, 1.0))
 	# Platzen: pauschal nach der Fahrt des Schiffs vor dem Stoß (nicht nur senkrecht zur Wand)
-	if burst_enabled and not burst and _v_prev.length() >= BURST_SPEED_MPS:
+	if not burst and _v_prev.length() >= BURST_SPEED_MPS:      # Grundregel, nicht abschaltbar
 		_start_burst()
 
 

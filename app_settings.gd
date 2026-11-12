@@ -1,3 +1,4 @@
+# 2026-11-12 10:40 – Einstellung „Platzen an/aus“ entfernt (Grundregel, immer an)
 # 2026-11-12 10:05 – Grenzgeschwindigkeit fürs Platzen entfernt (jetzt fest 20 km/h in AirshipPhysics)
 # 2026-11-11 14:40 – Platzen beim Aufprall an/aus und Grenzgeschwindigkeit
 # 2026-11-11 16:30 – Erstversion: Einstellungen der App (Musik und Motorklang an/aus und Lautstärke, Bodenspur an/aus) – gespeichert in user://einstellungen.cfg, wirken über eigene Audio-Busse
@@ -21,7 +22,6 @@ static var music_vol := 0.7
 static var motor_on := true
 static var motor_vol := 1.0
 static var track_on := true
-static var burst_on := true          ## Hülle platzt bei zu hartem Aufprall
 static var _loaded := false
 ## wird bei jeder Änderung aufgerufen (z. B. Spur ein-/ausblenden)
 static var on_change: Array[Callable] = []
@@ -38,7 +38,6 @@ static func load_all() -> void:
 		motor_on = bool(cfg.get_value("ton", "motor_an", motor_on))
 		motor_vol = clampf(float(cfg.get_value("ton", "motor_laut", motor_vol)), 0.0, 1.0)
 		track_on = bool(cfg.get_value("anzeige", "spur_an", track_on))
-		burst_on = bool(cfg.get_value("flug", "platzen_an", burst_on))
 	apply()
 
 
@@ -49,7 +48,6 @@ static func save() -> void:
 	cfg.set_value("ton", "motor_an", motor_on)
 	cfg.set_value("ton", "motor_laut", motor_vol)
 	cfg.set_value("anzeige", "spur_an", track_on)
-	cfg.set_value("flug", "platzen_an", burst_on)
 	cfg.save(PATH)
 	apply()
 

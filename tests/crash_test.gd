@@ -1,3 +1,4 @@
+# 2026-11-12 10:40 – Platzen immer an
 # 2026-11-12 10:05 – Grenze 20 km/h: 16 km/h prallt ab, 25 km/h Anlauf platzt
 # 2026-11-11 14:50 – Erstversion: Aufprall und Platzen (langsam = abprallen, schnell = Hülle platzt hinten und fällt), Drehrichtung der Flossen in der Darstellung
 extends SceneTree
@@ -32,7 +33,6 @@ func _physics_process(_dt: float) -> bool:   # zählt Physikschritte (CI läuft 
 			hz = Course.FIELD_WIDTH * 0.5 + Course.HALL_GAP
 			s.bumped.connect(func(_k): bumps += 1)
 			s.burst_changed.connect(func(on): if on: bursts += 1)
-			s.burst_enabled = true
 			# Flossen-Darstellung: positiver Ausschlag hebt die Vorderkante zur Normalen
 			var fin_ok := 0
 			for sf in s.surfaces:

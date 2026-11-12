@@ -1,3 +1,4 @@
+# 2026-11-12 12:50 – Zahlenfelder statt Schieberegler (Regler nur noch für Lagen); Volumen ohne Obergrenze; Hüllenmasse berechnet (Folie g/m² + 7 %); Flossen/Canards: Gewichtsvorschlag Depron + Pauschale, eigenes Gewicht überschreibt (Vorschlag ausgegraut); Propeller in Zoll/cm/mm ab 2 cm; Rennfaktor F7B bei den Kennwerten; Schrift/Logo auch aufs Leitwerk; Logo laden im Browser über die Dateiauswahl des Geräts, am Handy aus Download/Bilder
 # 2026-11-11 19:45 – Bug-/Hecklastigkeit: Ansicht pendelt auf den Hängewinkel, roter Hinweis ab 2°; Stabilitätsmaß und Leitwerkswarnung nur im Reiter Leitwerk, Kennwerte rechts nur Maße und Masse
 # 2026-11-11 17:50 – Knopf „⚙ Einstellungen“ über „Teilen“
 # 2026-11-11 17:45 – Alle Texte übersetzt (I18n.t), Kennwerte und Profilangaben mit Dezimalzeichen je Sprache, Sketch-Hinweise übersetzt (Kopfzeile im Sketch bleibt Deutsch)
@@ -77,8 +78,17 @@ var _ino_ch: CheckBox             ## Kanalzuordnung des Senders übernehmen
 var _cells_row: Control           ## Akku-Zellen (Stepper)
 var _ballast_auto: CheckBox        ## Restmasse automatisch austrimmen
 var _mass_info: Label              ## Anzeige Akku + Ballast / Übergewicht
+var _hull_mass_lbl: Label          ## „Hülle 79 g · Oberfläche … × 27 g/m² + 7 %“
+var _fin_mass_lbl: Label           ## Vorschlag Flossengewicht (ausgegraut, wenn von Hand)
+var _canard_mass_lbl: Label        ## Vorschlag Canardgewicht
+var _canard_sel: ControlSurface    ## gerade bearbeiteter Canard
+## Einheit der Propellerangaben: 0 = Zoll, 1 = cm, 2 = mm (gilt für Durchmesser und Steigung)
+static var prop_unit := 0
+const PROP_UNITS := ["Zoll", "cm", "mm"]
+const PROP_FACTOR := [1.0, 2.54, 25.4]
 var _last_level := -1
 var _file_dialog: FileDialog
+var _factor_lbl: Label                ## „Rennfaktor F7B ×0,72“ unter den Kennwerten
 var _left: PanelContainer
 var _right: PanelContainer
 
@@ -128,6 +138,11 @@ func _ready() -> void:
 	_stats = UITheme.make_label("")
 	_stats.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
 	rcol.add_child(_stats)
+	# Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird
+	_factor_lbl = UITheme.make_label("")
+	_factor_lbl.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	_factor_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rcol.add_child(_factor_lbl)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rcol.add_child(spacer)
@@ -236,13 +251,14 @@ func _scroll_page(title: String, builder: Callable) -> ScrollContainer:
 # =============================================================================
 func _build_hull_page(col: VBoxContainer) -> void:
 	col.add_child(UITheme.make_title("Hülle"))
-	_hull_rows.vol = UITheme.make_slider_row("Volumen", 0.05, 5.0, 0.01, ship.hull.volume_m3,
+	# Zahlenfelder; Schieberegler nur für Lagen (hier: Dickste Stelle)
+	_hull_rows.vol = UITheme.make_number_row("Volumen", 0.01, INF, 0.01, ship.hull.volume_m3,
 		func(v): ship.hull.volume_m3 = v, "%.2f m³")
-	_hull_rows.ld = UITheme.make_slider_row("Schlankheit L/D", 3.0, 9.0, 0.1, ship.hull.length_to_diameter,
+	_hull_rows.ld = UITheme.make_number_row("Schlankheit L/D", 3.0, 9.0, 0.1, ship.hull.length_to_diameter,
 		func(v): ship.hull.length_to_diameter = v, "%.1f")
 	_hull_rows.m = UITheme.make_slider_row("Dickste Stelle", 0.30, 0.50, 0.01, ship.hull.m,
 		func(v): ship.hull.m = v, "%.2f")
-	_hull_rows.cp = UITheme.make_slider_row("Völligkeit", 0.55, 0.72, 0.005, ship.hull.cp,
+	_hull_rows.cp = UITheme.make_number_row("Völligkeit", 0.55, 0.72, 0.005, ship.hull.cp,
 		func(v): ship.hull.cp = v, "%.3f")
 	for k in ["vol", "ld", "m", "cp"]:
 		col.add_child(_hull_rows[k])
@@ -250,14 +266,18 @@ func _build_hull_page(col: VBoxContainer) -> void:
 	# --- Massen: Hülle, Elektronik und die unten angeklebte Restmasse ------
 	# Motormassen stehen im Reiter Antrieb (je Motorgondel mit Servo).
 	col.add_child(UITheme.make_title("Massen"))
-	_hull_rows.hm = UITheme.make_slider_row("Hülle mit Nähten", 10.0, 2000.0, 1.0, ship.hull_mass_kg * 1000.0,
-		func(v): ship.hull_mass_kg = v / 1000.0; _changed(), "%d g")
-	_hull_rows.el = UITheme.make_slider_row("Elektronik (FC, RX, BEC)", 0.0, 1000.0, 1.0, ship.electronics_mass_kg * 1000.0,
+	# Hülle: berechnet aus Oberfläche × Folie (Standard 27 g/m²) + 7 % (Nähte, Ränder, Ventil)
+	_hull_rows.hf = UITheme.make_number_row("Hüllenfolie (Flächengewicht)", 1.0, 1000.0, 1.0, ship.hull_film_kg_m2 * 1000.0,
+		func(v): ship.hull_film_kg_m2 = v / 1000.0; _changed(), "%d g/m²")
+	col.add_child(_hull_rows.hf)
+	_hull_mass_lbl = UITheme.make_label("")
+	_hull_mass_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_hull_mass_lbl)
+	_hull_rows.el = UITheme.make_number_row("Elektronik (FC, RX, BEC)", 0.0, 1000.0, 1.0, ship.electronics_mass_kg * 1000.0,
 		func(v): ship.electronics_mass_kg = v / 1000.0; _changed(), "%d g")
-	col.add_child(_hull_rows.hm)
 	col.add_child(_hull_rows.el)
 	# Schwere: um wie viel % das Schiff schwerer ist als sein Auftrieb (0 % = schwebt genau)
-	_hull_rows.tw = UITheme.make_slider_row("Schwere (0 % = aerostatisch ausgeglichen)", 0.0, 10.0, 0.1, _heaviness_pct(),
+	_hull_rows.tw = UITheme.make_number_row("Schwere (0 % = aerostatisch ausgeglichen)", 0.0, 10.0, 0.1, _heaviness_pct(),
 		func(v): ship.trim_heaviness_n = v / 100.0 * _buoyancy_n(); _changed(), "%.1f %%")
 	col.add_child(_hull_rows.tw)
 	_mass_info = UITheme.make_label("", "MutedLabel")
@@ -275,7 +295,7 @@ func _build_hull_page(col: VBoxContainer) -> void:
 
 	# --- Nutzlast: frei platzierbare Masse außen an der Hülle ----------------
 	col.add_child(UITheme.make_title("Nutzlast"))
-	_hull_rows.pl = UITheme.make_slider_row("Masse", 0.0, 500.0, 1.0, ship.payload_mass_kg * 1000.0,
+	_hull_rows.pl = UITheme.make_number_row("Masse", 0.0, 50000.0, 1.0, ship.payload_mass_kg * 1000.0,
 		func(v): ship.payload_mass_kg = v / 1000.0; _changed(), "%d g")
 	_hull_rows.px = UITheme.make_slider_row("Lage (0 Nase · 1 Heck)", 0.0, 1.0, 0.01, ship.payload_x,
 		func(v): ship.payload_x = v; _changed(), "%.2f")
@@ -345,7 +365,7 @@ func _fill_tail_page() -> void:
 		_tail_box.add_child(UITheme.make_slider_row("Drehung", 0.0, 359.0, 1.0, t.rotation_deg,
 			func(v): t.rotation_deg = v; _tail_changed(false), "%d°"))
 	elif t.layout == TailConfig.Layout.Y or t.layout == TailConfig.Layout.LAMBDA:
-		_tail_box.add_child(UITheme.make_slider_row("V-Winkel (gegen waagrecht)", 0.0, 85.0, 1.0, t.v_angle_deg,
+		_tail_box.add_child(UITheme.make_number_row("V-Winkel (gegen waagrecht)", 0.0, 85.0, 1.0, t.v_angle_deg,
 			func(v): t.v_angle_deg = v; _tail_changed(false), "%d°"))
 
 	_tail_box.add_child(UITheme.make_label("Bauart", "MutedLabel"))
@@ -362,26 +382,38 @@ func _fill_tail_page() -> void:
 		_tail_changed(true))
 	_tail_box.add_child(split)
 	if t.split_hv:
-		_tail_box.add_child(UITheme.make_slider_row("Fläche Höhenleitwerk (je Flosse)", 20.0, 3000.0, 1.0,
+		_tail_box.add_child(UITheme.make_number_row("Fläche Höhenleitwerk (je Flosse)", 5.0, 100000.0, 1.0,
 			t.area_h_m2 * 1e4, func(v): t.area_h_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
-		_tail_box.add_child(UITheme.make_slider_row("Fläche Seitenleitwerk (je Flosse)", 20.0, 3000.0, 1.0,
+		_tail_box.add_child(UITheme.make_number_row("Fläche Seitenleitwerk (je Flosse)", 5.0, 100000.0, 1.0,
 			t.area_v_m2 * 1e4, func(v): t.area_v_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
 	else:
-		_tail_box.add_child(UITheme.make_slider_row("Fläche je Flosse", 20.0, 3000.0, 1.0,
+		_tail_box.add_child(UITheme.make_number_row("Fläche je Flosse", 5.0, 100000.0, 1.0,
 			t.area_m2 * 1e4, func(v): t.area_m2 = v / 1e4; _tail_changed(false), "%d cm²"))
-	_tail_box.add_child(UITheme.make_slider_row("Streckung", 0.3, 6.0, 0.1, t.aspect_ratio,
+	_tail_box.add_child(UITheme.make_number_row("Streckung", 0.3, 6.0, 0.1, t.aspect_ratio,
 		func(v): t.aspect_ratio = v; _tail_changed(false), "%.1f"))
-	_tail_box.add_child(UITheme.make_slider_row("Pfeilung (Endtiefe/Wurzeltiefe)", 0.2, 1.0, 0.05, t.taper,
+	_tail_box.add_child(UITheme.make_number_row("Pfeilung (Endtiefe/Wurzeltiefe)", 0.2, 1.0, 0.05, t.taper,
 		func(v): t.taper = v; _tail_changed(false), "%.2f"))
 	_tail_box.add_child(UITheme.make_slider_row("Position am Heck", 0.5, 1.0, 0.01, t.hull_x,
 		func(v): t.hull_x = v; _tail_changed(false), "%.2f"))
-	_tail_box.add_child(UITheme.make_slider_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
+	_tail_box.add_child(UITheme.make_number_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
 		func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
 	# Profil der Flossen (Platte oder NACA 00xx) mit Dicke und Gewichts-Schätzung
 	_profile_block(_tail_box, t, t.area_m2, t.aspect_ratio, func(): _tail_changed(false), _fill_tail_page)
-	# Endgewicht je Flosse (gewogen, mit Servo) – sitzt im Flächenschwerpunkt der Flosse
-	_tail_box.add_child(UITheme.make_slider_row("Endgewicht je Flosse (mit Servo)", 0.0, 200.0, 1.0, ship.fin_mass_kg * 1000.0,
-		func(v): ship.fin_mass_kg = v / 1000.0; _changed(), "%d g"))
+	# Gewicht je Flosse: Vorschlag (Depron + Pauschale) oder von Hand eingetragen
+	_fin_mass_lbl = UITheme.make_label("")
+	_fin_mass_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tail_box.add_child(_fin_mass_lbl)
+	var own := UITheme.make_number_row("Eigenes Gewicht je Flosse (leer = Vorschlag)", 0.0, 1000.0, 1.0,
+		-1.0 if ship.fin_mass_auto else ship.fin_mass_kg * 1000.0,
+		func(v):
+			ship.fin_mass_auto = v < 0.0
+			if v >= 0.0: ship.fin_mass_kg = v / 1000.0
+			_changed(), "%d g")
+	own.allow_empty = true
+	own.set_value_no_signal(-1.0 if ship.fin_mass_auto else ship.fin_mass_kg * 1000.0)
+	own.empty_base = roundf(_tail_suggest_kg() * 1000.0)
+	_tail_box.add_child(own)
+	_update_fin_mass_info()
 	# Elastisches Leitwerk für beide Bauarten schaltbar (aus = starre Flossen)
 	var flex := CheckBox.new()
 	flex.text = "Elastisches Leitwerk (Pseudo-Flex) – aus = starr"
@@ -438,11 +470,24 @@ func _edit_canard(i: int) -> void:
 		func(v): s.hull_x = v; _changed(), "%.2f"))
 	_canard_editor.add_child(UITheme.make_slider_row("Winkel", 0.0, 359.0, 1.0, s.hull_angle_deg,
 		func(v): s.hull_angle_deg = v; _changed(), "%d°"))
-	_canard_editor.add_child(UITheme.make_slider_row("Fläche", 20.0, 2000.0, 1.0, s.area_m2 * 1e4,
+	_canard_editor.add_child(UITheme.make_number_row("Fläche", 5.0, 100000.0, 1.0, s.area_m2 * 1e4,
 		func(v): s.area_m2 = v / 1e4; _changed(), "%d cm²"))
 	_profile_block(_canard_editor, s, s.area_m2, s.aspect_ratio, func(): _changed(), func(): _edit_canard(i))
-	_canard_editor.add_child(UITheme.make_slider_row("Endgewicht (mit Servo)", 0.0, 200.0, 1.0, s.mass_kg * 1000.0,
-		func(v): s.mass_kg = v / 1000.0; _changed(), "%d g"))
+	# Gewicht: Vorschlag (Depron + Pauschale) oder von Hand eingetragen
+	_canard_sel = s
+	_canard_mass_lbl = UITheme.make_label("")
+	_canard_mass_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_canard_editor.add_child(_canard_mass_lbl)
+	var own := UITheme.make_number_row("Eigenes Gewicht (leer = Vorschlag)", 0.0, 1000.0, 1.0, s.mass_kg * 1000.0,
+		func(v):
+			s.mass_auto = v < 0.0
+			if v >= 0.0: s.mass_kg = v / 1000.0
+			_changed(), "%d g")
+	own.allow_empty = true
+	own.set_value_no_signal(-1.0 if s.mass_auto else s.mass_kg * 1000.0)
+	own.empty_base = roundf(s.suggested_mass_kg() * 1000.0)
+	_canard_editor.add_child(own)
+	_update_fin_mass_info()
 	var del := UITheme.make_button("Canard entfernen")
 	del.pressed.connect(func():
 		ship.surfaces.erase(s)
@@ -461,9 +506,9 @@ func _build_drive_page(col: VBoxContainer) -> void:
 	_cells_row = UITheme.make_stepper("Zellen (S)", 1, 12, ship.battery_cells,
 		func(v): ship.battery_cells = int(v); _changed(), LABEL_W)
 	col.add_child(_cells_row)
-	_hull_rows.bmah = UITheme.make_slider_row("Kapazität", 100.0, 5000.0, 10.0, ship.battery_mah,
+	_hull_rows.bmah = UITheme.make_number_row("Kapazität", 10.0, 100000.0, 10.0, ship.battery_mah,
 		func(v): ship.battery_mah = v; _changed(), "%d mAh")
-	_hull_rows.bm = UITheme.make_slider_row("Masse", 1.0, 1000.0, 1.0, ship.battery_mass_kg * 1000.0,
+	_hull_rows.bm = UITheme.make_number_row("Masse", 1.0, 50000.0, 1.0, ship.battery_mass_kg * 1000.0,
 		func(v): ship.battery_mass_kg = v / 1000.0; _changed(), "%d g")
 	col.add_child(_hull_rows.bmah)
 	col.add_child(_hull_rows.bm)
@@ -490,7 +535,7 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	_teensy_check.button_pressed = ship.fc_teensy
 	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _changed())
 	col.add_child(_teensy_check)
-	_hull_rows.tm = UITheme.make_slider_row("Masse Flugcontroller", 0.0, 100.0, 1.0, ship.teensy_mass_kg * 1000.0,
+	_hull_rows.tm = UITheme.make_number_row("Masse Flugcontroller", 0.0, 100.0, 1.0, ship.teensy_mass_kg * 1000.0,
 		func(v): ship.teensy_mass_kg = v / 1000.0; _changed(), "%d g")
 	col.add_child(_hull_rows.tm)
 	var note := UITheme.make_label("Ohne Flugcontroller gibt es nur „Direkt“: Knüppel gehen ohne Regler auf Ruder und Schwenker. Das Gas bleibt immer beim Piloten.", "MutedLabel")
@@ -643,7 +688,7 @@ func _on_part_selected(i: int) -> void:
 	var set_all := func(prop: String, v, relayout: bool):
 		for m in pair: m.set(prop, v)
 		if relayout: _changed()
-	_editor_box.add_child(UITheme.make_slider_row("Masse je Gondel (mit Servo)", 0.0, 300.0, 1.0, mo.mass_kg * 1000.0,
+	_editor_box.add_child(UITheme.make_number_row("Masse je Gondel (mit Servo)", 0.0, 10000.0, 1.0, mo.mass_kg * 1000.0,
 		func(v): set_all.call("mass_kg", v / 1000.0, true), "%d g"))
 	# Schubrichtung als Vektor (x vorn, y rechts, z unten); der Partner im Paar
 	# bekommt y gespiegelt, damit das Paar symmetrisch bleibt
@@ -659,28 +704,35 @@ func _on_part_selected(i: int) -> void:
 				for m in pair:
 					if m != mo: m.set_user_dir(Vector3(u.x, -u.y, u.z))
 				_changed(), "%.2f"))
-	_editor_box.add_child(UITheme.make_slider_row("Schub vor", 0.1, 20.0, 0.1, mo.max_thrust_n,
+	_editor_box.add_child(UITheme.make_number_row("Schub vor", 0.01, 1000.0, 0.1, mo.max_thrust_n,
 		func(v): set_all.call("max_thrust_n", v, true), "%.1f N"))
 	var rev := CheckBox.new()
 	rev.text = "Rückwärtsschub erlaubt"
 	rev.button_pressed = mo.reverse_allowed
 	rev.toggled.connect(func(on): set_all.call("reverse_allowed", on, true))
 	_editor_box.add_child(rev)
-	_editor_box.add_child(UITheme.make_slider_row("Wirkung rückwärts (normal ≈ 0,55 · 3D ≈ 0,95)", 0.1, 1.0, 0.05,
+	_editor_box.add_child(UITheme.make_number_row("Wirkung rückwärts (normal ≈ 0,55 · 3D ≈ 0,95)", 0.1, 1.0, 0.05,
 		mo.reverse_efficiency, func(v): set_all.call("reverse_efficiency", v, false), "%.2f"))
-	_editor_box.add_child(UITheme.make_slider_row("Schwenk max", 0.0, 120.0, 1.0, mo.max_swivel_deg,
+	_editor_box.add_child(UITheme.make_number_row("Schwenk max", 0.0, 120.0, 1.0, mo.max_swivel_deg,
 		func(v): set_all.call("max_swivel_deg", v, false), "%d°"))
 	# Negativ = Schub schwenkt radial zur Hüllenmitte (Chewie), positiv = entlang der Hülle (rollt stark)
-	_editor_box.add_child(UITheme.make_slider_row("Achsneigung (Pigleg, − = radial)", -60.0, 60.0, 1.0, mo.swivel_tilt_deg,
+	_editor_box.add_child(UITheme.make_number_row("Achsneigung (Pigleg, − = radial)", -60.0, 60.0, 1.0, mo.swivel_tilt_deg,
 		func(v): set_all.call("swivel_tilt_deg", v, true), "%d°"))
+	# Propeller in Zoll, cm oder mm (gespeichert wird in Zoll); kleinster Durchmesser 2 cm
 	_editor_box.add_child(UITheme.make_label("Propeller", "MutedLabel"))
-	_editor_box.add_child(UITheme.make_slider_row("Durchmesser", 2.0, 15.0, 0.5, mo.prop_diameter_in,
-		func(v): set_all.call("prop_diameter_in", v, false), "%.1f\""))
-	_editor_box.add_child(UITheme.make_slider_row("Steigung", 1.0, 10.0, 0.1, mo.prop_pitch_in,
-		func(v): set_all.call("prop_pitch_in", v, false), "%.1f\""))
+	var mi := i
+	_editor_box.add_child(UITheme.make_choice_row(PROP_UNITS, prop_unit,
+		func(k): prop_unit = k; _on_part_selected.call_deferred(mi)))
+	var f: float = PROP_FACTOR[prop_unit]
+	var pfmt: String = ["%.1f\"", "%.1f cm", "%d mm"][prop_unit]
+	var pstep: float = [0.1, 0.1, 1.0][prop_unit]
+	_editor_box.add_child(UITheme.make_number_row("Durchmesser", 2.0 / 2.54 * f, 40.0 / 2.54 * f, pstep, mo.prop_diameter_in * f,
+		func(v): set_all.call("prop_diameter_in", v / f, false), pfmt))
+	_editor_box.add_child(UITheme.make_number_row("Steigung", 0.2 * f, 20.0 * f, pstep, mo.prop_pitch_in * f,
+		func(v): set_all.call("prop_pitch_in", v / f, false), pfmt))
 	_editor_box.add_child(UITheme.make_stepper("Blätter", 2, 6, mo.prop_blades,
 		func(v): set_all.call("prop_blades", v, false), LABEL_W))
-	_editor_box.add_child(UITheme.make_slider_row("Drehzahl max", 3000.0, 40000.0, 500.0, mo.max_rpm,
+	_editor_box.add_child(UITheme.make_number_row("Drehzahl max", 500.0, 200000.0, 500.0, mo.max_rpm,
 		func(v): set_all.call("max_rpm", v, false), "%d U/min"))
 	_editor_box.add_child(UITheme.make_label("Drehrichtung (nur dieser Motor)", "MutedLabel"))
 	_editor_box.add_child(UITheme.make_choice_row(["CW", "CCW"], 0 if mo.spin_dir > 0 else 1,
@@ -729,6 +781,11 @@ func _fill_look_page() -> void:
 	te.custom_minimum_size.y = UITheme.size("control_height")
 	te.text_changed.connect(func(t): l.text = t)
 	_look_box.add_child(te)
+	var tf := CheckBox.new()
+	tf.text = "Auch auf dem Leitwerk (eher waagrechte Flossen)"
+	tf.button_pressed = l.text_on_fins
+	tf.toggled.connect(func(on): l.text_on_fins = on)
+	_look_box.add_child(tf)
 	_look_box.add_child(_swatch_row(TEXT_SWATCHES, l.text_color, func(c): l.text_color = c))
 	_look_box.add_child(UITheme.make_slider_row("Schriftgröße", 0.1, 0.6, 0.01, l.text_size,
 		func(v): l.text_size = v, "%.2f"))
@@ -738,7 +795,7 @@ func _fill_look_page() -> void:
 	_look_box.add_child(UITheme.make_title("Logo"))
 	var lrow := UITheme.make_hbox("xs")
 	var load_b := UITheme.make_button("Logo laden")
-	load_b.pressed.connect(func(): _file_dialog.popup_centered_ratio(0.8))
+	load_b.pressed.connect(_open_logo_picker)
 	lrow.add_child(load_b)
 	var rem := UITheme.make_button("Entfernen")
 	rem.pressed.connect(func(): l.logo_ref = ""; ui_action.emit("remove"); _fill_look_page())
@@ -754,6 +811,11 @@ func _fill_look_page() -> void:
 	else:
 		info.text = I18n.t("Datei: %s – beim Teilen separat mitschicken.") % l.logo_ref
 	_look_box.add_child(info)
+	var lf := CheckBox.new()
+	lf.text = "Auch auf dem Leitwerk (Flossen mit senkrechtem Anteil)"
+	lf.button_pressed = l.logo_on_fins
+	lf.toggled.connect(func(on): l.logo_on_fins = on)
+	_look_box.add_child(lf)
 	_look_box.add_child(UITheme.make_slider_row("Logogröße", 0.1, 0.8, 0.01, l.logo_size,
 		func(v): l.logo_size = v, "%.2f"))
 	_look_box.add_child(UITheme.make_slider_row("Logolage (Nase → Heck)", 0.05, 0.9, 0.01, l.logo_pos,
@@ -766,9 +828,6 @@ func _fill_look_page() -> void:
 
 
 ## Farbfelder + freie Farbwahl; on_pick(Color) beim Antippen.
-## Schaumdichte für die Gewichts-Schätzung (kg/m³), nur Anzeige
-var _foam_density := 25.0
-
 ## Profil-Auswahl für Leitwerk (TailConfig) oder Canard (ControlSurface) – beide
 ## haben profile_naca, naca_thickness, plate_thickness_mm. on_change wendet die
 ## Änderung an, refill baut den Abschnitt neu (Platte: mm, NACA: %).
@@ -780,27 +839,24 @@ func _profile_block(box: Control, obj: Object, area: float, ar: float, on_change
 			on_change.call()
 			refill.call_deferred()))
 	if obj.get("profile_naca"):
-		box.add_child(UITheme.make_slider_row("Dicke (NACA 00xx)", 4.0, 30.0, 1.0, float(obj.get("naca_thickness")) * 100.0,
+		box.add_child(UITheme.make_number_row("Dicke (NACA 00xx)", 4.0, 30.0, 1.0, float(obj.get("naca_thickness")) * 100.0,
 			func(v): obj.set("naca_thickness", v / 100.0); on_change.call(), "%d %%"))
 	else:
-		box.add_child(UITheme.make_slider_row("Dicke der Platte", 0.5, 20.0, 0.5, float(obj.get("plate_thickness_mm")),
+		box.add_child(UITheme.make_number_row("Dicke der Platte", 0.5, 20.0, 0.5, float(obj.get("plate_thickness_mm")),
 			func(v): obj.set("plate_thickness_mm", v); on_change.call(), "%.1f mm"))
-	# Kennwerte und Schätzung (Schaum, ohne Servo) – hilft beim Eintragen des Endgewichts
+	# Kennwerte des Profils (das Gewicht steht beim Vorschlag weiter unten)
 	var cs := ControlSurface.new()
 	cs.area_m2 = area; cs.aspect_ratio = ar
 	cs.profile_naca = obj.get("profile_naca"); cs.naca_thickness = obj.get("naca_thickness"); cs.plate_thickness_mm = obj.get("plate_thickness_mm")
 	# Kennwerte bei langsamer (3 m/s) und schneller (9 m/s) Fahrt – Re = v·c/ν
 	var p3 := cs.profile_params(cs.reynolds(3.0))
 	var p9 := cs.profile_params(cs.reynolds(9.0))
-	var info := UITheme.make_label(I18n.dec(I18n.t("%s · Tiefe %d mm\n3 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\n9 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\nSchätzung %d g bei Schaum %d kg/m³ (ohne Servo)") % [
+	var info := UITheme.make_label(I18n.dec(I18n.t("%s · Tiefe %d mm\n3 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f\n9 m/s: Re %d 000, Abriss ≈ %d°, cd0 %.3f") % [
 		cs.profile_name(), roundi(cs.mean_chord() * 1000.0),
 		roundi(cs.reynolds(3.0) / 1000.0), roundi(p3.stall_deg), p3.cd0,
-		roundi(cs.reynolds(9.0) / 1000.0), roundi(p9.stall_deg), p9.cd0,
-		roundi(cs.estimated_mass_kg(_foam_density) * 1000.0), roundi(_foam_density)]), "MutedLabel")
+		roundi(cs.reynolds(9.0) / 1000.0), roundi(p9.stall_deg), p9.cd0]), "MutedLabel")
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(info)
-	box.add_child(UITheme.make_slider_row("Schaumdichte (nur für die Schätzung)", 10.0, 80.0, 1.0, _foam_density,
-		func(v): _foam_density = v; refill.call_deferred(), "%d kg/m³"))
 
 
 ## Auswahl in zwei Spalten (passt in die schmale Seitenleiste). on_pick(index).
@@ -845,8 +901,40 @@ func _swatch_row(hexes: Array, current: Color, on_pick: Callable) -> HBoxContain
 	return row
 
 
+## „Logo laden“: im Browser die Dateiauswahl des Rechners/Handys (über
+## JavaScript), am Handy (Android) nach Erlaubnis den Ordner Download/Bilder,
+## sonst die Dateiauswahl des Systems.
+var _web_cb: JavaScriptObject          ## Rückruf aus dem Browser (muss bestehen bleiben)
+func _open_logo_picker() -> void:
+	if OS.has_feature("web"):
+		_web_cb = JavaScriptBridge.create_callback(_on_web_logo)
+		JavaScriptBridge.get_interface("window").rcaLogoCb = _web_cb
+		JavaScriptBridge.eval("""(function(){
+			var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/png,image/jpeg,image/webp';
+			i.onchange = function(){ var f = i.files[0]; if (!f) return; var r = new FileReader();
+				r.onload = function(){ window.rcaLogoCb(r.result.split(',')[1]); }; r.readAsDataURL(f); };
+			i.click(); })();""", true)
+		return
+	if OS.has_feature("android"):
+		OS.request_permissions()                       # Bilder lesen (READ_MEDIA_IMAGES / Speicher)
+		for d in ["/storage/emulated/0/Download", "/storage/emulated/0/Pictures"]:
+			if DirAccess.dir_exists_absolute(d):
+				_file_dialog.current_dir = d
+				break
+	_file_dialog.popup_centered_ratio(0.8)
+
+
+## Browser: Bildinhalt kommt als Base64 an.
+func _on_web_logo(args: Array) -> void:
+	var ref := Livery.import_logo_bytes(Marshalls.base64_to_raw(str(args[0]))) if args.size() > 0 else ""
+	_logo_loaded(ref)
+
+
 func _on_logo_file(path: String) -> void:
-	var ref := Livery.import_logo_file(path)
+	_logo_loaded(Livery.import_logo_file(path))
+
+
+func _logo_loaded(ref: String) -> void:
 	if ref == "":
 		UITheme.set_banner(_banner, "Bild ließ sich nicht laden. PNG oder JPG wählen.", "warning")
 		ui_action.emit("warn")
@@ -882,6 +970,8 @@ func _refresh() -> void:
 	_stats.text = ship.model_name + "\n" + I18n.dec(I18n.t("%.2f × %.2f m\nMasse %.0f g (ohne Helium)") % [
 		h.length_m, h.diameter_m, ship.structure_mass_kg * 1000.0])
 	_update_mass_info()
+	_update_fin_mass_info()
+	_update_factor.call_deferred()      # erst nach dem Neuaufbau des 3D-Modells messen
 	var level := "success"
 	if r.level == TailValidator.Level.UNSTABLE: level = "danger"
 	elif r.level == TailValidator.Level.MARGINAL: level = "warning"
@@ -897,6 +987,15 @@ func _refresh() -> void:
 	_layout.call_deferred()
 
 
+## Rennfaktor aus dem Boxmaß des sichtbaren Modells (wie vor dem Rennen gemessen).
+func _update_factor() -> void:
+	if visual == null or _factor_lbl == null:
+		return
+	var a := visual.local_aabb()
+	var f := Course.race_factor(Vector3(a.size.z, a.size.x, a.size.y))
+	_factor_lbl.text = I18n.dec(I18n.t("Rennfaktor F7B ×%.2f\ngewertet = gemessen × %.2f") % [f, f])
+
+
 func _changed() -> void:
 	ship.rebuild_mass_properties()     # erzeugt Leitwerk, platziert, löst config_changed → _refresh aus
 
@@ -904,18 +1003,17 @@ func _changed() -> void:
 ## Regler auf das aktuelle Modell setzen (nach Modellwechsel/Import).
 func _sync_from_ship() -> void:
 	var vals := {"vol": ship.hull.volume_m3, "ld": ship.hull.length_to_diameter,
-		"m": ship.hull.m, "cp": ship.hull.cp, "hm": ship.hull_mass_kg * 1000.0,
+		"m": ship.hull.m, "cp": ship.hull.cp, "hf": ship.hull_film_kg_m2 * 1000.0,
 		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x, "tw": _heaviness_pct(),
 		"pl": ship.payload_mass_kg * 1000.0, "px": ship.payload_x, "pa": ship.payload_angle_deg,
 		"bmah": ship.battery_mah, "bm": ship.battery_mass_kg * 1000.0, "tm": ship.teensy_mass_kg * 1000.0}
-	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hm": "%d g", "el": "%d g", "bx": "%.2f",
+	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hf": "%d g/m²", "el": "%d g", "bx": "%.2f",
 		"tw": "%.1f %%", "pl": "%d g", "px": "%.2f", "pa": "%d°", "bmah": "%d mAh", "bm": "%d g", "tm": "%d g"}
 	_teensy_check.set_pressed_no_signal(ship.fc_teensy)
 	(_cells_row.get_meta("out") as Label).text = str(ship.battery_cells)
 	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)
 	for k in vals:
-		(_hull_rows[k].get_meta("slider") as HSlider).set_value_no_signal(vals[k])
-		(_hull_rows[k].get_meta("out") as Label).text = fmts[k] % vals[k]
+		UITheme.set_row_value(_hull_rows[k], vals[k], fmts[k])
 	_clear_editor()
 	for c in _canard_editor.get_children(): c.queue_free()
 	_fill_tail_page()
@@ -944,9 +1042,53 @@ func _on_ballast_x(v: float) -> void:
 
 ## Massenanzeige im Reiter Hülle: Restmasse aus dem Auftrieb, Schwerpunkt,
 ## Warnung bei Übergewicht; Lage-Regler folgt der Automatik.
+## Vorschläge für das Flossen-/Canardgewicht anzeigen: „Vorschlag je Flosse
+## 12 g = Depron … + Pauschale …“; ausgegraut, wenn von Hand eingetragen.
+func _update_fin_mass_info() -> void:
+	if _fin_mass_lbl and is_instance_valid(_fin_mass_lbl):
+		var fins := ship.surfaces.filter(func(x): return x.tail_member)
+		if fins.size() > 0:
+			_fin_mass_lbl.text = _suggest_text(fins[0], "Vorschlag je Flosse: %d g", not ship.fin_mass_auto)
+			_style_suggest(_fin_mass_lbl, not ship.fin_mass_auto)
+	if _canard_mass_lbl and is_instance_valid(_canard_mass_lbl) and _canard_sel and is_instance_valid(_canard_sel):
+		_canard_mass_lbl.text = _suggest_text(_canard_sel, "Vorschlag: %d g", not _canard_sel.mass_auto)
+		_style_suggest(_canard_mass_lbl, not _canard_sel.mass_auto)
+
+
+## Text für den Gewichtsvorschlag einer Fläche (Depron + Pauschale).
+func _suggest_text(sf: ControlSurface, head: String, unused: bool) -> String:
+	var t := I18n.t(head) % roundi(sf.suggested_mass_kg() * 1000.0)
+	if unused:
+		t += "  " + I18n.t("(nicht verwendet)")
+	var dep := sf.depron_mass_kg() * 1000.0
+	var line := (I18n.t("Depron 2 × %d cm² × 120 g/m² = %.1f g") if sf.profile_naca else I18n.t("Depron %d cm² × 120 g/m² = %.1f g")) % [
+		roundi(sf.area_m2 * 1e4), dep]
+	line += "\n" + I18n.t("+ Servo, Anlenkung, Versteifung %.1f g") % (sf.fitting_mass_kg() * 1000.0)
+	return I18n.dec(t + "\n" + line)
+
+
+## Vorschlag normal (wird verwendet) oder ausgegraut (eigenes Gewicht gilt).
+func _style_suggest(l: Label, unused: bool) -> void:
+	if unused:
+		l.add_theme_color_override("font_color", Color("6b7480"))   # deutlich grauer als normale Hinweise
+	else:
+		l.remove_theme_color_override("font_color")
+
+
+## Vorgeschlagenes Gewicht einer Leitwerksflosse (kg) – für −/+ im leeren Feld.
+func _tail_suggest_kg() -> float:
+	for x in ship.surfaces:
+		if x.tail_member:
+			return x.suggested_mass_kg()
+	return 0.01
+
+
 func _update_mass_info() -> void:
 	if _mass_info == null:
 		return
+	if _hull_mass_lbl:
+		_hull_mass_lbl.text = I18n.dec(I18n.t("Hülle %d g = Oberfläche %.2f m² × %d g/m² + 7 %% (Nähte 2 %%, Ränder und Ventil 5 %%)") % [
+			roundi(ship.hull_mass_kg * 1000.0), ship.hull.surface_m2(), roundi(ship.hull_film_kg_m2 * 1000.0)])
 	var cg := ship.cg_offset
 	if ship.overweight:
 		_mass_info.text = "Zu schwer: Hülle, Motoren und Elektronik wiegen mehr, als der Auftrieb trägt."

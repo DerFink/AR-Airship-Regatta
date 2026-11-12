@@ -1,3 +1,4 @@
+# 2026-11-12 11:50 – Hüllen- und Flossenmassen werden berechnet (Folie 27 g/m² + 7 %, Depron + Pauschale) statt fester Werte
 # 2026-11-11 17:20 – Albacore: ein Heckmotor wie das Original (statt Chewies Bugmotoren), Hülle und Leitwerk schwarz, Schriftzug weiß (Lage 0,21, Größe 0,17)
 # 2026-11-11 07:35 – Chewie: Flossenprofil NACA 0020
 # 2026-11-11 17:15 – Presets setzen alle Bau-Werte zurück (_reset_common), sonst blieben Werte des vorigen Modells stehen
@@ -132,6 +133,8 @@ static func make_motor(name: String, x: float, angle_deg: float, thrust_n: float
 static func _reset_common(ship: AirshipPhysics) -> void:
 	ship.trim_heaviness_n = 0.05
 	ship.fin_mass_kg = 0.0
+	ship.fin_mass_auto = true                 # Flossengewicht nach Vorschlag (Depron + Pauschale)
+	ship.hull_film_kg_m2 = 0.027              # Hüllenfolie 27 g/m² (Hüllenmasse wird berechnet)
 	ship.ballast_auto_x = true
 	ship.teensy_mass_kg = AirshipPhysics.TEENSY_MASS_KG
 	ship.payload_mass_kg = 0.0
@@ -166,7 +169,6 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	ship.sail_length_frac = 0.135
 	ship.sail_height_frac = 0.59
 	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
-	ship.hull_mass_kg = 0.086
 	ship.electronics_mass_kg = 0.020        # Empfänger, BEC, Kabel (Teensy extra, s. u.)
 	ship.fc_teensy = true                    # Teensy-Flugcontroller: +10 g
 	ship.battery_cells = 4
@@ -242,8 +244,6 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# ANNAHME zur Aufteilung: je Motorgondel mit Servo 30 g, Elektronik 30 g.
 	# Alle übrigen Massen (Elektronik, Akku, Ballast) kleben unten an der Hülle;
 	# die Menge ergibt sich aus dem Auftrieb, die Längslage trimmt sich automatisch.
-	ship.hull_mass_kg = 0.085
-	ship.fin_mass_kg = 0.010
 	# Gesamtmasse exakt 260 g, etwa 1 % schwerer als der Auftrieb (Angabe Nutzer 08.11.2026):
 	# Auftrieb 0,25 m³ · (1,20 − 0,17) kg/m³ = 257,5 g ⇒ 2,5 g zu schwer = 0,0245 N
 	ship.trim_heaviness_n = 0.0245

@@ -1,3 +1,5 @@
+# 2026-11-12 12:35 – import_logo_bytes(): Logo aus Dateiinhalt (Browser-Dateiauswahl)
+# 2026-11-12 12:20 – Schriftzug und Logo wahlweise auch auf dem Leitwerk (text_on_fins, logo_on_fins)
 # 2026-11-11 00:50 – Material für Hülle (Silberfolie, Weiß matt, Goldfolie, Farbe) und Leitwerk (Weiß/Depron, Carbon, Silberfolie, Farbe) mit eigener Leitwerksfarbe
 # 2026-10-27 11:08 – Erstversion: Gestaltungsdaten der Hülle (Farbe, Schriftzug, Logo-Verweis, Größe/Lage, beidseitig); Logo-Import mit Verkleinerung und Inhalts-Hash als Dateiname; Logos liegen getrennt vom Modell
 # =============================================================================
@@ -52,6 +54,13 @@ const FIN_MATERIAL_NAMES := ["Weiß / Depron", "Carbon", "Silberfolie", "Farbe"]
 	set(v): logo_pos = v; changed_look.emit()
 @export var both_sides := true:
 	set(v): both_sides = v; changed_look.emit()
+## Schriftzug auch auf dem Leitwerk (auf Flossen, die eher waagrecht liegen)
+@export var text_on_fins := false:
+	set(v): text_on_fins = v; changed_look.emit()
+## Logo auch auf dem Leitwerk (nur auf Flossen mit senkrechtem Anteil – ein
+## reines Höhenleitwerk bekommt kein Logo)
+@export var logo_on_fins := false:
+	set(v): logo_on_fins = v; changed_look.emit()
 
 
 ## Grundfarbe der Hülle für das gewählte Material (Folien glänzen zusätzlich metallisch).
@@ -107,6 +116,19 @@ static func import_logo_file(path: String) -> String:
 	var img := Image.load_from_file(path)
 	if img == null:
 		return ""
+	return _store_logo(img)
+
+
+## Wie import_logo_file, aber aus dem Dateiinhalt (Browser: Datei des Rechners
+## kommt über die Dateiauswahl des Browsers als Bytes an). PNG oder JPG.
+static func import_logo_bytes(data: PackedByteArray) -> String:
+	var img := Image.new()
+	if img.load_png_from_buffer(data) != OK and img.load_jpg_from_buffer(data) != OK and img.load_webp_from_buffer(data) != OK:
+		return ""
+	return _store_logo(img)
+
+
+static func _store_logo(img: Image) -> String:
 	var m := maxi(img.get_width(), img.get_height())
 	if m > 512:
 		var k := 512.0 / m

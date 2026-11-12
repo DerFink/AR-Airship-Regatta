@@ -1,3 +1,5 @@
+# 2026-11-12 11:00 – Modell & Bau erfährt, ob ein Flug begonnen wurde (Weiterfliegen / Rückfrage)
+# 2026-11-12 10:40 – Platzen nicht mehr abschaltbar (Grundregel)
 # 2026-11-12 10:05 – Platz-Grenze nicht mehr aus den Einstellungen (fest 20 km/h)
 # 2026-11-11 20:05 – Online-Bestenliste, „gespielt mit“ (Gerät · Steuerung)
 # 2026-11-11 18:55 – Sender bedient keine Menüs mehr (Joypad aus allen ui_*-Aktionen entfernt) – Ursache für Stickmode 1 / Gas rechts
@@ -193,8 +195,6 @@ func _build_ship() -> void:
 	track.visible = AppSettings.track_on
 	AppSettings.on_change.append(func(): if is_instance_valid(track): track.visible = AppSettings.track_on)
 	# Aufprall/Platzen aus den Einstellungen übernehmen
-	AppSettings.on_change.append(_apply_burst_settings)
-	_apply_burst_settings()
 	ship.burst_changed.connect(_on_burst)
 	_rebuild_prop_sounds()
 
@@ -424,11 +424,6 @@ func _platform_text() -> String:
 	return dev + " · " + hud.dominant_input()
 
 
-func _apply_burst_settings() -> void:
-	if is_instance_valid(ship):
-		ship.burst_enabled = AppSettings.burst_on
-
-
 ## Hülle geplatzt: Rennen ist vorbei (kein Bestenlisten-Eintrag), Autopilot aus.
 func _on_burst(on: bool) -> void:
 	if not on:
@@ -568,6 +563,8 @@ func _rotate_view(rel: Vector2) -> void:
 
 
 func _set_view(v: View) -> void:
+	if v == View.FLY:
+		hub.flight_begun = true                   # ab jetzt gibt es „Weiterfliegen“
 	view = v
 	hud.visible = v == View.FLY
 	builder.visible = v == View.BUILD

@@ -1,3 +1,4 @@
+# 2026-11-12 11:45 – Vorgeschlagenes Gewicht: Depron 120 g/m² (profiliert 2 Lagen) + Pauschale 2–5 g je nach Fläche; mass_auto (von Hand eingetragenes Gewicht nur, wenn aus)
 # 2026-11-11 17:45 – Profilname „Platte … mm“ übersetzt, Dezimalzeichen je Sprache
 # 2026-11-11 08:20 – Reynoldszahl wird aus Fahrt und mittlerer Tiefe bestimmt (Re = v·c/ν) statt pauschal 10⁵; Profilwerte (Grundwiderstand, Abriss, Auftriebsanstieg dicker Profile) hängen von Re ab
 # 2026-11-11 07:20 – Profil: flache Platte (Dicke in mm) oder symmetrisches NACA 00xx (Dicke in % der Tiefe) – wirkt auf Auftriebsanstieg, Abrisswinkel, Weichheit des Abrisses und Grundwiderstand
@@ -55,9 +56,11 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 @export_range(0.2, 1.0, 0.05) var taper: float = 1.0
 ## Gehört zum symmetrischen Leitwerk (wird aus TailConfig erzeugt). Freie
 ## Flächen wie Canards haben false und bleiben beim Neuaufbau erhalten.
-## Eigene Masse dieser Fläche (kg) – für Canards; Leitwerksflossen nutzen
-## AirshipPhysics.fin_mass_kg
+## Eigene Masse dieser Fläche (kg) – nur für Canards und nur, wenn mass_auto
+## aus ist (von Hand eingetragen); Leitwerksflossen nutzen AirshipPhysics.
 @export_range(0.0, 50.0, 0.001, "or_greater") var mass_kg: float = 0.0
+## true = Masse nach suggested_mass_kg() (Depron + Pauschale), false = mass_kg
+@export var mass_auto: bool = true
 @export var tail_member: bool = false
 ## true = fester Turm unter/über der Hülle (wie beim U-Boot): ohne Ruder,
 ## wird aus den Turm-Einstellungen von AirshipPhysics neu erzeugt.
@@ -270,6 +273,28 @@ func profile_name() -> String:
 	if profile_naca:
 		return "NACA 00%02d" % roundi(naca_thickness * 100.0)
 	return I18n.dec((I18n.t("Platte %.1f mm") % plate_thickness_mm).replace(".0 ", " "))
+
+
+# --- Vorgeschlagenes Gewicht (Baukasten) -------------------------------------
+## Flächengewicht Depron (kg/m²): Brettchen = 1 Lage, profiliert (NACA) = 2 Lagen
+const DEPRON_KG_M2 := 0.120
+## Pauschale für Servo, Anlenkung und Versteifungen je Fläche: 2 g bei kleinen,
+## 5 g bei großen Flächen (linear zwischen 150 und 600 cm²)
+const FITTING_MIN_KG := 0.002
+const FITTING_MAX_KG := 0.005
+
+## Depron-Gewicht der Fläche (kg): Fläche × 120 g/m², profiliert doppelt.
+func depron_mass_kg() -> float:
+	return area_m2 * DEPRON_KG_M2 * (2.0 if profile_naca else 1.0)
+
+## Pauschale Servo/Anlenkung/Versteifung (kg) nach der Flächengröße.
+func fitting_mass_kg() -> float:
+	var k := clampf((area_m2 - 0.015) / (0.060 - 0.015), 0.0, 1.0)
+	return lerpf(FITTING_MIN_KG, FITTING_MAX_KG, k)
+
+## Vorgeschlagenes Endgewicht der Fläche (kg) = Depron + Pauschale.
+func suggested_mass_kg() -> float:
+	return depron_mass_kg() + fitting_mass_kg()
 
 
 ## Geschätzte Masse der Fläche ohne Servo (kg) bei Schaumdichte rho_foam (kg/m³).
