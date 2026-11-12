@@ -1,3 +1,4 @@
+<!-- 2026-11-12 22:50 – Verweis auf docs/PROJEKTDOKU.md -->
 # RC Airship Regatta
 
 Open-Source-Simulator für DIY-Rennluftschiffe (Godot 4, Android/iOS/Desktop).
@@ -69,6 +70,9 @@ Die Oberfläche gibt es in Deutsch, Englisch, Französisch, Spanisch, Italienisc
 | `i18n/` | Übersetzungen (Oberfläche und Seite „Grundlagen“) |
 | `tools/` | Hilfsskripte (Übersetzungen, Schrift, Musik) |
 | `tests/` | Headless-Tests |
+
+## Für Entwickler
+Was gebaut wurde, warum, wo es im Code steht und bekannte Fallen: **`docs/PROJEKTDOKU.md`**.
 
 ## Lizenz
 MIT – siehe `LICENSE`. Eingesandte Logos bleiben Eigentum ihrer Urheber.
