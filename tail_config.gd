@@ -1,3 +1,4 @@
+# 2026-11-12 22:35 – 2–10 Flossen (gleichmäßig); Klappentiefe flap_chord_ratio für Ruderklappen
 # 2026-11-11 07:25 – Profil (Platte/NACA, Dicke) für alle Leitwerksflossen
 # 2026-11-07 23:00 – größter Ausschlag bis 80° (Chewie ±50°)
 # 2026-10-27 23:28 – Pseudo-Flex auch für Pendelleitwerke erlaubt (schaltbar)
@@ -28,8 +29,8 @@ enum Layout { PLUS, CROSS, Y, LAMBDA, EVEN }
 const LAYOUT_NAMES := ["+", "×", "Y", "λ", "gleichm."]
 
 @export var layout: Layout = Layout.PLUS
-## Anzahl der Flossen – nur bei EVEN frei (1–8), sonst durch die Anordnung fest.
-@export_range(1, 8, 1) var count: int = 4
+## Anzahl der Flossen – nur bei EVEN frei (2–10), sonst durch die Anordnung fest.
+@export_range(1, 10, 1) var count: int = 4
 ## Y/λ: Neigung der beiden Schrägflossen gegen die Waagrechte.
 @export_range(0.0, 85.0, 1.0) var v_angle_deg: float = 45.0
 ## Flossenwirkung (Wirkungsgrad × Rumpf-Flossen-Interferenz). 0,8 = freie Flosse;
@@ -50,6 +51,8 @@ const LAYOUT_NAMES := ["+", "×", "Y", "λ", "gleichm."]
 ## Längsposition des Druckpunkts (0 = Nase, 1 = Heck).
 @export_range(0.5, 1.0, 0.01) var hull_x: float = 0.90
 @export_range(0.0, 80.0, 1.0) var max_deflection_deg: float = 25.0
+## Ruderklappe: Klappentiefe als Anteil der Flossentiefe (nur Bauart Ruderklappe)
+@export_range(0.1, 0.6, 0.01) var flap_chord_ratio: float = 0.30
 @export var pseudo_flex: bool = false
 ## Profil aller Flossen: NACA 00xx (true) oder flache Platte (false)
 @export var profile_naca: bool = true
@@ -62,7 +65,7 @@ func fin_count() -> int:
 	match layout:
 		Layout.PLUS, Layout.CROSS: return 4
 		Layout.Y, Layout.LAMBDA: return 3
-	return clampi(count, 1, 8)
+	return clampi(count, 1, 10)
 
 
 ## Umfangswinkel aller Flossen (Grad, von hinten gesehen).
@@ -118,6 +121,7 @@ func generate() -> Array[ControlSurface]:
 		s.aspect_ratio = aspect_ratio
 		s.taper = taper
 		s.max_deflection_deg = max_deflection_deg
+		s.flap_chord_ratio = flap_chord_ratio
 		s.efficiency = efficiency
 		s.pseudo_flex = pseudo_flex
 		s.profile_naca = profile_naca

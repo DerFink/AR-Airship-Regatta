@@ -1,3 +1,5 @@
+# 2026-11-12 22:40 – Ruderklappe sichtbar: fester Flossenteil + Klappe (Klappentiefe), nur die Klappe dreht
+# 2026-11-12 22:20 – Akku an eigener Stelle als eigener Block
 # 2026-11-12 12:20 – Schriftzug auf eher waagrechten, Logo auf eher senkrechten Leitwerksflossen (wählbar in der Gestaltung)
 # 2026-11-11 19:45 – Baukasten: Schiff pendelt auf seinen Hängewinkel (Bug-/Hecklastigkeit sichtbar)
 # 2026-11-11 14:30 – Flossen drehen jetzt in die richtige Richtung (Vorzeichen war vertauscht); Hülle federt beim Stoß sichtbar nach; geplatzte Hülle: Riss entlang der oberen Längsnaht am Heck, Gaswolke, Hülle fällt vom Heck zur Nase hin in sich zusammen, Kollisionsform schrumpft mit
@@ -33,6 +35,7 @@ var _fin_mat := StandardMaterial3D.new()
 var _canvas := LiveryCanvas.new()        ## malt Farbe, Schriftzug und Logo
 var _livery: Livery                      ## aktuell angezeigte Gestaltung
 var _mass_node := MeshInstance3D.new()   ## Restmasse unten an der Hülle (nur im Baukasten)
+var _battery_node := MeshInstance3D.new()  ## Akku an eigener Stelle (nur im Baukasten)
 var _cg_node := MeshInstance3D.new()     ## Gesamtschwerpunkt (nur im Baukasten)
 var _workshop := false
 var _sail_mat := StandardMaterial3D.new() ## Turm in Hüllenfarbe
@@ -51,6 +54,7 @@ func _ready() -> void:
 	add_child(_hull_mesh)
 	add_child(_canvas)
 	add_child(_mass_node)
+	add_child(_battery_node)
 	add_child(_cg_node)
 	add_child(_payload_node)
 	var plm := StandardMaterial3D.new()
@@ -62,6 +66,9 @@ func _ready() -> void:
 	bm.albedo_color = Color(0.11, 0.62, 0.46, 0.75)
 	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_mass_node.material_override = bm
+	var bat := StandardMaterial3D.new()                 # Akku: dunkelblau
+	bat.albedo_color = Color("2b4c7e")
+	_battery_node.material_override = bat
 	var cm := StandardMaterial3D.new()
 	cm.albedo_color = Color("e24b4a")
 	cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -109,6 +116,14 @@ func rebuild() -> void:
 	box.size = Vector3(1.5 * k, k, 3.0 * k)
 	_mass_node.mesh = box
 	_mass_node.position = ship.bottom_mass_pos - Vector3(0, 0.5 * k, 0)
+	# Akku an eigener Stelle: eigener Block (Dichte ≈ 2 g/cm³), sonst in der Restmasse
+	_battery_node.visible = ship.battery_own_x and ship.battery_mass_kg > 0.0 and _mass_node.visible
+	if ship.battery_own_x:
+		var kb := pow(maxf(ship.battery_mass_kg, 0.001) / 2000.0 / 4.5, 1.0 / 3.0)
+		var bb := BoxMesh.new()
+		bb.size = Vector3(1.5 * kb, kb, 3.0 * kb)
+		_battery_node.mesh = bb
+		_battery_node.position = ship.battery_pos - Vector3(0, 0.5 * kb, 0)
 	_cg_node.position = ship.cg_offset
 	# Nutzlast: Würfel (Dichte ≈ 1 g/cm³), Innenseite liegt an der Hülle an
 	_payload_node.visible = ship.payload_mass_kg > 0.0005
@@ -153,8 +168,34 @@ func rebuild() -> void:
 			mi.mesh = _sail_mesh(span, chord)
 			mi.material_override = _sail_mat
 		else:
-			mi.mesh = _fin_mesh(span, chord, s.taper, inset)
+			var flap_f := s.flap_chord_ratio if s.kind == ControlSurface.Kind.FLAP else 0.0
+			mi.mesh = _fin_mesh(span, chord, s.taper, inset, flap_f)
 			mi.material_override = _fin_mat
+			if flap_f > 0.0:
+				# Ruderklappe: hinterer Teil als eigene Fläche, dreht um die Scharnierlinie
+				var c_r := 2.0 * chord / (1.0 + s.taper)
+				var c_t := c_r * s.taper
+				var te := c_r * 0.5
+				var h0 := Vector3(0, 0, te - flap_f * c_r)            # Scharnier an der Wurzel (Hüllenoberfläche)
+				var h1 := Vector3(0, span, te - flap_f * c_t)         # Scharnier an der Spitze
+				var hinge := Node3D.new()
+				hinge.position = h0
+				var fm := MeshInstance3D.new()
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				var q0 := Vector3.ZERO
+				var q1 := Vector3(0, 0, te) - h0
+				var q2 := Vector3(0, span, te) - h0
+				var q3 := h1 - h0
+				for v in [q0, q1, q2, q0, q2, q3]:
+					st.add_vertex(v)
+				st.generate_normals()
+				fm.mesh = st.commit()
+				fm.material_override = _fin_mat
+				hinge.add_child(fm)
+				pivot.add_child(hinge)
+				pivot.set_meta("flap", hinge)
+				pivot.set_meta("flap_axis", (h1 - h0).normalized())
 		pivot.add_child(mi)
 		pivot.set_meta("surface", s)
 		pivot.set_meta("base_basis", pivot.basis)
@@ -192,7 +233,7 @@ func rebuild() -> void:
 			pmat.albedo_color = pdef[3]; pmat.metallic = pdef[4]; pmat.roughness = 0.35
 			mi.material_override = pmat
 			g.add_child(mi)
-		if m.max_swivel_deg > 0.0:
+		if m.max_swivel_deg > 0.0 and m.swivel_enabled:
 			var servo := MeshInstance3D.new()
 			var sb := BoxMesh.new()
 			sb.size = Vector3(br * 1.05, br * 1.9, br * 2.0)
@@ -223,6 +264,7 @@ func rebuild() -> void:
 ## „Boxmaß“, mit dem vor dem Rennen gemessen wird.
 func local_aabb() -> AABB:
 	var nodes: Array[Node3D] = [_hull_mesh, _mass_node]
+	if ship.battery_own_x: nodes.append(_battery_node)      # Akku zählt zum Boxmaß
 	if _payload_node.visible: nodes.append(_payload_node)
 	nodes.append_array(_fin_nodes)
 	nodes.append_array(_motor_nodes)
@@ -244,6 +286,7 @@ func set_workshop(on: bool) -> void:
 	_workshop = on
 	set_validation_level(_valid_level)            # Warnfarbe nur im Baukasten
 	_mass_node.visible = on
+	_battery_node.visible = on and ship.battery_own_x and ship.battery_mass_kg > 0.0
 	_cg_node.visible = on
 
 
@@ -290,13 +333,14 @@ func _sail_mesh(height: float, chord: float) -> ArrayMesh:
 ## Flache Flosse als Trapez (zweiseitig gerendert): Wurzeltiefe c_r an der
 ## Hülle, Endtiefe c_t = Zuspitzung · c_r außen, Hinterkante gerade.
 ## Lokal: Y = Spannweite (abstehend), Z = Längsachse (+Z = hinten).
-func _fin_mesh(span: float, mean_chord: float, taper: float, inset := 0.0) -> ArrayMesh:
+## flap_f > 0: nur der feste Teil vor der Ruderklappe (Klappe = eigene Fläche).
+func _fin_mesh(span: float, mean_chord: float, taper: float, inset := 0.0, flap_f := 0.0) -> ArrayMesh:
 	var c_r := 2.0 * mean_chord / (1.0 + taper)
 	var c_t := c_r * taper
 	var te := c_r * 0.5                                   # Hinterkante (gerade)
 	var p0 := Vector3(0, -inset, te - c_r)                # Wurzel vorn (steckt bis zur Achse in der Hülle)
-	var p1 := Vector3(0, -inset, te)                      # Wurzel hinten
-	var p2 := Vector3(0, span, te)                        # Spitze hinten
+	var p1 := Vector3(0, -inset, te - flap_f * c_r)       # Wurzel hinten (bzw. Scharnier)
+	var p2 := Vector3(0, span, te - flap_f * c_t)         # Spitze hinten (bzw. Scharnier)
 	var p3 := Vector3(0, span, te - c_t)                  # Spitze vorn
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -451,9 +495,13 @@ func _process(_dt: float) -> void:
 	for p in _fin_nodes:
 		var s: ControlSurface = p.get_meta("surface")
 		var defl := deg_to_rad(s._flex_deg)
-		if s.kind == ControlSurface.Kind.FLAP:
-			defl *= 0.5                                       # Klappe ≈ halber Sichtausschlag
 		var base: Basis = p.get_meta("base_basis")
+		if p.has_meta("flap"):
+			# Ruderklappe: Flosse steht, nur die Klappe dreht um die Scharnierlinie
+			# (Vorzeichen wie beim Pendelruder: Hinterkante in Gegenrichtung)
+			p.basis = base
+			(p.get_meta("flap") as Node3D).basis = Basis(p.get_meta("flap_axis"), defl)
+			continue
 		# Drehung um die Spannweitenachse. Lokales X der Flosse = −Normale der
 		# Physik; positiver Ausschlag hebt die Vorderkante zur Normalen hin.
 		p.basis = base * Basis(Vector3.UP, defl)

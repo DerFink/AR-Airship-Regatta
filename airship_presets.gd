@@ -1,3 +1,4 @@
+# 2026-11-12 22:00 – make_motor: schwenkbar nur mit Schwenkweg > 0
 # 2026-11-12 11:50 – Hüllen- und Flossenmassen werden berechnet (Folie 27 g/m² + 7 %, Depron + Pauschale) statt fester Werte
 # 2026-11-11 17:20 – Albacore: ein Heckmotor wie das Original (statt Chewies Bugmotoren), Hülle und Leitwerk schwarz, Schriftzug weiß (Lage 0,21, Größe 0,17)
 # 2026-11-11 07:35 – Chewie: Flossenprofil NACA 0020
@@ -120,6 +121,7 @@ static func make_motor(name: String, x: float, angle_deg: float, thrust_n: float
 	m.max_thrust_n = thrust_n
 	m.max_swivel_deg = max_swivel_deg
 	m.swivel_tilt_deg = tilt_deg
+	m.swivel_enabled = max_swivel_deg > 0.0          # ohne Schwenkweg: feste Gondel
 	return m
 
 

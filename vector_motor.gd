@@ -1,3 +1,4 @@
+# 2026-11-12 22:00 – swivel_enabled: Motor nur mit Haken „schwenkbar“ schwenkbar
 # 2026-11-12 11:55 – Propeller ab 0,7" (≈ 2 cm) Durchmesser
 # 2026-11-11 11:00 – Schubrichtung als Vektor im Nutzer-System (x vorn, y rechts, z unten) lesen/setzen: user_dir() / set_user_dir()
 # 2026-11-10 14:10 – voltage_factor vom Akku-Modell: Schub × Faktor², Drehzahl (Klang) × Faktor
@@ -91,6 +92,8 @@ extends Resource
 # --- Laufzeit-Zustand ---------------------------------------------------------
 var throttle_cmd: float = 0.0   ## -1..+1 (bidirektional)
 var swivel_cmd: float = 0.0     ## -1..+1 → ±max_swivel_deg
+## Motor schwenkbar? Aus = Gondel fest, Schwenkbefehle wirken nicht (Standard bei neuen Motoren)
+@export var swivel_enabled: bool = true
 ## Akkuspannung relativ zum vollen Akku (vom Akku-Modell gesetzt, 1 = voll).
 ## Drehzahl ∝ Spannung, Schub ∝ Drehzahl² → Schub × voltage_factor²
 var voltage_factor: float = 1.0
@@ -163,6 +166,8 @@ func compute_force(dt: float, v_local := Vector3.ZERO) -> Vector3:
 		_throttle = t_target
 
 	var s := -swivel_cmd if invert_swivel else swivel_cmd
+	if not swivel_enabled:
+		s = 0.0                                      # feste Gondel
 	_swivel_deg = move_toward(_swivel_deg, clampf(s, -1.0, 1.0) * max_swivel_deg, servo_speed_dps * dt)
 	var d := current_direction()
 	return d * thrust_for(_throttle) * voltage_factor * voltage_factor * speed_factor(v_local.dot(d))

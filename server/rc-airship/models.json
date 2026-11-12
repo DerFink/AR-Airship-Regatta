@@ -1,18 +1,18 @@
 {
-  "37f983ec1714ae96882da6ca3368ce5b2e5d735984b3e180589ce1e2be52ea80": {
-    "box": [
-      2.603,
-      0.503,
-      0.537
-    ],
-    "name": "Chewie"
-  },
-  "c5535e7ad88e86fe03bea108ebdf44b83d1aa4662599083800c6d1c5f06a05aa": {
+  "5478cbe40fb2108683bbfd8e816baa851c6063af64a775a456885a4eec5eb1f9": {
     "box": [
       3.023,
       0.403,
       0.403
     ],
     "name": "Albacore Standard"
+  },
+  "a9e8cff5208dddd95cdf4528a2b15b9c1cb416aa708a8fdf7d62dbf1bea54e81": {
+    "box": [
+      2.603,
+      0.503,
+      0.537
+    ],
+    "name": "Chewie"
   }
 }

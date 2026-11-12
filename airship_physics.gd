@@ -1,3 +1,6 @@
+# 2026-11-12 22:55 – Mischer von Hand: mix_manual, mix_table
+# 2026-11-12 22:15 – Akku wahlweise an eigener Stelle (battery_own_x, battery_x); Restmasse/Ballast gleicht weiter aus
+# 2026-11-12 21:30 – model_description (Kurzbeschreibung bis 100 Zeichen)
 # 2026-11-12 11:45 – Hüllenmasse berechnet (Oberfläche × Folie 27 g/m² + 7 % für Nähte, Ränder, Ventil); Flossen/Canards nach Vorschlag (Depron + Pauschale) oder von Hand: fin_mass_of()
 # 2026-11-12 10:40 – Platzen ist Grundregel (nicht abschaltbar)
 # 2026-11-12 10:05 – Hülle platzt pauschal ab 20 km/h Fahrt beim Aufprall (fester Wert, nicht mehr einstellbar)
@@ -58,6 +61,14 @@ signal bumped(strength: float)
 @export var motors: Array[VectorMotor] = []
 ## Name des Modells (erscheint im Modell-String und in der Auswahl).
 @export var model_name := "Albacore Standard"
+## Kurzbeschreibung des Modells (bis 100 Zeichen, im Baukasten und in der Modellliste)
+@export var model_description := ""
+## Mischer von Hand (Reiter Steuerung → Mischer einstellen): an = mix_table gilt
+## im Modus Direkt und ohne Flugcontroller, aus = Mischer nach Einbaulage.
+@export var mix_manual := false
+## Mischtabelle: Ausgang → [Nick, Gier, Roll] in % des Vollausschlags.
+## Ausgänge: "s0", "s1" … = surfaces[i] (Flossen, Canards), "m0" … = motors[i] (Schwenker)
+@export var mix_table := {}
 ## Gestaltung der Hülle (Farbe, Schriftzug, Logo) – rein optisch.
 @export var livery: Livery = Livery.new()
 ## Symmetrisches Leitwerk. Seine Flossen werden bei jedem Neuaufbau aus dieser
@@ -113,6 +124,12 @@ const TEENSY_MASS_KG := 0.010
 @export_range(1, 12, 1) var battery_cells: int = 4
 @export_range(50.0, 100000.0, 10.0) var battery_mah: float = 300.0
 @export_range(0.0, 50.0, 0.001) var battery_mass_kg: float = 0.038
+## Akku an eigener Stelle (sonst Teil der Restmasse an ballast_x)
+@export var battery_own_x: bool = false
+## Längslage des Akkus (0 = Nase, 1 = Heck), klebt unten an der Hülle
+@export_range(0.0, 1.0, 0.01) var battery_x: float = 0.45
+## Lage des Akkus im Körpersystem (nur bei battery_own_x)
+var battery_pos := Vector3.ZERO
 ## Nutzlast: frei platzierbare Punktmasse an der Hülle (0 = keine).
 @export_range(0.0, 50.0, 0.001, "or_greater") var payload_mass_kg: float = 0.0
 ## Längslage der Nutzlast (0 = Nase, 1 = Heck)
@@ -300,6 +317,11 @@ func rebuild_mass_properties() -> void:
 	structure_mass_kg = fixed + rest_mass_kg
 	ballast_kg = rest_mass_kg - battery_mass_kg       # Akku gehört zur Restmasse
 	bottom_mass_kg = electronics_mass_kg + fc_mass + rest_mass_kg
+	# Akku an eigener Stelle: zählt nicht zur Unten-Masse an ballast_x
+	var bat_own := battery_own_x and battery_mass_kg > 0.0
+	if bat_own:
+		bottom_mass_kg = maxf(bottom_mass_kg - battery_mass_kg, 0.0)
+		battery_pos = Vector3(0, -hull.radius_at(battery_x), battery_x * hull.length_m - hull.cb_from_nose)
 	total_mass = structure_mass_kg + gas_mass
 	mass = maxf(total_mass, 0.001)         # für Godots Kollisionsantwort
 
@@ -311,6 +333,7 @@ func rebuild_mass_properties() -> void:
 		mz_motors += fin_mass_of(s) * s.position.z             # Flossen hinten: Restmasse wandert nach vorn
 	mz_motors += payload_mass_kg * payload_pos.z
 	for e in extra: mz_motors += e[0] * (e[1] as Vector3).z
+	if bat_own: mz_motors += battery_mass_kg * battery_pos.z
 	if ballast_auto_x and bottom_mass_kg > 1e-6:
 		# Unten-Masse so legen, dass der Gesamtschwerpunkt unter dem Auftriebszentrum liegt
 		var z_needed := -mz_motors / bottom_mass_kg
@@ -326,6 +349,7 @@ func rebuild_mass_properties() -> void:
 		moment += s.position * fin_mass_of(s)
 	moment += payload_pos * payload_mass_kg
 	for e in extra: moment += (e[1] as Vector3) * float(e[0])
+	if bat_own: moment += battery_pos * battery_mass_kg
 	cg_offset = moment / maxf(total_mass, 1e-6)
 
 	# --- 3) Trägheitsmomente um das Auftriebszentrum (Diagonale) -----------
@@ -342,6 +366,7 @@ func rebuild_mass_properties() -> void:
 		pts.append([fin_mass_of(s), s.position])
 	pts.append([payload_mass_kg, payload_pos])
 	pts.append_array(extra)
+	if bat_own: pts.append([battery_mass_kg, battery_pos])
 	for p in pts:
 		var m: float = p[0]
 		var r: Vector3 = p[1]

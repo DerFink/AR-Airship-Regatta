@@ -1,3 +1,7 @@
+# 2026-11-12 22:55 – Mischer von Hand im Modell-String (mix)
+# 2026-11-12 22:35 – Leitwerk: bis 10 Flossen, Klappentiefe (tail.flap)
+# 2026-11-12 22:20 – Akku-Lage (bo, bxa) im Modell-String
+# 2026-11-12 21:45 – Kurzbeschreibung (look.desc); readable_header(): lesbare Eckdaten vor dem Code, decode() überspringt sie
 # 2026-11-12 12:20 – Gestaltung: Schrift/Logo auf dem Leitwerk (tf, lf)
 # 2026-11-12 11:50 – Propeller ab 0,7" (≈ 2 cm) erlaubt; Folien-Flächengewicht (hf), Flossengewicht automatisch/von Hand (fa, ma); Hüllenmasse wird beim Laden berechnet
 # 2026-11-11 07:30 – Profil je Leitwerk und Canard (naca, tk = Dicke NACA, pmm = Plattendicke mm)
@@ -69,6 +73,42 @@ static func encode(ship: AirshipPhysics) -> String:
 	return "%s:%s:%s:%s" % [PREFIX, _clean_name(ship.model_name), b64, _checksum(b64)]
 
 
+## Lesbare Eckdaten für den Export (stehen VOR dem Code, werden beim Einlesen
+## übersprungen). factor = Rennfaktor F7B (≤ 0: weglassen). Beispiel:
+##   RC Airship Regatta · Modell „Chewie“ · Version 0.30.0
+##   Hülle 0,25 m³ · L/D 6,0 · L 2,60 m · Ø 0,43 m · Folie 27 g/m²
+##   Leitwerk λ · 3 Flossen je 361 cm² · Pendel · NACA 0020
+##   Antrieb 2 Motoren, schwenkbar ±45° · Propeller 10,2 cm · Akku 4S 300 mAh
+##   Masse 260 g · Rennfaktor ×0,72 · Teensy-FC eingebaut
+##   Beschreibung: …
+static func readable_header(ship: AirshipPhysics, factor := -1.0) -> String:
+	var h := ship.hull
+	var lines := []
+	lines.append(I18n.t("RC Airship Regatta · Modell „%s“ · Version %s") % [ship.model_name, BuildInfo.VERSION])
+	lines.append(I18n.dec(I18n.t("Hülle %.2f m³ · L/D %.1f · L %.2f m · Ø %.2f m · Folie %d g/m²") % [
+		h.volume_m3, h.length_to_diameter, h.length_m, h.diameter_m, roundi(ship.hull_film_kg_m2 * 1000.0)]))
+	var fins := ship.surfaces.filter(func(x): return x.tail_member)
+	if ship.tail and fins.size() > 0:
+		var f0: ControlSurface = fins[0]
+		var kind := I18n.t("Pendel") if f0.kind == ControlSurface.Kind.ALL_MOVING else I18n.t("Ruderklappe")
+		var prof := f0.profile_name() if f0.profile_naca else I18n.t("Brettchen")
+		lines.append(I18n.t("Leitwerk %s · %d Flossen je %d cm² · %s · %s") % [
+			TailConfig.LAYOUT_NAMES[ship.tail.layout], fins.size(), roundi(f0.area_m2 * 1e4), kind, prof])
+	if ship.motors.size() > 0:
+		var m0: VectorMotor = ship.motors[0]
+		var sw := I18n.t("schwenkbar ±%d°") % roundi(m0.max_swivel_deg) if m0.swivel_enabled else I18n.t("fest")
+		lines.append(I18n.dec(I18n.t("Antrieb %d Motoren, %s · Propeller %.1f cm · Akku %dS %d mAh") % [
+			ship.motors.size(), sw, m0.prop_diameter_in * 2.54, ship.battery_cells, roundi(ship.battery_mah)]))
+	var last := I18n.t("Masse %d g") % roundi(ship.structure_mass_kg * 1000.0)
+	if factor > 0.0:
+		last += " · " + I18n.dec(I18n.t("Rennfaktor ×%.2f") % factor)
+	last += " · " + (I18n.t("Teensy-FC eingebaut") if ship.fc_teensy else I18n.t("ohne Flugcontroller"))
+	lines.append(last)
+	if ship.model_description.strip_edges() != "":
+		lines.append(I18n.t("Beschreibung: %s") % ship.model_description.strip_edges())
+	return "\n".join(lines)
+
+
 ## Fingerabdruck der Bauart (Hülle, Massen, Flossen, Motoren, Akku …) ohne
 ## Name, Aussehen und Reglerwerte – gleich = unverändertes Modell (Bestenliste).
 static func fingerprint(ship: AirshipPhysics) -> String:
@@ -89,13 +129,14 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 			"bx": ship.ballast_x, "bauto": ship.ballast_auto_x, "fm": ship.fin_mass_kg,
 			"hf": ship.hull_film_kg_m2, "fa": ship.fin_mass_auto,
 			"tee": ship.fc_teensy, "tm": ship.teensy_mass_kg, "bs": ship.battery_cells, "bmah": ship.battery_mah, "bm": ship.battery_mass_kg,
+			"bo": ship.battery_own_x, "bxa": ship.battery_x,
 			"pl": ship.payload_mass_kg, "px": ship.payload_x, "pa": ship.payload_angle_deg},
 		"fins": [], "motors": [],
 	}
 	# Symmetrisches Leitwerk als Beschreibung (nicht Flosse für Flosse)
 	if ship.tail:
 		var t := ship.tail
-		data["tail"] = {"lay": int(t.layout), "cnt": t.count, "v": t.v_angle_deg, "rot": t.rotation_deg,
+		data["tail"] = {"lay": int(t.layout), "cnt": t.count, "flap": t.flap_chord_ratio, "v": t.v_angle_deg, "rot": t.rotation_deg,
 			"k": int(t.kind), "area": t.area_m2, "split": t.split_hv, "ah": t.area_h_m2, "av": t.area_v_m2,
 			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex,
 			"naca": t.profile_naca, "tk": t.naca_thickness, "pmm": t.plate_thickness_mm}
@@ -110,7 +151,7 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 	for m in ship.motors:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
-			"swv": m.max_swivel_deg, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
+			"swv": m.max_swivel_deg, "swe": m.swivel_enabled, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
 			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir,
 			"mk": m.mass_kg, "td": [snappedf(m.user_dir().x, 0.001), snappedf(m.user_dir().y, 0.001), snappedf(m.user_dir().z, 0.001)]})
 	# Regler: die AKTUELLEN Werte des Flugcontrollers (alle Achsen, Mischer,
@@ -130,7 +171,9 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 	var l := ship.livery
 	data["look"] = {"mat": l.material, "fmat": l.fin_material, "fcol": l.fin_color.to_html(false), "col": l.hull_color.to_html(false), "txt": l.text, "tcol": l.text_color.to_html(false),
 		"tsize": l.text_size, "tpos": l.text_pos, "logo": l.logo_ref,
-		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides, "tf": l.text_on_fins, "lf": l.logo_on_fins}
+		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides, "tf": l.text_on_fins, "lf": l.logo_on_fins,
+		"desc": ship.model_description}
+	data["mix"] = {"on": ship.mix_manual, "t": ship.mix_table}
 
 	return data
 
@@ -142,7 +185,13 @@ static func decode(text: String) -> Dictionary:
 	# Zeilenumbrüche (z. B. aus Messengern) entfernen; Leerzeichen nur in den
 	# Daten und der Prüfsumme – im Namen bleiben sie erhalten (vorher wurde
 	# „Albacore Standard“ beim Import zu „AlbacoreStandard“)
-	var s := text.strip_edges().replace("\n", "").replace("\r", "")
+	var s := text.strip_edges()
+	# Lesbare Eckdaten vor dem Code (Export ab 0.30) überspringen: der Code
+	# beginnt beim letzten „LTA1:“ – davor steht nur Text für Menschen
+	var at := s.rfind(PREFIX + ":")
+	if at > 0:
+		s = s.substr(at)
+	s = s.replace("\n", "").replace("\r", "")
 	var parts := s.split(":")
 	if parts.size() == 4:
 		parts[0] = parts[0].strip_edges()
@@ -189,6 +238,8 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	ship.battery_cells = int(d.mass.bs)
 	ship.battery_mah = d.mass.bmah
 	ship.battery_mass_kg = d.mass.bm
+	ship.battery_own_x = bool(d.mass.get("bo", false))
+	ship.battery_x = float(d.mass.get("bxa", 0.45))
 	ship.payload_mass_kg = d.mass.pl
 	ship.payload_x = d.mass.px
 	ship.payload_angle_deg = d.mass.pa
@@ -212,6 +263,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		t.kind = td.k; t.area_m2 = td.area; t.split_hv = td.split
 		t.area_h_m2 = td.ah; t.area_v_m2 = td.av; t.aspect_ratio = td.ar; t.taper = td.tp
 		t.hull_x = td.tx; t.max_deflection_deg = td.defl; t.pseudo_flex = td.flex
+		t.flap_chord_ratio = float(td.get("flap", 0.3))
 		t.profile_naca = td.naca; t.naca_thickness = td.tk; t.plate_thickness_mm = td.pmm
 		ship.tail = t
 
@@ -219,6 +271,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	for m in d.motors:
 		var mo := AirshipPresets.make_motor(m.n, m.x, m.a, m.thrust, m.swv, m.tilt)
 		mo.pair_id = m.p; mo.standoff_m = m.so
+		mo.swivel_enabled = bool(m.swe)
 		mo.reverse_allowed = m.rev; mo.reverse_efficiency = m.reff
 		mo.prop_diameter_in = m.d; mo.prop_pitch_in = m.pit; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
 		mo.spin_dir = int(m.dir)
@@ -234,6 +287,10 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	l.text_size = lk.tsize; l.text_pos = lk.tpos; l.logo_ref = lk.logo
 	l.logo_size = lk.lsize; l.logo_pos = lk.lpos; l.both_sides = lk.both
 	l.text_on_fins = bool(lk.get("tf", false)); l.logo_on_fins = bool(lk.get("lf", false))
+	ship.model_description = str(lk.get("desc", ""))
+	var mx: Dictionary = d.get("mix", {})
+	ship.mix_manual = bool(mx.get("on", false))
+	ship.mix_table = (mx.get("t", {}) as Dictionary).duplicate(true)
 	ship.livery = l
 	ship.rebuild_mass_properties()
 
@@ -309,7 +366,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"bx": _num(md, "bx", 0.45), "bauto": _flag(md, "bauto", true), "fm": _num(md, "fm", 0.0),
 			"hf": _num(md, "hf", 0.027), "fa": _flag(md, "fa", true),
 			"tee": _flag(md, "tee", true), "tm": _num(md, "tm", 0.010), "bs": _num(md, "bs", 4), "bmah": _num(md, "bmah", 300.0),
-			"bm": _num(md, "bm", 0.038), "pl": _num(md, "pl", 0.0), "px": _num(md, "px", 0.5), "pa": _num(md, "pa", 180.0)},
+			"bm": _num(md, "bm", 0.038), "bo": _flag(md, "bo", false), "bxa": clampf(_num(md, "bxa", 0.45), 0.0, 1.0), "pl": _num(md, "pl", 0.0), "px": _num(md, "px", 0.5), "pa": _num(md, "pa", 180.0)},
 		"fins": [], "motors": [],
 	}
 	# Regler-Vorgaben (Kaskadenregler): je Achse bekannte Werte, begrenzt auf
@@ -360,7 +417,8 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				"naca": _flag(f, "naca", true), "tk": _num(f, "tk", 0.12), "pmm": _num(f, "pmm", 3.0)})
 	var td = d.get("tail")
 	if td is Dictionary:
-		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 8),
+		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 10),
+			"flap": clampf(_num(td, "flap", 0.3), 0.1, 0.6),
 			"v": _num(td, "v", 45.0), "rot": _num(td, "rot", 0.0), "k": clampi(int(_num(td, "k", 0)), 0, 2),
 			"area": _num(td, "area", 0.08), "split": _flag(td, "split", false),
 			"ah": _num(td, "ah", 0.08), "av": _num(td, "av", 0.08), "ar": _num(td, "ar", 1.5),
@@ -374,6 +432,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			out.motors.append({"n": _txt(m, "n", "Motor", 32), "p": _txt(m, "p", "", 16),
 				"x": _num(m, "x", 0.25), "a": _num(m, "a", 90.0), "so": _num(m, "so", 0.08),
 				"tilt": _num(m, "tilt", 0.0), "thrust": _num(m, "thrust", 1.2), "swv": _num(m, "swv", 60.0),
+				"swe": _flag(m, "swe", _num(m, "swv", 60.0) > 0.0),
 				"rev": _flag(m, "rev", true), "reff": _num(m, "reff", 0.55), "d": _num(m, "d", 5.0),
 				"pit": _num(m, "pit", 3.0), "bl": _num(m, "bl", 2), "rpm": _num(m, "rpm", 18000.0),
 				"dir": -1 if _num(m, "dir", 1) < 0 else 1, "mk": _num(m, "mk", 0.030), "td": _vec3(m, "td", [1.0, 0.0, 0.0])})
@@ -389,5 +448,15 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		"col": _color(lk, "col", "dfe5ea"), "txt": _txt(lk, "txt", "", 24),
 		"tcol": _color(lk, "tcol", "1b2128"), "tsize": _num(lk, "tsize", 0.3), "tpos": _num(lk, "tpos", 0.5),
 		"logo": logo, "lsize": _num(lk, "lsize", 0.45), "lpos": _num(lk, "lpos", 0.25),
-		"both": _flag(lk, "both", true), "tf": _flag(lk, "tf", false), "lf": _flag(lk, "lf", false)}
+		"both": _flag(lk, "both", true), "tf": _flag(lk, "tf", false), "lf": _flag(lk, "lf", false),
+		"desc": _txt(lk, "desc", "", 100)}
+	# Mischer von Hand: Schlüssel s0…/m0…, je drei Prozentwerte
+	var mx = d.get("mix", {})
+	var mt := {}
+	if mx is Dictionary and mx.get("t") is Dictionary:
+		for k in (mx.t as Dictionary).keys().slice(0, 40):
+			var v = mx.t[k]
+			if str(k).length() <= 4 and (str(k).begins_with("s") or str(k).begins_with("m")) and v is Array and v.size() == 3:
+				mt[str(k)] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0)]
+	out["mix"] = {"on": _flag(mx, "on", false) if mx is Dictionary else false, "t": mt}
 	return out

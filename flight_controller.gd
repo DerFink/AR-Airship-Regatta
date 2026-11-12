@@ -1,3 +1,4 @@
+# 2026-11-12 22:55 – Mischer von Hand (mix_table) im Modus Direkt und ohne FC; suggest_mix() = Vorschlag aus der Einbaulage
 # 2026-11-12 09:50 – Stickmode-Korrektur: in 0.26.0 hängengebliebenes „Mode 1“ (Gas rechts) wird einmalig zu Mode 4; Einstellungen tragen jetzt Nomenklatur 5
 # 2026-11-11 19:25 – FEHLER behoben: der umgerechnete Stickmode wurde beim Laden sofort wieder mit dem alten gespeicherten Wert überschrieben (daher immer Gas rechts); Stickmode wird nach dem Laden gespeichert
 # 2026-11-11 18:55 – Stickmode noch einmal einmalig auf Mode 4 (Ursache jetzt behoben)
@@ -550,6 +551,9 @@ func _mix_direct(pitch_des: float, yaw_des: float) -> void:
 	if absf(roll_stick) > MODE1_ROLL_DEADBAND:                       # nur bei bewusstem Ausschlag
 		var over := (absf(roll_stick) - MODE1_ROLL_DEADBAND) / (1.0 - MODE1_ROLL_DEADBAND)
 		roll_cmd = signf(roll_stick) * over
+	if airship.mix_manual and manual_mix_valid():
+		_mix_manual(pitch_des / maxf(pitch_max_deg, 1e-3), yaw_des / MAX_YAW, roll_cmd)
+		return
 	_calibrate()
 	for i in airship.surfaces.size():
 		var srf: ControlSurface = airship.surfaces[i]
@@ -570,6 +574,72 @@ func _mix_direct(pitch_des: float, yaw_des: float) -> void:
 				+ (mode1_stick_yaw_motor * yaw_des * _sgn(cos(n)) + motor_roll_sign * mode1_roll_motor * roll_cmd) * c.wy
 		mot.swivel_cmd = _servo_to_cmd(c.s * delta, servo_throw_m1, mot.max_swivel_deg)
 		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)
+
+
+# =============================================================================
+# Mischer von Hand (Reiter Steuerung → Mischer einstellen)
+#   Jeder Ausgang (Flosse, Canard, Motorschwenker) bekommt
+#     Stellbefehl = (Nick% · Nick + Gier% · Gier + Roll% · Roll) / 100
+#   mit den Knüppeln −1…+1; ±1 = voller Ausschlag des Bauteils.
+#   Gas bleibt beim Piloten (alle Motoren gleich, kein Differenzschub).
+# =============================================================================
+## Liste der Ausgänge für die Mischtabelle: [{key, name, max_deg}]
+static func mix_outputs(ship: AirshipPhysics) -> Array:
+	var out := []
+	for i in ship.surfaces.size():
+		var s: ControlSurface = ship.surfaces[i]
+		if s.sail_member: continue
+		out.append({"key": "s%d" % i, "name": s.display_name, "max_deg": s.max_deflection_deg})
+	for i in ship.motors.size():
+		var m: VectorMotor = ship.motors[i]
+		if not m.swivel_enabled: continue
+		out.append({"key": "m%d" % i, "name": I18n.t("Schwenker %s") % m.display_name, "max_deg": m.max_swivel_deg})
+	return out
+
+
+## Passt die Tabelle zu den Bauteilen? (sonst Mischer nach Einbaulage)
+func manual_mix_valid() -> bool:
+	for o in mix_outputs(airship):
+		if not airship.mix_table.has(o.key):
+			return false
+	return true
+
+
+func _mix_manual(p: float, y: float, r: float) -> void:
+	for i in airship.surfaces.size():
+		var srf: ControlSurface = airship.surfaces[i]
+		var k = airship.mix_table.get("s%d" % i)
+		srf.command = 0.0 if k == null or srf.sail_member else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
+	for i in airship.motors.size():
+		var mot: VectorMotor = airship.motors[i]
+		var k = airship.mix_table.get("m%d" % i)
+		mot.swivel_cmd = 0.0 if k == null else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
+		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)
+
+
+## Vorschlag aus der Einbaulage: der bisherige automatische Mischer (Modus
+## Direkt) wird mit vollem Nick-, Gier- und Roll-Knüppel abgefragt; die
+## Stellbefehle in % sind die Tabelle. Ändert nichts am Flugzustand.
+func suggest_mix() -> Dictionary:
+	var keep_manual := airship.mix_manual
+	var keep := [cmd_aux]
+	airship.mix_manual = false
+	var tbl := {}
+	for o in mix_outputs(airship):
+		tbl[o.key] = [0.0, 0.0, 0.0]
+	var cases := [[pitch_max_deg, 0.0, 0.0], [0.0, MAX_YAW, 0.0], [0.0, 0.0, 1.0]]
+	for ci in 3:
+		cmd_aux = cases[ci][2]
+		_mix_direct(cases[ci][0], cases[ci][1])
+		for i in airship.surfaces.size():
+			if tbl.has("s%d" % i):
+				tbl["s%d" % i][ci] = roundf(airship.surfaces[i].command * 100.0)
+		for i in airship.motors.size():
+			if tbl.has("m%d" % i):
+				tbl["m%d" % i][ci] = roundf(airship.motors[i].swivel_cmd * 100.0)
+	cmd_aux = keep[0]
+	airship.mix_manual = keep_manual
+	return tbl
 
 
 ## Servoweg (Teensy: Anteil von 0…1 = 0…180°) mit Gesamt-Ausschlag → Stellbefehl

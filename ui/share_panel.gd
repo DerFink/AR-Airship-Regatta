@@ -1,3 +1,5 @@
+# 2026-11-12 22:10 – Einfügen und laden: auch Code mit lesbaren Eckdaten davor
+# 2026-11-12 21:45 – Export mit lesbaren Eckdaten über dem Code
 # 2026-11-11 17:45 – Meldungen mit Zahlen/Namen übersetzt
 # 2026-11-11 15:10 – Hinweis: Autor, Team und Beschreibung mitschicken (Angabenzeile in der Sammlung)
 # 2026-10-28 00:15 – Import meldet model_applied (PID-Vorgaben übernehmen)
@@ -114,7 +116,13 @@ func _on_visibility() -> void:
 
 ## Aktuelles Modell als String ins Textfeld schreiben.
 func _export() -> void:
-	_code.text = ModelCodec.encode(ship)
+	# Lesbare Eckdaten (für Mails, Foren) und darunter der eigentliche Code
+	var factor := -1.0
+	for c in ship.get_children():
+		if c is AirshipVisual:
+			var bb: AABB = c.local_aabb()
+			factor = Course.race_factor(Vector3(bb.size.z, bb.size.x, bb.size.y))
+	_code.text = ModelCodec.readable_header(ship, factor) + "\n" + ModelCodec.encode(ship)
 	var ref := ship.livery.logo_ref
 	if ref == "":
 		_logo_hint.text = "Kein Logo – der String enthält alles."
@@ -131,7 +139,8 @@ func _on_copy() -> void:
 ## String aus der Zwischenablage (oder dem Textfeld) prüfen und laden.
 func _on_paste_load() -> void:
 	var txt := DisplayServer.clipboard_get()
-	if not txt.strip_edges().begins_with(ModelCodec.PREFIX):
+	# Code darf lesbare Eckdaten davor haben (Export ab 0.30) – entscheidend ist „LTA1:“
+	if not txt.contains(ModelCodec.PREFIX + ":"):
 		txt = _code.text                     # Fallback: selbst ins Feld eingefügt
 	var r := ModelCodec.decode(txt)
 	if not r.ok:

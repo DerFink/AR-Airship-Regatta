@@ -1,3 +1,4 @@
+# 2026-11-12 23:10 – Reiter „Steuerung“ (statt Flight Controller): ① Mischer (Tabelle von Hand, Vorschlag aus Einbaulage) ② FC einbauen ③ Regler ④ Bausteine (Untermenü); ohne FC ausgegraut; Teensy-Sketch nur noch unter „Admin“; Leitwerk 2–10 Flossen, Klappentiefe; Motor „schwenkbar“ + Abstand zur Hülle; Akku an eigener Stelle; Name + Kurzbeschreibung; beginnt bei der Hülle
 # 2026-11-12 20:45 – Knopf „Zurücksetzen“ (zwischen Einstellungen und Teilen) mit Auswahl: Luftschiff, Regler, Sender, Knüppelbelegung + Strecke
 # 2026-11-12 12:50 – Zahlenfelder statt Schieberegler (Regler nur noch für Lagen); Volumen ohne Obergrenze; Hüllenmasse berechnet (Folie g/m² + 7 %); Flossen/Canards: Gewichtsvorschlag Depron + Pauschale, eigenes Gewicht überschreibt (Vorschlag ausgegraut); Propeller in Zoll/cm/mm ab 2 cm; Rennfaktor F7B bei den Kennwerten; Schrift/Logo auch aufs Leitwerk; Logo laden im Browser über die Dateiauswahl des Geräts, am Handy aus Download/Bilder
 # 2026-11-11 19:45 – Bug-/Hecklastigkeit: Ansicht pendelt auf den Hängewinkel, roter Hinweis ab 2°; Stabilitätsmaß und Leitwerkswarnung nur im Reiter Leitwerk, Kennwerte rechts nur Maße und Masse
@@ -72,7 +73,9 @@ var _hint: Label
 var _view_btn: Button
 var _preview: TailPreview
 var _hull_rows := {}
-var _teensy_check: CheckBox       ## Teensy-Flugcontroller eingebaut
+var _teensy_check: CheckBox       ## FC einbauen (Teensy 4.0)
+var _b_pid: Button                ## „Regler einstellen“ (ausgegraut ohne FC)
+var _b_blocks: Button             ## „Bausteine einstellen“ (ausgegraut ohne FC)
 var _flow_win: PanelContainer     ## Fenster Signalfluss
 var _flow: FlowDiagram
 var _ino_info: Label              ## Ergebnis des .ino-Exports
@@ -92,6 +95,11 @@ const PROP_FACTOR := [1.0, 2.54, 25.4]
 var _last_level := -1
 var _file_dialog: FileDialog
 var _factor_lbl: Label                ## „Rennfaktor F7B ×0,72“ unter den Kennwerten
+var _name_edit: LineEdit              ## Name des Modells (Reiter Hülle)
+var _desc_edit: TextEdit              ## Kurzbeschreibung (bis 100 Zeichen)
+var _desc_count: Label                ## „62 / 100“
+var _bat_own: CheckBox                ## „Akku an eigener Stelle“
+var _bat_x: Control                   ## Regler „Lage Akku“
 var _reset_dlg: Control               ## Fenster „Zurücksetzen“ (Auswahl mit Häkchen)
 var _reset_checks := {}               ## "ship"/"fc"/"sender"/"sticks" → CheckBox
 var _reset_ship_lbl: Label            ## Beschriftung „Dieses Luftschiff („Chewie“)“
@@ -113,13 +121,14 @@ func _ready() -> void:
 	add_child(_left)
 	var tabs := TabContainer.new()
 	tabs.add_theme_font_size_override("font_size", 15)          # fünf Reiter passen nebeneinander
+	tabs.clip_tabs = false                                      # alle Reiter immer sichtbar (Seitenleiste wird breit genug)
 	_left.add_child(tabs)
 	tabs.add_child(_scroll_page("Hülle", _build_hull_page))
 	tabs.add_child(_scroll_page("Leitwerk", _build_tail_page))
 	tabs.add_child(_scroll_page("Antrieb", _build_drive_page))
-	tabs.add_child(_scroll_page("Flight Controller", _build_fc_page))
+	tabs.add_child(_scroll_page("Steuerung", _build_fc_page))
 	tabs.add_child(_scroll_page("Optik", _build_look_page))
-	tabs.current_tab = TAB_TAIL
+	tabs.current_tab = 0                                       # Baukasten beginnt bei der Hülle
 	_tabs = tabs
 	tabs.tab_changed.connect(func(_i):
 		ui_action.emit("select")
@@ -242,6 +251,7 @@ func _on_visibility() -> void:
 	if visible:
 		reload_model_list()
 		_sync_from_ship()
+		_tabs.current_tab = 0                                  # immer mit der Hülle beginnen
 
 
 ## Seite eines Reiters: scrollbar, mit Token-Abständen.
@@ -260,6 +270,30 @@ func _scroll_page(title: String, builder: Callable) -> ScrollContainer:
 # Reiter „Hülle“
 # =============================================================================
 func _build_hull_page(col: VBoxContainer) -> void:
+	# --- Name und Kurzbeschreibung des Modells ---
+	col.add_child(UITheme.make_title("Luftschiff"))
+	col.add_child(UITheme.make_label("Name", "MutedLabel"))
+	_name_edit = LineEdit.new()
+	_name_edit.max_length = 40
+	_name_edit.custom_minimum_size.y = UITheme.size("control_height")
+	_name_edit.text_changed.connect(func(t): ship.model_name = t; _refresh())
+	col.add_child(_name_edit)
+	col.add_child(UITheme.make_label("Kurzbeschreibung (bis 100 Zeichen)", "MutedLabel"))
+	_desc_edit = TextEdit.new()
+	_desc_edit.custom_minimum_size.y = 72
+	_desc_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_desc_count = UITheme.make_label("0 / 100", "MutedLabel")
+	_desc_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_desc_edit.text_changed.connect(func():
+		var t := _desc_edit.text.replace("\n", " ")
+		if t.length() > 100:                       # höchstens 100 Zeichen
+			t = t.left(100)
+			_desc_edit.text = t
+			_desc_edit.set_caret_column(t.length())
+		ship.model_description = t
+		_desc_count.text = "%d / 100" % t.length())
+	col.add_child(_desc_edit)
+	col.add_child(_desc_count)
 	col.add_child(UITheme.make_title("Hülle"))
 	# Zahlenfelder; Schieberegler nur für Lagen (hier: Dickste Stelle)
 	_hull_rows.vol = UITheme.make_number_row("Volumen", 0.01, INF, 0.01, ship.hull.volume_m3,
@@ -370,7 +404,7 @@ func _fill_tail_page() -> void:
 	_tail_box.add_child(UITheme.make_choice_row(TailConfig.LAYOUT_NAMES, t.layout,
 		func(i): t.layout = i; _tail_changed(true)))
 	if t.layout == TailConfig.Layout.EVEN:
-		_tail_box.add_child(UITheme.make_stepper("Anzahl (1–8)", 1, 8, t.count,
+		_tail_box.add_child(UITheme.make_stepper("Anzahl Flossen (2–10)", 2, 10, maxi(t.count, 2),
 			func(v): t.count = v; _tail_changed(false), LABEL_W))
 		_tail_box.add_child(UITheme.make_slider_row("Drehung", 0.0, 359.0, 1.0, t.rotation_deg,
 			func(v): t.rotation_deg = v; _tail_changed(false), "%d°"))
@@ -405,6 +439,10 @@ func _fill_tail_page() -> void:
 		func(v): t.taper = v; _tail_changed(false), "%.2f"))
 	_tail_box.add_child(UITheme.make_slider_row("Position am Heck", 0.5, 1.0, 0.01, t.hull_x,
 		func(v): t.hull_x = v; _tail_changed(false), "%.2f"))
+	if t.kind == ControlSurface.Kind.FLAP:
+		# Klappentiefe: nur der hintere Teil der Flosse dreht (wirkt schwächer als ein Pendelruder)
+		_tail_box.add_child(UITheme.make_number_row("Klappentiefe (Anteil der Flossentiefe)", 10.0, 60.0, 1.0, t.flap_chord_ratio * 100.0,
+			func(v): t.flap_chord_ratio = v / 100.0; _tail_changed(false), "%d %%"))
 	_tail_box.add_child(UITheme.make_number_row("Ausschlag max", 0.0, 80.0, 1.0, t.max_deflection_deg,
 		func(v): t.max_deflection_deg = v; _tail_changed(false), "%d°"))
 	# Profil der Flossen (Platte oder NACA 00xx) mit Dicke und Gewichts-Schätzung
@@ -522,6 +560,19 @@ func _build_drive_page(col: VBoxContainer) -> void:
 		func(v): ship.battery_mass_kg = v / 1000.0; _changed(), "%d g")
 	col.add_child(_hull_rows.bmah)
 	col.add_child(_hull_rows.bm)
+	# Akku an eigener Stelle (sonst sitzt er in der Restmasse, die das Schiff austrimmt)
+	_bat_own = CheckBox.new()
+	_bat_own.text = "Akku an eigener Stelle"
+	_bat_own.button_pressed = ship.battery_own_x
+	col.add_child(_bat_own)
+	_bat_x = UITheme.make_slider_row("Lage Akku (0 Nase · 1 Heck)", 0.05, 0.95, 0.01, ship.battery_x,
+		func(v): ship.battery_x = v; _changed(), "%.2f")
+	_bat_x.visible = ship.battery_own_x
+	col.add_child(_bat_x)
+	_bat_own.toggled.connect(func(on):
+		ship.battery_own_x = on
+		_bat_x.visible = on
+		_changed())
 	col.add_child(UITheme.make_title("Motoren"))
 	var add := UITheme.make_button("+ Motorpaar")
 	add.pressed.connect(_add_motor_pair)
@@ -539,24 +590,176 @@ func _build_drive_page(col: VBoxContainer) -> void:
 # Reiter „Flight Controller“
 # =============================================================================
 func _build_fc_page(col: VBoxContainer) -> void:
-	col.add_child(UITheme.make_title("Flight Controller"))
+	# Aufbau von oben nach unten (Wunsch 12.11.2026):
+	#   ① Mischer (geht immer, auch ohne Teensy)
+	#   ② FC einbauen (Teensy 4.0) + Masse
+	#   ③ Regler (PID)      – ausgegraut ohne FC
+	#   ④ Bausteine         – ausgegraut ohne FC, eigenes Untermenü
+	#   Admin: Teensy-Sketch (.ino)
+	# --- ① Mischer ---
+	col.add_child(UITheme.make_title("Mischer"))
+	col.add_child(_note("Legt fest, welche Ruder und Schwenker bei Nick, Gier und Roll ausschlagen – ohne Regler, direkt vom Knüppel. So fliegen die meisten Luftschiffe, ein Flugcontroller ist dafür nicht nötig."))
+	var bm := UITheme.make_button("Mischer einstellen")
+	bm.pressed.connect(func(): ui_action.emit("select"); _show_mixer())
+	col.add_child(bm)
+	# --- ② FC einbauen ---
+	col.add_child(UITheme.make_title("FC einbauen"))
 	_teensy_check = CheckBox.new()
-	_teensy_check.text = "Teensy-Flugcontroller eingebaut"
+	_teensy_check.text = "FC einbauen (Teensy 4.0)"
 	_teensy_check.button_pressed = ship.fc_teensy
-	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _changed())
+	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _update_fc_enabled(); _changed())
 	col.add_child(_teensy_check)
+	col.add_child(_note("Ein Teensy 4.0 mit Lagesensor ist leicht, schnell und einfach einzubauen. Er hält das Luftschiff in der Lage und dämpft Pendeln. Eine passende .ino-Datei für deinen Teensy erstellt der Admin auf Anfrage aus dem Simulator."))
 	_hull_rows.tm = UITheme.make_number_row("Masse Flugcontroller", 0.0, 100.0, 1.0, ship.teensy_mass_kg * 1000.0,
 		func(v): ship.teensy_mass_kg = v / 1000.0; _changed(), "%d g")
 	col.add_child(_hull_rows.tm)
-	var note := UITheme.make_label("Ohne Flugcontroller gibt es nur „Direkt“: Knüppel gehen ohne Regler auf Ruder und Schwenker. Das Gas bleibt immer beim Piloten.", "MutedLabel")
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(note)
+	# --- ③ Regler (PID) ---
 	col.add_child(UITheme.make_title("Regler (PID)"))
-	var b := UITheme.make_button("Regler einstellen")
-	b.pressed.connect(func(): ui_action.emit("select"); pid_requested.emit())
-	col.add_child(b)
-	# --- Bausteine: an/aus; feste Sicherheits-Bausteine sind immer an ---
+	col.add_child(_note("Der Regler vergleicht die gewünschte mit der gemessenen Lage oder Drehrate und steuert nach: P reagiert sofort, I gleicht bleibende Abweichungen aus, D dämpft schnelle Bewegungen."))
+	_b_pid = UITheme.make_button("Regler einstellen")
+	_b_pid.pressed.connect(func(): ui_action.emit("select"); pid_requested.emit())
+	col.add_child(_b_pid)
+	# --- ④ Bausteine ---
 	col.add_child(UITheme.make_title("Bausteine"))
+	col.add_child(_note("Zusatzfunktionen des Flugcontrollers, einzeln an- und abschaltbar (z. B. Knüppel-Vorsteuerung, Nick-Schutz, Rollausgleich)."))
+	_b_blocks = UITheme.make_button("Bausteine einstellen")
+	_b_blocks.pressed.connect(func(): ui_action.emit("select"); _show_blocks())
+	col.add_child(_b_blocks)
+	# --- Admin: Teensy-Sketch ---
+	col.add_child(UITheme.make_title("Admin"))
+	col.add_child(_note("Nur für den Admin: Teensy-Sketch (.ino) aus diesem Modell erzeugen."))
+	var ba := UITheme.make_button("Teensy-Sketch erzeugen")
+	ba.pressed.connect(func(): ui_action.emit("select"); _show_ino())
+	col.add_child(ba)
+	_update_fc_enabled()
+
+
+## Hinweistext (grau, umbrechend) für die Steuerung.
+func _note(text: String) -> Label:
+	var l := UITheme.make_label(text, "MutedLabel")
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+
+## Ohne eingebauten FC: Masse, Regler und Bausteine ausgegraut.
+func _update_fc_enabled() -> void:
+	var on := ship.fc_teensy
+	if _b_pid: _b_pid.disabled = not on
+	if _b_blocks: _b_blocks.disabled = not on
+	if _hull_rows.has("tm"):
+		_hull_rows.tm.modulate.a = 1.0 if on else 0.4
+		_hull_rows.tm.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
+		for c in _hull_rows.tm.get_children():
+			if c is Button: c.disabled = not on
+			if c is LineEdit: c.editable = on
+
+
+## Fenster über dem Baukasten (wie Signalfluss): Titel, Schließen, Inhalt.
+func _window(title: String, close_text := "Fertig") -> Dictionary:
+	var win := PanelContainer.new()
+	win.add_theme_stylebox_override("panel", UITheme.box(Color("101720"), Color("2c3746"), -1, 12))
+	var v := UITheme.make_vbox("sm")
+	var head := UITheme.make_hbox("sm")
+	var t := UITheme.make_title(title)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(t)
+	v.add_child(head)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var body := UITheme.make_vbox("sm")
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(body)
+	v.add_child(sc)
+	var close := UITheme.make_primary_button(tr(close_text))
+	close.pressed.connect(func(): win.queue_free())
+	head.add_child(close)
+	win.add_child(v)
+	add_child(win)
+	win.position = Vector2(size.x * 0.08, size.y * 0.06)
+	win.size = Vector2(size.x * 0.84, size.y * 0.88)
+	return {"win": win, "head": head, "body": body}
+
+
+# =============================================================================
+# Mischer einstellen
+#   ┌ Mischer · Chewie ─────────── [Vorschlag aus Einbaulage] [Fertig] ┐
+#   │ [✓] Mischer von Hand verwenden                                    │
+#   │ Ausgang                    Nick     Gier     Roll                 │
+#   │ Leitwerk oben (±25°)      [  0 %]  [100 %]  [  0 %]               │
+#   │ …                                                                 │
+#   └───────────────────────────────────────────────────────────────────┘
+# Werte −200 … +200 % (über 100 % = früher am Anschlag). Gilt im Modus Direkt
+# und ohne Flugcontroller; Gas bleibt beim Piloten.
+# =============================================================================
+func _show_mixer() -> void:
+	var fc := ModelCodec._find_fc(ship)
+	if fc == null:
+		return
+	var outs := FlightController.mix_outputs(ship)
+	if not fc.manual_mix_valid():
+		ship.mix_table = fc.suggest_mix()               # Bauteile geändert: Vorschlag als Start
+	var w := _window(I18n.t("Mischer · %s") % ship.model_name)
+	var body: VBoxContainer = w.body
+	var sugg := UITheme.make_button("Vorschlag aus Einbaulage")
+	w.head.add_child(sugg)
+	w.head.move_child(sugg, 1)
+	var use := CheckBox.new()
+	use.text = "Mischer von Hand verwenden (aus = Mischer nach Einbaulage)"
+	use.button_pressed = ship.mix_manual
+	use.toggled.connect(func(on): ship.mix_manual = on; ui_action.emit("select"))
+	body.add_child(use)
+	body.add_child(_note("Prozent des Vollausschlags je Knüppel. Gilt im Modus Direkt und ohne Flugcontroller. Das Gas bleibt immer beim Piloten, kein Differenzschub."))
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", UITheme.space("md"))
+	grid.add_theme_constant_override("v_separation", UITheme.space("xs"))
+	body.add_child(grid)
+	for h in ["Ausgang", "Nick", "Gier", "Roll"]:
+		var hl := UITheme.make_label(h, "MutedLabel")
+		grid.add_child(hl)
+	var edits := {}
+	for o in outs:
+		var name_l := UITheme.make_label("%s (±%d°)" % [I18n.t(o.name), roundi(o.max_deg)])
+		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(name_l)
+		var row: Array = ship.mix_table.get(o.key, [0.0, 0.0, 0.0])
+		for ax in 3:
+			var le := LineEdit.new()
+			le.custom_minimum_size = Vector2(96, UITheme.size("control_height"))
+			le.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER_DECIMAL
+			le.select_all_on_focus = true
+			le.text = "%d %%" % roundi(row[ax])
+			var key: String = o.key
+			var axis := ax
+			var commit := func():
+				var t := le.text.replace("%", "").replace(",", ".").strip_edges()
+				if t.is_valid_float():
+					var arr: Array = ship.mix_table.get(key, [0.0, 0.0, 0.0]).duplicate()
+					arr[axis] = clampf(float(t), -200.0, 200.0)
+					ship.mix_table[key] = arr
+				le.text = "%d %%" % roundi(ship.mix_table.get(key, [0, 0, 0])[axis])
+			le.text_submitted.connect(func(_t): commit.call(); le.release_focus())
+			le.focus_exited.connect(commit)
+			grid.add_child(le)
+			edits["%s/%d" % [key, ax]] = le
+	if outs.is_empty():
+		body.add_child(_note("Keine Ruder oder schwenkbaren Motoren vorhanden."))
+	sugg.pressed.connect(func():
+		ship.mix_table = fc.suggest_mix()
+		for k in edits:
+			var parts: PackedStringArray = k.split("/")
+			edits[k].text = "%d %%" % roundi(ship.mix_table[parts[0]][int(parts[1])])
+		ui_action.emit("ok"))
+
+
+# =============================================================================
+# Bausteine einstellen (Untermenü) – an/aus; feste Sicherheits-Bausteine sind immer an
+# =============================================================================
+func _show_blocks() -> void:
+	var w := _window(tr("Bausteine"))
+	var body: VBoxContainer = w.body
 	var fc := ModelCodec._find_fc(ship)
 	for blk in FcBlocks.BLOCKS:
 		var cb := CheckBox.new()
@@ -569,29 +772,34 @@ func _build_fc_page(col: VBoxContainer) -> void:
 			FcBlocks.set_on(fc, bid, on)
 			ui_action.emit("select")
 			if _flow: _flow.queue_redraw())
-		col.add_child(cb)
-		var d := UITheme.make_label(blk.desc, "MutedLabel")
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		col.add_child(d)
+		body.add_child(cb)
+		body.add_child(_note(blk.desc))
 	var bf := UITheme.make_button("Signalfluss anzeigen")
 	bf.pressed.connect(_show_flow)
-	col.add_child(bf)
-	# --- Export als Teensy-Sketch (dRehmFlight, Vorlage Chewie BETA 1.4) ---
-	col.add_child(UITheme.make_title("Teensy-Sketch"))
+	body.add_child(bf)
+
+
+# =============================================================================
+# Admin: Teensy-Sketch (dRehmFlight, Vorlage Chewie BETA 1.4)
+# =============================================================================
+func _show_ino() -> void:
+	var w := _window(tr("Teensy-Sketch erzeugen"))
+	var body: VBoxContainer = w.body
+	body.add_child(_note("Nur für den Admin: erzeugt die .ino für den Teensy aus diesem Modell. Vor dem ersten Flug immer eine Bodenprobe ohne Propeller machen."))
 	_ino_mixer = CheckBox.new()
 	_ino_mixer.text = "Mischer aus Leitwerk und Antrieb des Modells erzeugen"
 	_ino_mixer.button_pressed = true
-	col.add_child(_ino_mixer)
+	body.add_child(_ino_mixer)
 	_ino_ch = CheckBox.new()
 	_ino_ch.text = "Kanalzuordnung des Senders übernehmen (Sender kalibrieren)"
 	_ino_ch.button_pressed = false
-	col.add_child(_ino_ch)
+	body.add_child(_ino_ch)
 	var be := UITheme.make_button("Als .ino exportieren")
 	be.pressed.connect(_export_ino)
-	col.add_child(be)
+	body.add_child(be)
 	_ino_info = UITheme.make_label("", "MutedLabel")
 	_ino_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_ino_info)
+	body.add_child(_ino_info)
 
 
 ## Signalflussbild als Fenster über dem Baukasten.
@@ -646,6 +854,8 @@ func _add_motor_pair() -> void:
 	# Neue Paare sitzen seitlich unten (45° unter der Waagrechten) – wie Chewie
 	var r := AirshipPresets.make_motor("Motor rechts (%s)" % pid, 0.25, 135.0, 1.2, 60.0, 45.0)
 	var l := AirshipPresets.make_motor("Motor links (%s)" % pid, 0.25, 225.0, 1.2, 60.0, 45.0)
+	r.swivel_enabled = false                      # neue Motoren sind fest – Schwenken erst per Haken
+	l.swivel_enabled = false
 	r.pair_id = pid; l.pair_id = pid
 	r.spin_dir = 1; l.spin_dir = -1                 # gegenläufig
 	ship.motors.append(r)
@@ -698,6 +908,8 @@ func _on_part_selected(i: int) -> void:
 	var set_all := func(prop: String, v, relayout: bool):
 		for m in pair: m.set(prop, v)
 		if relayout: _changed()
+	_editor_box.add_child(UITheme.make_number_row("Abstand zur Hülle (Gondelmitte)", 0.0, 500.0, 0.5, mo.standoff_m * 100.0,
+		func(v): set_all.call("standoff_m", v / 100.0, true), "%.1f cm"))
 	_editor_box.add_child(UITheme.make_number_row("Masse je Gondel (mit Servo)", 0.0, 10000.0, 1.0, mo.mass_kg * 1000.0,
 		func(v): set_all.call("mass_kg", v / 1000.0, true), "%d g"))
 	# Schubrichtung als Vektor (x vorn, y rechts, z unten); der Partner im Paar
@@ -723,11 +935,21 @@ func _on_part_selected(i: int) -> void:
 	_editor_box.add_child(rev)
 	_editor_box.add_child(UITheme.make_number_row("Wirkung rückwärts (normal ≈ 0,55 · 3D ≈ 0,95)", 0.1, 1.0, 0.05,
 		mo.reverse_efficiency, func(v): set_all.call("reverse_efficiency", v, false), "%.2f"))
-	_editor_box.add_child(UITheme.make_number_row("Schwenk max", 0.0, 120.0, 1.0, mo.max_swivel_deg,
-		func(v): set_all.call("max_swivel_deg", v, false), "%d°"))
-	# Negativ = Schub schwenkt radial zur Hüllenmitte (Chewie), positiv = entlang der Hülle (rollt stark)
-	_editor_box.add_child(UITheme.make_number_row("Achsneigung (Pigleg, − = radial)", -60.0, 60.0, 1.0, mo.swivel_tilt_deg,
-		func(v): set_all.call("swivel_tilt_deg", v, true), "%d°"))
+	# Schwenken nur mit Haken; erst dann gibt es Schwenkweg und Achsneigung
+	var swc := CheckBox.new()
+	swc.text = "Motor schwenkbar"
+	swc.button_pressed = mo.swivel_enabled
+	var sel_i := i
+	swc.toggled.connect(func(on):
+		set_all.call("swivel_enabled", on, true)
+		_on_part_selected.call_deferred(sel_i))
+	_editor_box.add_child(swc)
+	if mo.swivel_enabled:
+		_editor_box.add_child(UITheme.make_number_row("Schwenk max", 0.0, 120.0, 1.0, mo.max_swivel_deg,
+			func(v): set_all.call("max_swivel_deg", v, false), "%d°"))
+		# Negativ = Schub schwenkt radial zur Hüllenmitte (Chewie), positiv = entlang der Hülle (rollt stark)
+		_editor_box.add_child(UITheme.make_number_row("Achsneigung (Pigleg, − = radial)", -60.0, 60.0, 1.0, mo.swivel_tilt_deg,
+			func(v): set_all.call("swivel_tilt_deg", v, true), "%d°"))
 	# Propeller in Zoll, cm oder mm (gespeichert wird in Zoll); kleinster Durchmesser 2 cm
 	_editor_box.add_child(UITheme.make_label("Propeller", "MutedLabel"))
 	var mi := i
@@ -1093,6 +1315,15 @@ func _changed() -> void:
 
 ## Regler auf das aktuelle Modell setzen (nach Modellwechsel/Import).
 func _sync_from_ship() -> void:
+	if _bat_own:
+		_bat_own.set_pressed_no_signal(ship.battery_own_x)
+		_bat_x.visible = ship.battery_own_x
+		UITheme.set_row_value(_bat_x, ship.battery_x, "%.2f")
+	if _name_edit and _name_edit.text != ship.model_name:
+		_name_edit.text = ship.model_name
+	if _desc_edit and _desc_edit.text != ship.model_description:
+		_desc_edit.text = ship.model_description
+		_desc_count.text = "%d / 100" % ship.model_description.length()
 	var vals := {"vol": ship.hull.volume_m3, "ld": ship.hull.length_to_diameter,
 		"m": ship.hull.m, "cp": ship.hull.cp, "hf": ship.hull_film_kg_m2 * 1000.0,
 		"el": ship.electronics_mass_kg * 1000.0, "bx": ship.ballast_x, "tw": _heaviness_pct(),
@@ -1101,6 +1332,7 @@ func _sync_from_ship() -> void:
 	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hf": "%d g/m²", "el": "%d g", "bx": "%.2f",
 		"tw": "%.1f %%", "pl": "%d g", "px": "%.2f", "pa": "%d°", "bmah": "%d mAh", "bm": "%d g", "tm": "%d g"}
 	_teensy_check.set_pressed_no_signal(ship.fc_teensy)
+	_update_fc_enabled()
 	(_cells_row.get_meta("out") as Label).text = str(ship.battery_cells)
 	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)
 	for k in vals:
