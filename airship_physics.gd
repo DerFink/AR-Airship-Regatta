@@ -1,3 +1,4 @@
+# 2026-11-12 10:05 – Hülle platzt pauschal ab 20 km/h Fahrt beim Aufprall (fester Wert, nicht mehr einstellbar)
 # 2026-11-11 18:05 – repair(): heile Hülle auch beim Wechsel in Baukasten/Menü (vorher blieb sie dort schlaff)
 # 2026-11-11 14:10 – Aufprall: Stoß wird gemessen (Hülle federt sichtbar), über der Grenzgeschwindigkeit platzt die Hülle hinten (Druckwelle läuft nach hinten), Gas entweicht vom Heck zur Nase, Auftrieb und Auftriebspunkt wandern mit, Motoren aus
 # 2026-11-11 10:05 – Teensy-Masse einstellbar (teensy_mass_kg); Canards mit eigener Masse (ControlSurface.mass_kg) in Massenbilanz, Schwerpunkt und Trägheit
@@ -176,14 +177,15 @@ var _reset_to = null                 ## Transform3D, wenn ein Zurücksetzen anst
 
 # --- Aufprall und Platzen ------------------------------------------------------
 # Prallt das Schiff gegen etwas, federt die pralle Hülle wie ein Ball zurück
-# (Rückprall über das Physikmaterial der Halle). Ist der Stoß senkrecht zur
-# Wand schneller als burst_speed_mps, läuft eine Druckwelle durch das Gas nach
+# (Rückprall über das Physikmaterial der Halle). Ist das Schiff beim Aufprall
+# 20 km/h oder schneller (pauschal, gleich aus welcher Richtung), läuft eine Druckwelle durch das Gas nach
 # hinten und die Hülle reißt am Heck entlang einer Längsnaht auf. Das Gas
 # entweicht von hinten nach vorn: deflate_front wandert in DEFLATE_S Sekunden
 # vom Heck (1) zur Nase (0); nur vor dieser Stelle trägt noch Gas.
 const DEFLATE_S := 1.4
 var burst_enabled := true            ## aus den Einstellungen
-var burst_speed_mps := 3.0           ## Grenzgeschwindigkeit senkrecht zur Wand (m/s)
+const BURST_SPEED_MPS := 20.0 / 3.6  ## Hülle platzt pauschal ab 20 km/h Fahrt beim Aufprall
+const BUMP_FULL_MPS := 3.0           ## Stoß mit dieser Geschwindigkeit auf die Wand = voller Aufprall-Klang
 var burst := false                   ## Hülle ist geplatzt
 var deflate_front := 1.0             ## 1 = prall … 0 = leer (Anteil der Länge ab Nase, der noch Gas hat)
 var _v_prev := Vector3.ZERO          ## Geschwindigkeit am Ende des letzten Schritts (vor dem Stoß)
@@ -497,8 +499,9 @@ func _check_impacts(state: PhysicsDirectBodyState3D, dt: float) -> void:
 	if worst < 0.3:
 		return                                                # nur Anlehnen / Rollen
 	_bump_cool = 0.25
-	bumped.emit(clampf(worst / burst_speed_mps, 0.0, 1.0))
-	if burst_enabled and not burst and worst > burst_speed_mps:
+	bumped.emit(clampf(worst / BUMP_FULL_MPS, 0.0, 1.0))
+	# Platzen: pauschal nach der Fahrt des Schiffs vor dem Stoß (nicht nur senkrecht zur Wand)
+	if burst_enabled and not burst and _v_prev.length() >= BURST_SPEED_MPS:
 		_start_burst()
 
 

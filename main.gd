@@ -1,3 +1,4 @@
+# 2026-11-12 10:05 – Platz-Grenze nicht mehr aus den Einstellungen (fest 20 km/h)
 # 2026-11-11 20:05 – Online-Bestenliste, „gespielt mit“ (Gerät · Steuerung)
 # 2026-11-11 18:55 – Sender bedient keine Menüs mehr (Joypad aus allen ui_*-Aktionen entfernt) – Ursache für Stickmode 1 / Gas rechts
 # 2026-11-11 18:05 – Geplatzte Hülle wird beim Wechsel in Baukasten/Menü/Startseite ersetzt
@@ -426,7 +427,6 @@ func _platform_text() -> String:
 func _apply_burst_settings() -> void:
 	if is_instance_valid(ship):
 		ship.burst_enabled = AppSettings.burst_on
-		ship.burst_speed_mps = AppSettings.burst_speed
 
 
 ## Hülle geplatzt: Rennen ist vorbei (kein Bestenlisten-Eintrag), Autopilot aus.

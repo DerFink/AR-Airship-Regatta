@@ -1,3 +1,4 @@
+# 2026-11-12 09:50 – Prüft die einmalige Korrektur von Mode 1 mit Nomenklatur 4 (Fehler aus 0.26.0) und dass Mode 1 mit Nomenklatur 5 bleibt
 # 2026-11-11 19:30 – Prüft auch das Laden alter Einstellungen (Stickmode wurde überschrieben)
 # 2026-11-11 15:45 – Erstversion: Stickmode 1–4 (heli-planet-Nomenklatur), Standard Mode 4
 extends SceneTree
@@ -43,6 +44,22 @@ func _initialize() -> void:
 	if fc2.stick_mode != 4:
 		print("FEHLER alter Stickmode 1 wurde nicht zu Mode 4 (", fc2.stick_mode, ")"); ok = false
 	fc2.free()
+	# Von 0.26.0 verdorben gespeichert: Mode 1 mit Nomenklatur 4 → einmalig Mode 4
+	cfg.set_value("general", "stick_nomenklatur", 4)
+	cfg.save(FlightController.SETTINGS_PATH)
+	var fc3 := FlightController.new()
+	fc3.load_settings()
+	if fc3.stick_mode != 4:
+		print("FEHLER hängengebliebenes Mode 1 (Nomenklatur 4) nicht zu Mode 4 (", fc3.stick_mode, ")"); ok = false
+	fc3.free()
+	# Bewusst gewählt nach der Korrektur (Nomenklatur 5): Mode 1 bleibt Mode 1
+	cfg.set_value("general", "stick_nomenklatur", 5)
+	cfg.save(FlightController.SETTINGS_PATH)
+	var fc4 := FlightController.new()
+	fc4.load_settings()
+	if fc4.stick_mode != 1:
+		print("FEHLER bewusst gewähltes Mode 1 wurde verändert (", fc4.stick_mode, ")"); ok = false
+	fc4.free()
 	if had:
 		var back := ConfigFile.new(); back.parse(keep); back.save(FlightController.SETTINGS_PATH)
 	else:

@@ -1,3 +1,4 @@
+# 2026-11-12 09:50 – Stickmode-Korrektur: in 0.26.0 hängengebliebenes „Mode 1“ (Gas rechts) wird einmalig zu Mode 4; Einstellungen tragen jetzt Nomenklatur 5
 # 2026-11-11 19:25 – FEHLER behoben: der umgerechnete Stickmode wurde beim Laden sofort wieder mit dem alten gespeicherten Wert überschrieben (daher immer Gas rechts); Stickmode wird nach dem Laden gespeichert
 # 2026-11-11 18:55 – Stickmode noch einmal einmalig auf Mode 4 (Ursache jetzt behoben)
 # 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
@@ -747,7 +748,7 @@ func save_settings() -> void:
 	for k in GENERAL_KEYS:
 		cfg.set_value("general", k, get(k))
 	cfg.set_value("general", "preset", preset)
-	cfg.set_value("general", "stick_nomenklatur", 4)   # 2–4 = Mode 1–4 nach heli-planet
+	cfg.set_value("general", "stick_nomenklatur", 5)   # ab 2 = Mode 1–4 nach heli-planet; 5 = nach der Korrektur von 0.28.1
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
 
@@ -767,9 +768,14 @@ func load_settings() -> void:
 		stick_mode = 4 if stick_mode != 1 else 3
 	elif nom < 4:
 		stick_mode = STICK_MODE_DEFAULT   # 0.23.x–0.25: Mode 1 wurde über den Sender (Menü-Navigation) gewählt → einmalig Mode 4
+	elif nom < 5 and stick_mode == 1:
+		# 0.26.0 hat beim Laden den alten Rohwert 1 zurückgeschrieben und ihn danach
+		# mit Nomenklatur 4 gespeichert – so blieb „Mode 1“ (Gas rechts) hängen,
+		# obwohl Mode 4 eingestellt sein sollte. Einmalig auf den Standard Mode 4.
+		stick_mode = STICK_MODE_DEFAULT
 	if not STICK_LAYOUT.has(stick_mode):
 		stick_mode = STICK_MODE_DEFAULT
-	if nom < 4:
+	if nom < 5:
 		_save_stick_mode_later.call_deferred()   # umgerechneten Wert gleich dauerhaft speichern
 	if settings_outdated:
 		return                    # alte Reglerwerte passen nicht zum neuen Regler

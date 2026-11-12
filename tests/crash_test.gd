@@ -1,3 +1,4 @@
+# 2026-11-12 10:05 – Grenze 20 km/h: 16 km/h prallt ab, 25 km/h Anlauf platzt
 # 2026-11-11 14:50 – Erstversion: Aufprall und Platzen (langsam = abprallen, schnell = Hülle platzt hinten und fällt), Drehrichtung der Flossen in der Darstellung
 extends SceneTree
 var main: Node
@@ -32,7 +33,6 @@ func _physics_process(_dt: float) -> bool:   # zählt Physikschritte (CI läuft 
 			s.bumped.connect(func(_k): bumps += 1)
 			s.burst_changed.connect(func(on): if on: bursts += 1)
 			s.burst_enabled = true
-			s.burst_speed_mps = 3.0
 			# Flossen-Darstellung: positiver Ausschlag hebt die Vorderkante zur Normalen
 			var fin_ok := 0
 			for sf in s.surfaces:
@@ -52,16 +52,16 @@ func _physics_process(_dt: float) -> bool:   # zählt Physikschritte (CI läuft 
 				sf._flex_deg = 0.0; sf._servo_deg = 0.0; sf.command = 0.0
 			_launch(s); phase = 1
 		1:
-			if f == t0 + 3: s.linear_velocity = Vector3(0, 0, -2.0)        # langsam
+			if f == t0 + 3: s.linear_velocity = Vector3(0, 0, -4.5)        # 16 km/h: prallt nur ab
 			if f == t0 + 150:
 				if bumps < 1: _fail("kein Stoß erkannt")
-				if s.burst: _fail("bei 2 m/s geplatzt")
+				if s.burst: _fail("bei 4,5 m/s (16 km/h) geplatzt")
 				if s.linear_velocity.z <= 0.3: _fail("nicht abgeprallt (vz %.2f)" % s.linear_velocity.z)
 				_launch(s); phase = 2
 		2:
-			if f == t0 + 3: s.linear_velocity = Vector3(0, 0, -4.0)        # zu schnell
+			if f == t0 + 3: s.linear_velocity = Vector3(0, 0, -7.0)        # 25 km/h (am Aufprall ≈ 23 km/h): zu schnell
 			if f == t0 + 420:
-				if bursts != 1: _fail("bei 4 m/s nicht geplatzt")
+				if bursts != 1: _fail("bei 7 m/s Anlauf (≈ 23 km/h am Aufprall) nicht geplatzt")
 				if s.deflate_front > 0.0: _fail("Gas nicht ganz entwichen")
 				if s.global_position.y > 0.8: _fail("Wrack liegt nicht am Boden (y %.2f)" % s.global_position.y)
 				main._set_view(main.View.BUILD)               # Baukasten: Hülle muss wieder heil sein

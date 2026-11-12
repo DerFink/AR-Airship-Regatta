@@ -1,3 +1,4 @@
+# 2026-11-12 10:05 – Regler „Platzt ab“ entfernt; Schalter heißt „Hülle platzt bei Aufprall ab 20 km/h“
 # 2026-11-11 14:40 – Schalter „Hülle platzt bei zu hartem Aufprall“ und Grenzgeschwindigkeit
 # 2026-11-11 17:00 – Erstversion: Fenster „Einstellungen“ – Musik und Motorklang an/aus mit Lautstärke, Bodenspur an/aus, Zugang zu Steuerung & Regler
 # =============================================================================
@@ -54,10 +55,8 @@ func _ready() -> void:
 	box.add_child(_toggle("Spur auf dem Boden (Acht mit Richtungspfeilen)", AppSettings.track_on,
 		func(on): AppSettings.track_on = on; AppSettings.save()))
 	# Aufprall: aus = Hülle prallt nur ab (zum Üben)
-	box.add_child(_toggle("Hülle platzt bei zu hartem Aufprall", AppSettings.burst_on,
+	box.add_child(_toggle("Hülle platzt bei Aufprall ab 20 km/h", AppSettings.burst_on,
 		func(on): AppSettings.burst_on = on; AppSettings.save()))
-	box.add_child(UITheme.make_slider_row("Platzt ab (senkrecht zur Wand)", 1.0, 8.0, 0.5, AppSettings.burst_speed,
-		func(v): AppSettings.burst_speed = v; AppSettings.apply(), "%.1f m/s"))
 	box.add_child(UITheme.make_title("Steuerung"))
 	var b_ctl := UITheme.make_button("Steuerung & Regler (Knüppel-Mode, alles zurücksetzen) …")
 	b_ctl.pressed.connect(func(): AppSettings.save(); controls_requested.emit())
