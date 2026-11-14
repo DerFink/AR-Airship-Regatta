@@ -1,3 +1,4 @@
+# 2026-11-14 21:10 – Impressum/Datenschutz (server/rc-airship/*.html) kommen mit ins Paket für flinkfink.de
 # 2026-11-13 03:10 – Test modes_test in der CI
 # 2026-11-11 20:20 – Paket für flinkfink.de (rc-airship-web.zip im Release) und optionaler automatischer Upload per SFTP (Job strato)
 # 2026-11-11 15:50 – Test stickmode_test aufgenommen
@@ -125,7 +126,9 @@ jobs:
           mkdir -p build/strato
           cp -r build/web/. build/strato/
           cp server/rc-airship/api.php server/rc-airship/admin.php server/rc-airship/lib.php \
-             server/rc-airship/models.json server/rc-airship/config.sample.php server/rc-airship/.htaccess build/strato/
+             server/rc-airship/models.json server/rc-airship/config.sample.php server/rc-airship/.htaccess \
+             build/strato/
+          cp server/rc-airship/*.html build/strato/ 2>/dev/null || true   # Impressum/Datenschutz, sobald vorhanden
           (cd build/strato && zip -qr ../rc-airship-web.zip .)
           ls -la build/rc-airship-web.zip
 
