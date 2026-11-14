@@ -1,4 +1,5 @@
 <?php
+// 2026-11-14 21:40 – Eintragen nur mit Einwilligung + Geräte-Kennung; neu: delete_device (eigene Einträge löschen), hit (Besucherzähler)
 // 2026-11-11 19:10 – Erstversion: Schnittstelle der Online-Bestenliste für App und Browser
 // =============================================================================
 // api.php  –  https://flinkfink.de/rc-airship/api.php
@@ -6,7 +7,10 @@
 //   GET  ?action=list&course=cup     → laufendes Quartal, beste gewertete Zeit zuerst (max. 100)
 //   GET  ?action=forever&course=cup  → vergangene Quartale, je die 10 Besten
 //   POST action=submit (JSON)        → Rennen eintragen; Antwort: Platz und id
-//        {"course","name","fp","total","laps":[3],"platform","version"}
+//        {"course","name","fp","total","laps":[3],"platform","version","device","consent"}
+//        nur mit Einwilligung (consent = CONSENT_VERSION) und Geräte-Kennung
+//   POST action=delete_device {"device"} → alle Einträge dieses Geräts löschen (Widerruf)
+//   POST action=hit {"platform"}         → Besucherzähler +1 (Tag, Plattform; sonst nichts)
 // Gewertet werden nur unveränderte Standardmodelle (Fingerabdruck fp aus
 // models.json); die gewertete Zeit rechnet der Server selbst aus.
 // =============================================================================
@@ -35,6 +39,18 @@ try {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $body = json_decode((string)file_get_contents('php://input'), true) ?: [];
         $action = $body['action'] ?? $action;
+    }
+    // Besucherzähler und Selbstlöschen brauchen keine Strecke
+    if ($action === 'hit') {
+        count_hit((string)($body['platform'] ?? ''));
+        out(['ok' => true]);
+    }
+    if ($action === 'delete_device') {
+        $dh = device_hash((string)($body['device'] ?? ''));
+        if ($dh === '') out(['ok' => false, 'error' => 'device'], 400);
+        $st = db()->prepare("DELETE FROM entries WHERE device_hash = ?");
+        $st->execute([$dh]);
+        out(['ok' => true, 'deleted' => $st->rowCount()]);
     }
     $course = (string)($_GET['course'] ?? $body['course'] ?? 'cup');
     if (!valid_course($course)) out(['ok' => false, 'error' => 'course'], 400);
@@ -65,6 +81,10 @@ try {
     }
 
     if ($action === 'submit') {
+        // ohne Einwilligung in der aktuellen Fassung wird nichts gespeichert
+        if ((int)($body['consent'] ?? 0) !== CONSENT_VERSION) out(['ok' => false, 'error' => 'consent'], 400);
+        $dh = device_hash((string)($body['device'] ?? ''));
+        if ($dh === '') out(['ok' => false, 'error' => 'device'], 400);
         $models = models();
         $fp = (string)($body['fp'] ?? '');
         if (!isset($models[$fp])) out(['ok' => false, 'error' => 'model'], 400);      // verändertes Modell → keine Wertung
@@ -80,11 +100,11 @@ try {
         $c->execute([$ip, gmdate('Y-m-d H:i:s', $now - 3600)]);
         if ((int)$c->fetch()['n'] >= SUBMITS_PER_HOUR) out(['ok' => false, 'error' => 'rate'], 429);
         $score = round(scored($total, $models[$fp]['box']), 2);
-        $ins = $pdo->prepare("INSERT INTO entries (quarter, course, name, model, total, lap1, lap2, lap3, score, platform, version, created, ip_hash)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        $ins = $pdo->prepare("INSERT INTO entries (quarter, course, name, model, total, lap1, lap2, lap3, score, platform, version, created, ip_hash, device_hash, consent)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
         $ins->execute([$cur, $course, $name, $models[$fp]['name'], round($total, 2), round($laps[0], 2), round($laps[1], 2), round($laps[2], 2),
             $score, mb_substr((string)($body['platform'] ?? ''), 0, 40), mb_substr((string)($body['version'] ?? ''), 0, 20),
-            gmdate('Y-m-d H:i:s', $now), $ip]);
+            gmdate('Y-m-d H:i:s', $now), $ip, $dh, CONSENT_VERSION]);
         $id = (int)$pdo->lastInsertId();
         $r = $pdo->prepare("SELECT COUNT(*) AS n FROM entries WHERE quarter = ? AND course = ? AND (score < ? OR (score = ? AND id < ?))");
         $r->execute([$cur, $course, $score, $score, $id]);

@@ -1,4 +1,5 @@
 <?php
+// 2026-11-14 21:40 – Anmeldung: Sperre nach 5 Fehlversuchen (15 min) mit Meldung; neu: Besucherzähler (heute, 30 Tage, insgesamt, je Plattform, je Tag)
 // 2026-11-11 19:20 – Erstversion: Verwaltung der Online-Bestenliste (Anmeldung mit Passwort, Einträge ansehen und einzelne Piloten streichen)
 // =============================================================================
 // admin.php  –  https://flinkfink.de/rc-airship/admin.php
@@ -22,10 +23,15 @@ function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8')
 // --- Anmelden / Abmelden ---------------------------------------------------
 if (isset($_POST['password'])) {
     usleep(400000);                                   // bremst Passwort-Raten
-    if (password_verify((string)$_POST['password'], (string)$CFG['admin_hash'])) {
+    if (login_locked()) {                             // 5 Fehlversuche → 15 Minuten Sperre
+        $_SESSION['login_msg'] = 'Zu viele Fehlversuche – bitte in ' . LOGIN_LOCK_MIN . ' Minuten erneut versuchen.';
+    } elseif (password_verify((string)$_POST['password'], (string)$CFG['admin_hash'])) {
         session_regenerate_id(true);
         $_SESSION['admin'] = true;
         $_SESSION['csrf'] = bin2hex(random_bytes(16));
+    } else {
+        login_failed();
+        $_SESSION['login_msg'] = 'Passwort falsch.';
     }
     header('Location: admin.php'); exit;
 }
@@ -54,10 +60,12 @@ if ($admin && ($_POST['csrf'] ?? '') === ($_SESSION['csrf'] ?? 'x')) {
  table{border-collapse:collapse;width:100%;font-size:14px} td,th{padding:6px 8px;border-bottom:1px solid #ffffff1a;text-align:left;white-space:nowrap}
  th{color:#9aa7b4;font-weight:normal} .box{background:#161c23;border:1px solid #ffffff22;border-radius:12px;padding:16px;margin-bottom:16px;overflow-x:auto}
  button,input{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid #ffffff33;background:#222a33;color:#e9eef3}
- button.del{border-color:#e5484d;color:#ff9a9a} .msg{color:#3fb27f} a{color:#3d8bfd}
+ button.del{border-color:#e5484d;color:#ff9a9a} .msg{color:#3fb27f} .err{color:#ff9a9a} a{color:#3d8bfd}
+ .num{font-size:28px;font-weight:bold} .stats{display:flex;gap:24px;flex-wrap:wrap}
 </style></head><body>
 <h1>Bestenliste – Verwaltung</h1>
 <?php if (!$admin): ?>
+ <?php if (!empty($_SESSION['login_msg'])): ?><p class="err"><?= h($_SESSION['login_msg']) ?></p><?php unset($_SESSION['login_msg']); endif; ?>
  <div class="box"><form method="post"><label>Passwort <input type="password" name="password" autofocus></label> <button>Anmelden</button></form></div>
 <?php else:
  $pdo = db(); cleanup();
@@ -67,6 +75,29 @@ if ($admin && ($_POST['csrf'] ?? '') === ($_SESSION['csrf'] ?? 'x')) {
 ?>
  <p><a href="?logout=1">Abmelden</a> · laufendes Quartal: <b><?= h($cur) ?></b></p>
  <?php if ($msg): ?><p class="msg"><?= $msg ?></p><?php endif; ?>
+ <?php
+ // --- Besucherzähler: Aufrufe der App/Seite je Tag und Plattform (ohne IP) ---
+ $today = gmdate('Y-m-d');
+ $sum = fn(string $where, array $p = []) => (function () use ($pdo, $where, $p) {
+     $st = $pdo->prepare("SELECT COALESCE(SUM(n), 0) AS n FROM hits $where"); $st->execute($p); return (int)$st->fetch()['n']; })();
+ $h_today = $sum("WHERE day = ?", [$today]);
+ $h_30 = $sum("WHERE day >= ?", [gmdate('Y-m-d', time() - 29 * 86400)]);
+ $h_all = $sum("");
+ $per_pf = $pdo->query("SELECT platform, SUM(n) AS n FROM hits GROUP BY platform ORDER BY n DESC")->fetchAll();
+ $days = $pdo->prepare("SELECT day, SUM(n) AS n FROM hits WHERE day >= ? GROUP BY day ORDER BY day DESC");
+ $days->execute([gmdate('Y-m-d', time() - 29 * 86400)]);
+ ?>
+ <div class="box"><h2>Aufrufe</h2>
+  <div class="stats">
+   <div>heute<br><span class="num"><?= $h_today ?></span></div>
+   <div>letzte 30 Tage<br><span class="num"><?= $h_30 ?></span></div>
+   <div>insgesamt<br><span class="num"><?= $h_all ?></span></div>
+   <div>nach Plattform<br><?php foreach ($per_pf as $r): ?><?= h($r['platform']) ?>: <b><?= (int)$r['n'] ?></b><br><?php endforeach; ?></div>
+  </div>
+  <p style="color:#9aa7b4">Gezählt wird jeder Start der App bzw. der Browser-Version – ohne IP-Adresse oder Kennung (Datum UTC).</p>
+  <table><tr><th>Tag</th><th>Aufrufe</th></tr>
+  <?php foreach ($days->fetchAll() as $r): ?><tr><td><?= h($r['day']) ?></td><td><?= (int)$r['n'] ?></td></tr><?php endforeach; ?></table>
+ </div>
  <div class="box"><form method="post" onsubmit="return confirm('Alle Einträge dieses Namens löschen?')">
   <input type="hidden" name="csrf" value="<?= $csrf ?>">
   Pilot komplett streichen (alle Quartale): <input name="del_name" placeholder="Name genau wie in der Liste"> <button class="del">Streichen</button>

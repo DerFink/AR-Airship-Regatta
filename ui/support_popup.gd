@@ -1,3 +1,4 @@
+# 2026-11-14 22:15 – PayPal: eigener Link paypal.me/LuftschiffFink statt Spenden-Link mit E-Mail
 # 2026-11-11 17:40 – Erstversion: Fenster „Support“ – QR-Code für PayPal, Adresse, Knopf „PayPal öffnen“
 # =============================================================================
 # SupportPopup.gd
@@ -8,7 +9,7 @@
 #   │        ┌──────────┐          │
 #   │        │ QR-Code  │          │   textures/support_qr.png (tools/make_support_qr.py)
 #   │        └──────────┘          │
-#   │      Erichfink@gmx.de        │
+#   │  paypal.me/LuftschiffFink    │
 #   │ [PayPal öffnen] [Schließen]  │
 #   └──────────────────────────────┘
 # Wird der Link geändert (z. B. eigener paypal.me-Link), danach
@@ -17,10 +18,10 @@
 class_name SupportPopup
 extends Control
 
-## PayPal-Spendenlink. Mit eigenem paypal.me-Namen einfach ersetzen, z. B.
-## "https://paypal.me/ErichFink", und den QR-Code neu erzeugen.
-const SUPPORT_URL := "https://www.paypal.com/donate/?business=Erichfink%40gmx.de&currency_code=EUR&item_name=RC+Airship+Regatta"
-const SUPPORT_NAME := "Erichfink@gmx.de"
+## PayPal-Link (paypal.me des Betreibers). Bei Änderung den QR-Code neu
+## erzeugen: python3 tools/make_support_qr.py
+const SUPPORT_URL := "https://paypal.me/LuftschiffFink"
+const SUPPORT_NAME := "paypal.me/LuftschiffFink"
 
 var _panel: PanelContainer
 

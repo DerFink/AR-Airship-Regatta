@@ -1,3 +1,4 @@
+# 2026-11-14 22:10 – Einstellungen bekommen die Online-Liste (eigene Einträge löschen); Besucherzähler beim Start
 # 2026-11-14 11:20 – Testmodelle: Wunsch-Flugmodus des Modells (Chewie27 → Horizon) übernehmen; Modellliste nach den Einstellungen neu laden
 # 2026-11-12 20:45 – _reset_selected(): Baukasten-Knopf „Zurücksetzen“ (Luftschiff, Regler, Sender, Knüppelbelegung + Strecke einzeln)
 # 2026-11-12 11:00 – Modell & Bau erfährt, ob ein Flug begonnen wurde (Weiterfliegen / Rückfrage)
@@ -325,7 +326,9 @@ func _build_ui() -> void:
 	start_screen.about_requested.connect(func(): _set_view(View.ABOUT))
 	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
 	settings = SettingsPanel.new()
+	settings.online = lb_online                      # „Meine Online-Einträge löschen“
 	root.add_child(settings)
+	lb_online.hit()                                  # Besucherzähler: ein Start = ein Aufruf (ohne IP/Kennung)
 	start_screen.settings_requested.connect(func(): _settings_back = View.START; _set_view(View.SETTINGS))
 	settings.closed.connect(func(): builder.reload_model_list(); _set_view(_settings_back))   # Testmodelle ein/aus
 	# ⚙ auch im Flug und im Baukasten; zurück geht es dorthin, wo man herkam

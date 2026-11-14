@@ -218,7 +218,11 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 - **F7B-Wertung:** `gewertet = gemessen × ∛(L·B·H·π/6)` mit dem Boxmaß über alles (Flossen, Motoren, Akku zählen mit). Der **Rennfaktor** steht in der Modellliste und bei den Kennwerten. Sortiert wird nach gewerteter Zeit, damit kleine, langsamere Schiffe eine Chance haben.
 - **Lokal** (`leaderboard.gd`, `user://bestenliste.json`): 100 Plätze je Strecke und Quartal; zum Quartalsende kommen die 10 Besten nach „Best Forever“.
 - **Online** (`leaderboard_online.gd` → `https://flinkfink.de/rc-airship/api.php`): PHP 8 + MySQL bei Strato. Der Server rechnet die gewertete Zeit selbst, prüft Fingerabdruck, Rundenzeiten (≥ 2 s, Summe passt) und begrenzt Einträge je Stunde; IP nur als gesalzener Kurzwert. `admin.php`: Einträge/Piloten löschen (Passwort, CSRF). Ohne Netz zeigt die App die Liste des Geräts.
-- **Stand Online-Stellen:** vorbereitet, aber **noch nicht hochgeladen** (Schritte in `server/ANLEITUNG.md`). Vorher Impressum und Datenschutz für flinkfink.de.
+- **Einwilligung (seit 0.34):** Online eingetragen wird nur nach Zustimmung im Fenster `ui/consent_dialog.gd` (Text mit dem Betreiber abgestimmt, `LeaderboardOnline.CONSENT_TEXT`). Fassung `CONSENT_VERSION` = 1 in App **und** `lib.php` – bei Textänderung beide erhöhen, dann fragt die App neu. „Nur auf diesem Gerät“ schaltet das Online-Eintragen aus. Einstellungen → „Online-Bestenliste“: Schalter (aus = Widerruf) und „Meine Online-Einträge löschen“ (über zufällige Geräte-Kennung, auf dem Server nur gesalzen/gekürzt). Speicherdauer **2 Jahre** (`KEEP_DAYS`, automatisch in `cleanup()`).
+- **Besucherzähler:** `api.php?action=hit` bei jedem Start (nicht in Tests); Tabelle `hits` nur mit Tag, Plattform, Anzahl. Anzeige in `admin.php`.
+- **Sicherheit:** Admin-Anmeldung 15 min gesperrt nach 5 Fehlversuchen (Tabelle `login_fail`); `display_errors` aus; `Options -Indexes`. `einrichtung.php` legt `config.php` im Browser an (prüft die Datenbank, speichert nur den Passwort-Hash) und ist danach gesperrt.
+- **Impressum/Datenschutz:** `server/rc-airship/impressum.html`, `datenschutz.html`; verlinkt auf der Startseite (unten rechts), in den Einstellungen und im Einwilligungsfenster. PayPal: `paypal.me/LuftschiffFink`.
+- **Stand Online-Stellen:** alles vorbereitet; Schritte für Strato und WinSCP in `server/ANLEITUNG.md`.
 
 ---
 
@@ -277,6 +281,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 14.11. | 0.32.0 | Demo fliegt im eingestellten Flugmodus (auch Direkt, mit eigener Nick-Haltung); Gier-Sollrate neuer PID-Modi 150 °/s; verstecktes Testmodell Chewie27 (alter Chewie, Horizon). |
 | 14.11. | 0.33.0 | Einzelmotor (oben/unten/Heck); Canards mit Streckung und Pfeilung, symmetrische Canard-Paare und Einzel-Canards. |
 | 14.11. | 0.33.1 | Fehler: Motor/Canard ließ sich nach Import nicht mehr öffnen (Eintrag blieb markiert, item_selected feuerte nicht) → Listen reagieren auf jedes Antippen (item_clicked). |
+| 14.11. | 0.34.0 | Online-Gang vorbereitet: Einwilligung vor dem ersten Online-Eintrag, eigene Einträge löschen, 2 Jahre Speicherdauer, Besucherzähler im Admin, Login-Sperre, Einrichtungsseite, Impressum und Datenschutz (Links in der App), PayPal paypal.me/LuftschiffFink. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

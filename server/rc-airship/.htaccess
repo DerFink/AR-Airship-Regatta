@@ -1,3 +1,4 @@
+# 2026-11-14 22:45 – Ordnerinhalt nie auflisten (HTTPS-Weiterleitung bleibt bei Strato)
 # 2026-11-11 19:20 – Erstversion: Browser-Version richtig ausliefern, Zugangsdaten schützen
 # WebAssembly mit dem richtigen Typ ausliefern (sonst lädt der Simulator nicht)
 AddType application/wasm .wasm
@@ -16,3 +17,8 @@ AddType application/octet-stream .pck
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE application/wasm application/javascript text/html application/json
 </IfModule>
+
+# Ordnerinhalt nie als Liste anzeigen
+Options -Indexes
+# HTTPS-Weiterleitung: im Strato-Kundenlogin einschalten (SSL-Verwaltung) – hier bewusst nicht,
+# weil eine eigene Regel hinter dem Strato-Proxy eine Endlosschleife auslösen kann.

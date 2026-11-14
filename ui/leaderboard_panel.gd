@@ -1,3 +1,4 @@
+# 2026-11-14 22:00 – Online-Eintrag nur mit Einwilligung: beim ersten Mal fragt ein Fenster (ConsentDialog); „Nur auf diesem Gerät“ trägt nicht online ein
 # 2026-11-12 12:55 – Aufklapp-Pfeile ▶/▼ (▸/▾ fehlten in der Schrift)
 # 2026-11-11 20:00 – Neu nach freigegebenem Entwurf: echte Tabelle (eine Zeile je Pilot, Spaltenüberschrift bleibt oben, Zeilen abwechselnd hinterlegt), 100 Plätze mit Scrollen, neuer Eintrag: Liste scrollt hin und die Zeile blinkt; Reiter Aktuell (Quartal) / Best Forever (je Quartal die 3 Besten, aufklappbar 10) / So funktioniert's; Online-Liste von flinkfink.de, ohne Netz die Liste des Geräts
 # 2026-11-11 19:20 – „Fertig“ auch oben in der Liste; Tippen aufs Spielfeld schließt die Liste
@@ -32,6 +33,7 @@ const COL_GAP := 12                     ## Abstand zwischen den Spalten
 var course: Course
 var ship: AirshipPhysics
 var online: LeaderboardOnline            ## Online-Liste (setzt main.gd)
+var _consent: ConsentDialog              ## Einwilligung vor dem ersten Online-Eintrag
 var box_m := Vector3.ZERO                ## Boxmaß des Schiffs (setzt main.gd)
 var fingerprint_source: Callable         ## liefert den Fingerabdruck des Modells (für die Online-Wertung)
 var platform_source: Callable            ## liefert z. B. "PC · Sender"
@@ -406,12 +408,36 @@ func _on_enter() -> void:
 	if online and fingerprint_source.is_valid():
 		var laps := []
 		for t in _res_laps: laps.append(snappedf(t, 0.01))
-		online.submit({"course": course.course_key(), "name": name, "fp": fingerprint_source.call(),
+		var entry := {"course": course.course_key(), "name": name, "fp": fingerprint_source.call(),
 			"total": snappedf(_res_total, 0.01), "laps": laps, "platform": platform,
-			"version": BuildInfo.VERSION}, func(r: Dictionary):
-				if r.get("ok", false):
-					_highlight = {"id": int(r.id)}
-				_fetch_online())
+			"version": BuildInfo.VERSION}
+		if LeaderboardOnline.may_submit():
+			_submit_online(entry)
+		elif LeaderboardOnline.needs_consent():
+			# erster Online-Eintrag (oder neue Fassung des Textes): erst fragen
+			_ask_consent(entry)
+
+
+## Zeit online eintragen; danach die Online-Liste neu laden und den Eintrag markieren.
+func _submit_online(entry: Dictionary) -> void:
+	online.submit(entry, func(r: Dictionary):
+		if r.get("ok", false):
+			_highlight = {"id": int(r.id)}
+		_fetch_online())
+
+
+## Einwilligungsfenster zeigen; bei Zustimmung eintragen, sonst bleibt die
+## Zeit nur auf dem Gerät (lokal ist sie schon gespeichert).
+func _ask_consent(entry: Dictionary) -> void:
+	if _consent == null:
+		_consent = ConsentDialog.new()
+		add_child(_consent)
+	for c in _consent.decided.get_connections():
+		_consent.decided.disconnect(c.callable)
+	_consent.decided.connect(func(ok: bool):
+		if ok:
+			_submit_online(entry), CONNECT_ONE_SHOT)
+	_consent.open()
 
 
 static func _laps_text(laps) -> String:

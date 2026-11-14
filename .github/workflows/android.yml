@@ -1,3 +1,5 @@
+# 2026-11-14 23:10 – Upload: Zielordner per Variable STRATO_ZIEL einstellbar (Standard rc-airship)
+# 2026-11-14 22:40 – einrichtung.php kommt mit ins Paket für flinkfink.de
 # 2026-11-14 21:10 – Impressum/Datenschutz (server/rc-airship/*.html) kommen mit ins Paket für flinkfink.de
 # 2026-11-13 03:10 – Test modes_test in der CI
 # 2026-11-11 20:20 – Paket für flinkfink.de (rc-airship-web.zip im Release) und optionaler automatischer Upload per SFTP (Job strato)
@@ -127,7 +129,7 @@ jobs:
           cp -r build/web/. build/strato/
           cp server/rc-airship/api.php server/rc-airship/admin.php server/rc-airship/lib.php \
              server/rc-airship/models.json server/rc-airship/config.sample.php server/rc-airship/.htaccess \
-             build/strato/
+             server/rc-airship/einrichtung.php build/strato/
           cp server/rc-airship/*.html build/strato/ 2>/dev/null || true   # Impressum/Datenschutz, sobald vorhanden
           (cd build/strato && zip -qr ../rc-airship-web.zip .)
           ls -la build/rc-airship-web.zip
@@ -186,8 +188,11 @@ jobs:
           HOST: ${{ secrets.STRATO_SFTP_HOST }}
           USER: ${{ secrets.STRATO_SFTP_USER }}
           PASS: ${{ secrets.STRATO_SFTP_PASS }}
+          # Zielordner auf dem Webspace (Standard rc-airship; zeigt die Domain auf einen
+          # Unterordner, z. B. „flinkfink/rc-airship“ als Variable STRATO_ZIEL setzen)
+          ZIEL: ${{ vars.STRATO_ZIEL || 'rc-airship' }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq lftp > /dev/null
           # Spiegeln: neue Dateien hoch, alte Builds weg – config.php und Datenbank-Dateien bleiben
-          lftp -u "$USER,$PASS" "sftp://$HOST" -e "set sftp:auto-confirm yes; set net:max-retries 2; mkdir -fp rc-airship; mirror -R --delete --exclude config.php --exclude-glob '*.sqlite' strato rc-airship; bye"
+          lftp -u "$USER,$PASS" "sftp://$HOST" -e "set sftp:auto-confirm yes; set net:max-retries 2; mkdir -fp $ZIEL; mirror -R --delete --exclude config.php --exclude-glob '*.sqlite' strato $ZIEL; bye"
           echo "Hochgeladen: https://flinkfink.de/rc-airship/" >> "$GITHUB_STEP_SUMMARY"

@@ -1,3 +1,4 @@
+# 2026-11-14 22:10 – unten rechts Links „Impressum“ und „Datenschutz“
 # 2026-11-11 17:45 – Neuer Aufbau nach freigegebenem Entwurf: App-Icon als Logo, Titel groß und fett, Luftschiff fliegt im Hintergrund im Kreis (orange gestrichelte Bahn), keine Pylone; „Fliegen“ fett mit blauem Rand; neu „Bestenliste“; „⚙ Einstellungen“ und „Nach Update suchen“ als Knöpfe; „Support“ (ohne Farbe) öffnet ein Fenster mit PayPal-QR-Code
 # 2026-11-11 01:40 – „Sender kalibrieren“ wandert nach „Modell & Bau“
 # 2026-11-10 22:35 – Angaben auch beim ersten Anzeigen füllen
@@ -176,8 +177,15 @@ func _ready() -> void:
 	_updater = Updater.new()
 	add_child(_updater)
 	_updater.status.connect(func(text: String, _done: bool): _status.text = text)
-	_foot_r = UITheme.make_hbox("sm")          # (frei; Einstellungen sind jetzt im Menü)
+	_foot_r = UITheme.make_hbox("sm")          # unten rechts: Impressum und Datenschutz (Pflichtangaben)
 	add_child(_foot_r)
+	for l in [["Impressum", LeaderboardOnline.IMPRESSUM_URL], ["Datenschutz", LeaderboardOnline.DATENSCHUTZ_URL]]:
+		var lb := UITheme.make_button(l[0])
+		lb.flat = true
+		lb.add_theme_color_override("font_color", UITheme.color("text_muted"))
+		var url: String = l[1]
+		lb.pressed.connect(func(): OS.shell_open(url))
+		_foot_r.add_child(lb)
 	_support = SupportPopup.new()
 	add_child(_support)
 

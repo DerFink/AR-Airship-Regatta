@@ -1,10 +1,13 @@
 <?php
+// 2026-11-14 22:40 – Hinweis auf einrichtung.php
 // 2026-11-11 19:20 – Erstversion: Vorlage für die Zugangsdaten. Als config.php speichern und ausfüllen – config.php NIE auf GitHub hochladen.
 // =============================================================================
 // MySQL-Datenbank bei Strato: Kundenlogin → Datenbanken → „Datenbank anlegen“.
 // Dort stehen Server (Host), Datenbankname, Benutzer und Passwort.
-// Admin-Passwort-Hash erzeugen (einmalig, z. B. auf https://flinkfink.de/rc-airship/hash.php
-// oder lokal):   php -r 'echo password_hash("DEIN-PASSWORT", PASSWORD_DEFAULT), "\n";'
+// EINFACHER: https://flinkfink.de/rc-airship/einrichtung.php aufrufen – die Seite
+// prüft die Datenbank und legt config.php selbst an (nur solange keine existiert).
+// Von Hand: Admin-Passwort-Hash lokal erzeugen
+//   php -r 'echo password_hash("DEIN-PASSWORT", PASSWORD_DEFAULT), "\n";'
 // =============================================================================
 return [
     'dsn'        => 'mysql:host=rdbms.strato.de;dbname=DBxxxxxxx;charset=utf8mb4',
