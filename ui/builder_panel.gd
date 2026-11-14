@@ -1,3 +1,5 @@
+# 2026-11-14 17:20 – Canards: Streckung und Pfeilung einstellbar; „+ Canard-Paar“ (symmetrisch, gemeinsam eingestellt) und „+ Einzel-Canard“
+# 2026-11-14 17:00 – Antrieb: Knopf „+ Einzelmotor“ (mittig, unten, fest); Einzelmotor-Lage oben / unten / Heck
 # 2026-11-12 22:30 – Kleinere Schrift (compact_theme); Anzahl Flossen immer wählbar (andere Zahl → Anordnung „gleichmäßig“)
 # 2026-11-13 03:10 – Flossen einzeln einstellen (Bauart fest/Klappe/Pendel, Fläche, Streckung, Pfeilung, Klappentiefe, Ausschlag; symmetrisch); Restmasse in den Kennwerten
 # 2026-11-12 23:10 – Reiter „Steuerung“ (statt Flight Controller): ① Mischer (Tabelle von Hand, Vorschlag aus Einbaulage) ② FC einbauen ③ Regler ④ Bausteine (Untermenü); ohne FC ausgegraut; Teensy-Sketch nur noch unter „Admin“; Leitwerk 2–10 Flossen, Klappentiefe; Motor „schwenkbar“ + Abstand zur Hülle; Akku an eigener Stelle; Name + Kurzbeschreibung; beginnt bei der Hülle
@@ -375,8 +377,14 @@ func _build_tail_page(col: VBoxContainer) -> void:
 	_tail_box = UITheme.make_vbox("md")
 	col.add_child(_tail_box)
 	col.add_child(UITheme.make_title("Canards (Bug)"))
-	var add := UITheme.make_button("+ Canard")
-	add.pressed.connect(_add_canard)
+	# Canards hinzufügen: symmetrisches Paar (links/rechts) oder einzelner Canard
+	var add := UITheme.make_hbox("sm")
+	var add2 := UITheme.make_button("+ Canard-Paar")
+	add2.pressed.connect(_add_canard_pair)
+	add.add_child(add2)
+	var add1 := UITheme.make_button("+ Einzel-Canard")
+	add1.pressed.connect(_add_canard)
+	add.add_child(add1)
 	col.add_child(add)
 	_canard_list = ItemList.new()
 	_canard_list.custom_minimum_size.y = 90
@@ -559,12 +567,57 @@ func _canards() -> Array[ControlSurface]:
 	return out
 
 
+## Partner eines Canards im Paar (gleiche pair_id) oder null.
+func _canard_partner(s: ControlSurface) -> ControlSurface:
+	if s.pair_id == "":
+		return null
+	for c in ship.surfaces:
+		if c != s and c.pair_id == s.pair_id:
+			return c
+	return null
+
+
+## Überträgt alle Einstellungen von s auf den Partner im Paar; der Winkel wird
+## an der Senkrechten gespiegelt (360° − Winkel), damit das Paar symmetrisch bleibt.
+func _sync_canard_pair(s: ControlSurface) -> void:
+	var p := _canard_partner(s)
+	if p == null:
+		return
+	for prop in ["hull_x", "area_m2", "aspect_ratio", "taper", "kind", "fixed", "max_deflection_deg",
+			"flap_chord_ratio", "pseudo_flex", "profile_naca", "naca_thickness", "plate_thickness_mm",
+			"mass_auto", "mass_kg"]:
+		p.set(prop, s.get(prop))
+	p.hull_angle_deg = fposmod(360.0 - s.hull_angle_deg, 360.0)
+
+
+## Einzel-Canard: oben auf der Hülle (0°) bei Längsposition 0,18; Winkel frei.
 func _add_canard() -> void:
-	var c := AirshipPresets.make_fin("Canard %d" % (_canards().size() + 1), 0.18, 90.0, 0.03, ControlSurface.Kind.CANARD)
+	var c := AirshipPresets.make_fin("Canard %d" % (_canards().size() + 1), 0.18, 0.0, 0.03, ControlSurface.Kind.CANARD)
 	ship.surfaces.append(c)
 	_changed()
 	ui_action.emit("add")
 	var idx := _canards().size() - 1
+	_canard_list.select(idx)
+	_edit_canard(idx)
+
+
+## Canard-Paar: rechts (90°) und links (270°) bei 0,18, gleiche pair_id. Alle
+## Einstellungen gelten für beide, der Winkel wird gespiegelt (360° − Winkel).
+func _add_canard_pair() -> void:
+	# freie Paar-Kennung suchen (nach dem Entfernen eines Paares nicht doppelt vergeben)
+	var used := {}
+	for c in _canards(): used[c.pair_id] = true
+	var n := 1
+	while used.has("cpaar%d" % n): n += 1
+	var pid := "cpaar%d" % n
+	var r := AirshipPresets.make_fin("Canard rechts (%s)" % pid, 0.18, 90.0, 0.03, ControlSurface.Kind.CANARD)
+	var l := AirshipPresets.make_fin("Canard links (%s)" % pid, 0.18, 270.0, 0.03, ControlSurface.Kind.CANARD)
+	r.pair_id = pid; l.pair_id = pid
+	ship.surfaces.append(r)
+	ship.surfaces.append(l)
+	_changed()
+	ui_action.emit("add")
+	var idx := _canards().size() - 2              # rechten Canard des Paares öffnen
 	_canard_list.select(idx)
 	_edit_canard(idx)
 
@@ -575,13 +628,25 @@ func _edit_canard(i: int) -> void:
 	if i < 0 or i >= list.size():
 		return
 	var s: ControlSurface = list[i]
+	var partner := _canard_partner(s)
+	# Jede Änderung: erst auf den Partner im Paar übertragen, dann neu rechnen
+	var chg := func():
+		_sync_canard_pair(s)
+		_changed()
+	if partner:
+		_canard_editor.add_child(UITheme.make_label("Paar – Einstellungen gelten für beide, Lage spiegelbildlich", "MutedLabel"))
 	_canard_editor.add_child(UITheme.make_slider_row("Position", 0.0, 0.5, 0.01, s.hull_x,
-		func(v): s.hull_x = v; _changed(), "%.2f"))
+		func(v): s.hull_x = v; chg.call(), "%.2f"))
 	_canard_editor.add_child(UITheme.make_slider_row("Winkel", 0.0, 359.0, 1.0, s.hull_angle_deg,
-		func(v): s.hull_angle_deg = v; _changed(), "%d°"))
+		func(v): s.hull_angle_deg = v; chg.call(), "%d°"))
 	_canard_editor.add_child(UITheme.make_number_row("Fläche", 5.0, 100000.0, 1.0, s.area_m2 * 1e4,
-		func(v): s.area_m2 = v / 1e4; _changed(), "%d cm²"))
-	_profile_block(_canard_editor, s, s.area_m2, s.aspect_ratio, func(): _changed(), func(): _edit_canard(i))
+		func(v): s.area_m2 = v / 1e4; chg.call(), "%d cm²"))
+	# Streckung und Pfeilung (Endtiefe/Wurzeltiefe) wie beim Leitwerk
+	_canard_editor.add_child(UITheme.make_number_row("Streckung", 0.3, 6.0, 0.1, s.aspect_ratio,
+		func(v): s.aspect_ratio = v; chg.call(), "%.1f"))
+	_canard_editor.add_child(UITheme.make_number_row("Pfeilung (Endtiefe/Wurzeltiefe)", 0.2, 1.0, 0.05, s.taper,
+		func(v): s.taper = v; chg.call(), "%.2f"))
+	_profile_block(_canard_editor, s, s.area_m2, s.aspect_ratio, chg, func(): _edit_canard(i))
 	# Gewicht: Vorschlag (Depron + Pauschale) oder von Hand eingetragen
 	_canard_sel = s
 	_canard_mass_lbl = UITheme.make_label("")
@@ -591,15 +656,16 @@ func _edit_canard(i: int) -> void:
 		func(v):
 			s.mass_auto = v < 0.0
 			if v >= 0.0: s.mass_kg = v / 1000.0
-			_changed(), "%d g")
+			chg.call(), "%d g")
 	own.allow_empty = true
 	own.set_value_no_signal(-1.0 if s.mass_auto else s.mass_kg * 1000.0)
 	own.empty_base = roundf(s.suggested_mass_kg() * 1000.0)
 	_canard_editor.add_child(own)
 	_update_fin_mass_info()
-	var del := UITheme.make_button("Canard entfernen")
+	var del := UITheme.make_button("Canard-Paar entfernen" if partner else "Canard entfernen")
 	del.pressed.connect(func():
 		ship.surfaces.erase(s)
+		if partner: ship.surfaces.erase(partner)
 		for c in _canard_editor.get_children(): c.queue_free()
 		_changed()
 		ui_action.emit("remove"))
@@ -635,9 +701,15 @@ func _build_drive_page(col: VBoxContainer) -> void:
 		_bat_x.visible = on
 		_changed())
 	col.add_child(UITheme.make_title("Motoren"))
+	# Motoren hinzufügen: Paar (spiegelbildlich) oder einzelner Motor auf der Mittelachse
+	var addrow := UITheme.make_hbox("sm")
 	var add := UITheme.make_button("+ Motorpaar")
 	add.pressed.connect(_add_motor_pair)
-	col.add_child(add)
+	addrow.add_child(add)
+	var add1 := UITheme.make_button("+ Einzelmotor")
+	add1.pressed.connect(_add_single_motor)
+	addrow.add_child(add1)
+	col.add_child(addrow)
 	_parts_list = ItemList.new()
 	_parts_list.custom_minimum_size.y = 90
 	_parts_list.auto_height = true
@@ -925,6 +997,36 @@ func _add_motor_pair() -> void:
 	ui_action.emit("add")
 
 
+## Einzelmotor: sitzt mittig unten (Winkel 180°) bei Längsposition 0,25, ohne
+## Partner (pair_id leer) und wie neue Paare zunächst fest. Lage oben/unten/Heck
+## wird im Motor-Editor gewählt. Gas geht wie bei allen Motoren direkt vom
+## Piloten auf den Motor; ein Differenzschub entsteht dadurch nicht.
+func _add_single_motor() -> void:
+	var n := 1
+	for m in ship.motors:
+		if m.pair_id == "": n += 1
+	var mo := AirshipPresets.make_motor("Einzelmotor %d" % n, 0.25, 180.0, 1.2, 0.0)
+	mo.swivel_enabled = false                     # fest – Schwenken erst per Haken
+	mo.max_swivel_deg = 60.0                      # Schwenkweg, falls der Haken gesetzt wird
+	mo.spin_dir = 1
+	ship.motors.append(mo)
+	_changed()
+	ui_action.emit("add")
+	# neuen Motor gleich im Editor öffnen
+	var idx := ship.motors.size() - 1
+	if _parts_list and idx < _parts_list.item_count:
+		_parts_list.select(idx)
+	_on_part_selected(idx)
+
+
+## Lage eines Einzelmotors: 0 = oben, 1 = unten, 2 = Heck (auf der Längsachse
+## an der Heckspitze wie bei der Albacore).
+static func _single_place(mo: VectorMotor) -> int:
+	if mo.hull_x >= 0.99 and mo.standoff_m <= 0.001:
+		return 2
+	return 0 if absf(mo.hull_angle_deg) < 90.0 or mo.hull_angle_deg > 270.0 else 1
+
+
 ## Alle Motoren desselben Paares (oder nur dieser, wenn ohne pair_id).
 func _pair_of(mo: VectorMotor) -> Array[VectorMotor]:
 	var out: Array[VectorMotor] = []
@@ -950,10 +1052,12 @@ func _on_part_selected(i: int) -> void:
 	# Lage: Paare bleiben immer spiegelbildlich zur Längsachse (Partner: gleiche
 	# Längslage, Winkel 360° − Winkel). Einzelmotoren sitzen oben oder unten.
 	_editor_box.add_child(UITheme.make_label("Lage (Paar spiegelbildlich)" if pair.size() > 1 else "Lage", "MutedLabel"))
-	_editor_box.add_child(UITheme.make_slider_row("Position", 0.0, 1.0, 0.01, mo.hull_x,
-		func(v):
-			for m in pair: m.hull_x = v
-			_changed(), "%.2f"))
+	var place := _single_place(mo) if pair.size() == 1 else -1
+	if place != 2:                                   # am Heck liegt die Längsposition fest
+		_editor_box.add_child(UITheme.make_slider_row("Position", 0.0, 1.0, 0.01, mo.hull_x,
+			func(v):
+				for m in pair: m.hull_x = v
+				_changed(), "%.2f"))
 	if pair.size() > 1:
 		_editor_box.add_child(UITheme.make_slider_row("Winkel", 0.0, 359.0, 1.0, mo.hull_angle_deg,
 			func(v):
@@ -962,8 +1066,21 @@ func _on_part_selected(i: int) -> void:
 					if m != mo: m.hull_angle_deg = fposmod(360.0 - v, 360.0)
 				_changed(), "%d°"))
 	else:
-		_editor_box.add_child(UITheme.make_choice_row(["oben", "unten"], 0 if absf(mo.hull_angle_deg) < 90.0 or mo.hull_angle_deg > 270.0 else 1,
-			func(k): mo.hull_angle_deg = 0.0 if k == 0 else 180.0; _changed()))
+		# Einzelmotor: oben, unten oder Heck (Heck = Längsachse, Heckspitze, kein Abstand)
+		var sel_m := i
+		_editor_box.add_child(UITheme.make_choice_row(["oben", "unten", "Heck"], place,
+			func(k):
+				if k == 2:
+					mo.hull_x = 1.0
+					mo.hull_angle_deg = 180.0
+					mo.standoff_m = 0.0
+				else:
+					if _single_place(mo) == 2:       # vom Heck zurück an die Hülle
+						mo.hull_x = 0.25
+						mo.standoff_m = 0.08
+					mo.hull_angle_deg = 0.0 if k == 0 else 180.0
+				_changed()
+				_on_part_selected.call_deferred(sel_m)))
 	_editor_box.add_child(UITheme.make_label(
 		I18n.t("Für das Paar (%d Motoren)") % pair.size() if pair.size() > 1 else "Antrieb", "MutedLabel"))
 	var set_all := func(prop: String, v, relayout: bool):

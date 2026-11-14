@@ -1,3 +1,4 @@
+# 2026-11-14 17:20 – pair_id: symmetrische Canard-Paare
 # 2026-11-13 02:00 – fixed: feste Flosse ohne Ruder (Finne)
 # 2026-11-12 11:45 – Vorgeschlagenes Gewicht: Depron 120 g/m² (profiliert 2 Lagen) + Pauschale 2–5 g je nach Fläche; mass_auto (von Hand eingetragenes Gewicht nur, wenn aus)
 # 2026-11-11 17:45 – Profilname „Platte … mm“ übersetzt, Dezimalzeichen je Sprache
@@ -65,6 +66,9 @@ enum Kind { FLAP, ALL_MOVING, CANARD }
 ## Feste Flosse ohne Ruder (Finne): bekommt keine Stellbefehle
 @export var fixed: bool = false
 @export var tail_member: bool = false
+## Canards mit gleicher pair_id sind ein symmetrisches Paar (spiegelbildlich zur
+## Längsachse) und werden im Baukasten gemeinsam eingestellt; leer = einzeln.
+@export var pair_id: String = ""
 ## true = fester Turm unter/über der Hülle (wie beim U-Boot): ohne Ruder,
 ## wird aus den Turm-Einstellungen von AirshipPhysics neu erzeugt.
 @export var sail_member: bool = false

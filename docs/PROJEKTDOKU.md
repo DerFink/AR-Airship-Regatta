@@ -206,6 +206,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 - **Modell-String** `LTA1:Name:<Base64(Deflate(JSON))>:<Prüfsumme>`. Seit 0.30 stehen davor **lesbare Eckdaten**; `decode()` beginnt beim letzten `LTA1:`. Logos werden separat als PNG verschickt.
 - `_sanitize()` prüft und begrenzt jeden Wert (fremde Strings sind ungeprüfte Eingaben).
 - **Fingerabdruck** (`fingerprint()`): Bauart ohne Name und Optik. Nur unveränderte Standardmodelle kommen in die Online-Bestenliste. **Nach jeder Änderung an Physik-Feldern oder Presets** `tools/export_server_models.gd` laufen lassen (aktualisiert `server/rc-airship/models.json`); der `leaderboard_test` schlägt sonst fehl.
+- **Einzelmotor und Canard-Paare** (seit 0.33): Antrieb hat „+ Motorpaar“ und „+ Einzelmotor“ (mittig, Lage oben / unten / Heck; Heck = Längsachse an der Heckspitze wie bei der Albacore). Canards: „+ Canard-Paar“ (rechts 90° / links 270°, gleiche `pair_id`, alle Werte gelten für beide, Winkel gespiegelt) und „+ Einzel-Canard“ (oben); Streckung und Pfeilung je Canard einstellbar. `pair_id` der Canards steht nur bei Paaren im Modell-String (`"p"`), damit ältere Fingerabdrücke gleich bleiben.
 - **Testmodelle** (seit 0.32): erscheinen nur, wenn in den Einstellungen 7× auf die Versionsnummer getippt und „Testmodelle zeigen“ eingeschaltet wurde (`AppSettings.show_test_models`, `[entwicklung]`). Quelle „Test“ – nie in Bestenliste und `models.json`. **Chewie27** = Chewie, wie bis 11.11. gerechnet: Hülle fest 85 g (Folienwert wird passend gerechnet), Flossen je 10 g von Hand, Wunsch-Flugmodus Horizon (Meta `mode_art`, `main.gd/_apply_model_mode()` wählt bzw. ergänzt den Modus).
 - Admin-Sammlung: String als Zeile in `models/sammlung.txt` (Zeile `# Autor: … | Team: … | Beschreibung: …` darüber), Logo nach `models/logos/`.
 
@@ -274,6 +275,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 11.11. | 0.20–0.28 | Flossenprofile + Reynolds, **8 Sprachen**, Plakate, Aufprall/Platzen, **Stickmode 1–4 (Standard 4)**, Rennanzeige mit F7B, neue Startseite, Bestenliste nach gewerteter Zeit, Flugmodi Direkt · Angle · Horizon, Trimm-Anzeige, Online-Bestenliste vorbereitet. |
 | 12.11. | 0.28.1–0.31.1 | Platzen fest ab 20 km/h; Baukasten mit Zahlenfeldern, berechnete Massen, Rennfaktor, Weiterfliegen; Zurücksetzen; Reiter Steuerung mit Mischer von Hand; lesbarer Export; **frei einstellbare Flugmodi (1–5)**, Rollausgleich, Sprung auslösen, interaktiver Signalfluss, Flossen einzeln, kleinere Schrift. |
 | 14.11. | 0.32.0 | Demo fliegt im eingestellten Flugmodus (auch Direkt, mit eigener Nick-Haltung); Gier-Sollrate neuer PID-Modi 150 °/s; verstecktes Testmodell Chewie27 (alter Chewie, Horizon). |
+| 14.11. | 0.33.0 | Einzelmotor (oben/unten/Heck); Canards mit Streckung und Pfeilung, symmetrische Canard-Paare und Einzel-Canards. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

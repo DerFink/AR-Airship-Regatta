@@ -1,3 +1,4 @@
+# 2026-11-14 17:20 – Canard-Paare (pair_id als "p", nur wenn gesetzt)
 # 2026-11-13 02:00 – Leitwerk: Flossen einzeln (ind, sym, fcfg)
 # 2026-11-12 22:55 – Mischer von Hand im Modell-String (mix)
 # 2026-11-12 22:35 – Leitwerk: bis 10 Flossen, Klappentiefe (tail.flap)
@@ -150,6 +151,8 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 			"area": s.area_m2, "ar": s.aspect_ratio, "defl": s.max_deflection_deg,
 			"flap": s.flap_chord_ratio, "flex": s.pseudo_flex, "tp": s.taper, "mk": s.mass_kg, "ma": s.mass_auto,
 			"naca": s.profile_naca, "tk": s.naca_thickness, "pmm": s.plate_thickness_mm})
+		if s.pair_id != "":
+			data.fins[-1]["p"] = s.pair_id      # nur bei Paaren – ältere Fingerabdrücke bleiben gleich
 	for m in ship.motors:
 		data.motors.append({"n": m.display_name, "p": m.pair_id, "x": m.hull_x, "a": m.hull_angle_deg,
 			"so": m.standoff_m, "tilt": m.swivel_tilt_deg, "thrust": m.max_thrust_n,
@@ -255,6 +258,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		s.profile_naca = f.naca; s.naca_thickness = f.tk; s.plate_thickness_mm = f.pmm
 		s.mass_kg = f.mk
 		s.mass_auto = bool(f.get("ma", true))
+		s.pair_id = str(f.get("p", ""))
 		fins.append(s)
 	ship.surfaces = fins
 	ship.tail = null
@@ -432,7 +436,8 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				"x": _num(f, "x", 0.9), "a": _num(f, "a", 0.0), "area": _num(f, "area", 0.08),
 				"ar": _num(f, "ar", 1.5), "defl": _num(f, "defl", 25.0), "flap": _num(f, "flap", 0.3),
 				"flex": _flag(f, "flex", false), "tp": _num(f, "tp", 1.0), "mk": _num(f, "mk", 0.0), "ma": _flag(f, "ma", true),
-				"naca": _flag(f, "naca", true), "tk": _num(f, "tk", 0.12), "pmm": _num(f, "pmm", 3.0)})
+				"naca": _flag(f, "naca", true), "tk": _num(f, "tk", 0.12), "pmm": _num(f, "pmm", 3.0),
+				"p": _txt(f, "p", "", 16)})
 	var td = d.get("tail")
 	if td is Dictionary:
 		out["tail"] = {"lay": clampi(int(_num(td, "lay", 0)), 0, 4), "cnt": clampi(int(_num(td, "cnt", 4)), 1, 10),
