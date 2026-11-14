@@ -1,3 +1,5 @@
+# 2026-11-14 10:00 – Ohne Nick-Lageregelung (Direkt, ohne FC) hält die Demo die Nicklage selbst wie ein Pilot (_pilot_pitch)
+# 2026-11-14 10:00 – Demo fliegt im gewählten Flugmodus des Piloten (z. B. Direkt) statt fest in Mode 3
 # 2026-11-11 15:20 – Autopilot gibt Funktionen vor (unabhängig vom Stickmode)
 # 2026-11-11 16:00 – Acht als statische Funktion figure_eight() (auch für die Bodenspur)
 # 2026-11-10 21:30 – Umbenannt zu Autopilot (ersetzt den Demo-Flug): fliegt live die aktuelle Strecke mit dem aktuellen Modell und den aktuellen Reglerwerten; kann scheitern (Akku leer, Bahn verloren) und meldet das per Signal failed
@@ -10,9 +12,9 @@
 # =============================================================================
 # Autopilot.gd
 # -----------------------------------------------------------------------------
-# Live-Flug der aktuellen Strecke: Modell, Reglerwerte, Akku und Location
-# bleiben, wie sie sind – nur der Flugmodus wird für die Dauer auf Mode 3
-# gestellt (darin wurde die Flugweise optimiert). Gelingt der Flug nicht
+# Live-Flug der aktuellen Strecke: Modell, Reglerwerte, Flugmodus, Akku und
+# Location bleiben, wie sie sind (seit 14.11.2026 auch der Flugmodus – die
+# Demo fliegt z. B. auch in Direkt; optimiert wurde die Flugweise in Mode 3). Gelingt der Flug nicht
 # (Akku leer, mehr als LOST_M neben der Bahn, Bodenberührung mit Tempo), endet
 # er mit dem Signal failed(Grund).
 #
@@ -44,6 +46,11 @@ const FLY := {"R1": 2.888, "R2": 2.864, "L": 4.0, "k": 3.03, "kff": 0.072,
 	"dip_len": 0.695, "t_dip": 0.839, "boost_start": 0.65,
 	"h_target": 1.5, "h_kp": 0.557, "h_kd": 0.328}
 const STEP := 0.1                 ## Punktabstand der Sollbahn (m)
+## „Pilot“ für Modi ohne Nick-Lageregelung (Direkt): Lagefehler und Nickrate → Höhenruder
+static var PILOT_KP := 0.08            ## Knüppel je Grad Lagefehler
+static var PILOT_KD := 0.015           ## Knüppel je °/s Nickrate (Dämpfung)
+static var PILOT_YAW := 0.3      ## Seitenknüppel-Faktor in Direkt (voller Servoweg)
+const PILOT_RATE := 2.0           ## Sollrate (°/s) je Grad Lagefehler bei Nick als Drehrate
 
 var ship: AirshipPhysics
 var fc: FlightController
@@ -69,9 +76,9 @@ func start() -> void:
 	_saved_general = {}
 	for key in FlightController.GENERAL_KEYS:
 		_saved_general[key] = fc.get(key)
-	_saved_mode = int(fc.mode)
-	# Live-Flug: die aktuellen Reglerwerte bleiben (Wunsch Nutzer 10.11.2026)
-	fc.mode = FlightController.Mode.MODE3            # in diesem Modus wurde optimiert
+	_saved_mode = fc.mode_index
+	# Live-Flug: aktuelles Luftschiff, Reglerwerte UND Flugmodus bleiben
+	# (Wunsch 10.11. und 13.11.2026) – der Demo-Flug fliegt im gewählten Modus
 	fc.armed = true
 	active = true
 
@@ -83,7 +90,7 @@ func stop() -> void:
 	active = false
 	fc.params = _saved_params
 	for k in _saved_general: fc.set(k, _saved_general[k])
-	fc.mode = _saved_mode
+	fc.mode_index = _saved_mode
 	fc.armed = false
 	fc.set_sticks(Vector2.ZERO, Vector2.ZERO)
 	finished.emit()
@@ -133,7 +140,38 @@ func _physics_process(dt: float) -> void:
 	# Höhe halten (Nickknüppel nach hinten = Nase hoch = negatives y):
 	# Sollhöhe h_target, Verstärkung auf Höhenfehler h_kp und Steigrate h_kd
 	var pitch_stick := clampf(-(FLY.h_kp * (FLY.h_target - p3.y) - FLY.h_kd * ship.linear_velocity.y), -1.0, 1.0)
+	# Ohne Lageregelung im Nick (Direkt, ohne FC, PID-Modus ohne Nick-Lage)
+	# hält die Demo die Nicklage selbst – wie ein Pilot, der das Schiff sieht:
+	# Sollwinkel wie in Angle (Knüppel · maxPitch), daraus Höhenruder.
+	pitch_stick = _pilot_pitch(pitch_stick, b)
+	# Direkt: voller Servoweg (Teensy Mode 1: 1,0 statt 0,5) → Seite halb so stark lenken
+	if fc.mode == FlightController.Mode.DIRECT or not ship.fc_teensy:
+		yaw_cmd *= PILOT_YAW
 	fc.set_stick_functions(thr, pitch_stick, clampf(yaw_cmd, -1.0, 1.0))   # unabhängig vom Stickmode
+
+
+## Nickknüppel für Modi ohne Lageregelung im Nick. Eingang: Knüppel wie in
+## Angle (−1 … 1 = Nase hoch … runter über maxPitch). Ausgang: Höhenruder-Knüppel
+## aus Lagefehler (PILOT_KP je Grad) und Nickrate (PILOT_KD je °/s).
+func _pilot_pitch(angle_stick: float, b: Basis) -> float:
+	var cfg := fc.mode_cfg()
+	var art := str(cfg.get("art", ""))
+	var held := ship.fc_teensy and (fc.mode == FlightController.Mode.MODE2 or fc.mode == FlightController.Mode.MODE3)
+	var axp: Dictionary = (cfg.get("axes", {}) as Dictionary).get("pitch", {})
+	if ship.fc_teensy and art == "pid" and bool(axp.get("on", false)):
+		if str(axp.get("kind", "rate")) == "angle":
+			# eigener PID-Modus mit Nick-Lage: Sollwinkel auf dessen Höchstwert umrechnen
+			return clampf(angle_stick * fc.pitch_max_deg / maxf(float(axp.get("max", 30.0)), 1.0), -1.0, 1.0)
+		held = false
+	if held:
+		return angle_stick
+	var theta := rad_to_deg(asin(clampf(-b.z.y, -1.0, 1.0)))       # Nase hoch = +
+	var q := rad_to_deg(ship.angular_velocity.dot(b.x))             # Nickrate, Nase hoch = +
+	var theta_des := -angle_stick * fc.pitch_max_deg
+	var cmd := PILOT_KP * (theta_des - theta) - PILOT_KD * q        # + = Nase hoch
+	if art == "pid" and bool(axp.get("on", false)):
+		cmd = (theta_des - theta) * PILOT_RATE / maxf(float(axp.get("max", 90.0)), 1.0)   # Nick als Drehrate geregelt
+	return clampf(-cmd, -1.0, 1.0)
 
 
 ## Sollbahn: Acht aus Kreisen um beide Pylone mit tangentialen Diagonalen

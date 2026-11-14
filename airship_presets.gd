@@ -1,3 +1,4 @@
+# 2026-11-14 11:20 – Testmodell Chewie27 (Chewie mit festen Massen 85 g / 10 g, Flugmodus Horizon), nur sichtbar mit AppSettings.show_test_models, nie in der Bestenliste
 # 2026-11-12 22:00 – make_motor: schwenkbar nur mit Schwenkweg > 0
 # 2026-11-12 11:50 – Hüllen- und Flossenmassen werden berechnet (Folie 27 g/m² + 7 %, Depron + Pauschale) statt fester Werte
 # 2026-11-11 17:20 – Albacore: ein Heckmotor wie das Original (statt Chewies Bugmotoren), Hülle und Leitwerk schwarz, Schriftzug weiß (Lage 0,21, Größe 0,17)
@@ -50,6 +51,8 @@ const META := {
 		"desc": "Rennluftschiff für die Halle: 0,25 m³ Helium, 260 g, drei Pendelflossen in λ-Anordnung und zwei entlang der Hülle schwenkbare Motoren. Wendet unter 2 m Radius."},
 	"Albacore Standard": {"author": "Simulator-Team", "team": "RC Airship Regatta",
 		"desc": "Standardhülle nach dem U-Boot USS Albacore (Gertler-Form), schwarz wie das Vorbild, Kreuzleitwerk mit Ruderklappen und ein Heckmotor wie beim Original."},
+	"Chewie27": {"author": "Erich Fink", "team": "aerarium e.V.",
+		"desc": "Testmodell: Chewie wie bis 11.11.2026 – Hülle fest 85 g, Flossen je 10 g, fliegt im Flugmodus Horizon (Mode 3)."},
 }
 
 
@@ -69,6 +72,10 @@ static func list() -> Array[Dictionary]:
 		{"name": "Albacore Standard", "build": albacore_default, "source": "Standard"},
 		{"name": "Chewie", "build": chewie, "source": "Standard"},
 	]
+	# Testmodelle nur mit verstecktem Schalter (7× auf die Version tippen);
+	# sie dürfen nie in die Bestenliste (Quelle „Test“, s. standard_model_of)
+	if AppSettings.show_test_models:
+		out.append({"name": "Chewie27", "build": chewie27, "source": "Test"})
 	for e in ModelLibrary.entries():
 		out.append({"name": "%s (%s)" % [e.name, e.source],
 			"build": _build_from_code.bind(e.code), "source": e.source})
@@ -84,7 +91,7 @@ static var _allowed := {}
 static func standard_model_of(ship: AirshipPhysics) -> String:
 	if _allowed.is_empty():
 		for e in list():
-			if e.source == "Eigene": continue
+			if e.source == "Eigene" or e.source == "Test": continue
 			var s := AirshipPhysics.new()
 			e.build.call(s)
 			_allowed[ModelCodec.fingerprint(s)] = e.name
@@ -143,6 +150,8 @@ static func _reset_common(ship: AirshipPhysics) -> void:
 	ship.payload_x = 0.5
 	ship.payload_angle_deg = 180.0
 	ship.sail_enabled = false
+	if ship.has_meta("mode_art"):
+		ship.remove_meta("mode_art")          # Flugmodus-Wunsch nur für Testmodelle (Chewie27)
 
 
 static func albacore_default(ship: AirshipPhysics) -> void:
@@ -278,6 +287,25 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots := chewie_motor_pair()
 	ship.motors = mots
+	ship.rebuild_mass_properties()
+
+
+# =============================================================================
+# Testmodell Chewie27: Chewie, wie die App ihn bis 11.11.2026 (Version 0.27)
+# gerechnet hat – feste Massen statt Berechnung aus Folie und Depron:
+#   Hülle 85 g (Folienwert so gewählt, dass die Formel genau 85 g ergibt)
+#   jede Leitwerksflosse 10 g (manuell, nicht nach Vorschlag)
+# und Wunsch-Flugmodus Horizon (Mode 3, wie die Demo damals flog). Der
+# Flugmodus wird beim Übernehmen in main.gd gewählt (Meta „mode_art“).
+# =============================================================================
+static func chewie27(ship: AirshipPhysics) -> void:
+	chewie(ship)
+	ship.model_name = "Chewie27"
+	# Hüllenmasse = Oberfläche · Folie · (1 + Zuschlag) = 85 g
+	ship.hull_film_kg_m2 = 0.085 / (ship.hull.surface_m2() * (1.0 + AirshipPhysics.HULL_EXTRA))
+	ship.fin_mass_auto = false
+	ship.fin_mass_kg = 0.010
+	ship.set_meta("mode_art", "horizon")
 	ship.rebuild_mass_properties()
 
 

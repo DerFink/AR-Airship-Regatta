@@ -150,7 +150,8 @@ Simulator-Erweiterungen (teilweise in die .ino Beta 1.4 übernommen, siehe Regle
 - 1–5 Modi, Standard **2 (Direkt + Angle)**; gespeichert in `user://flight_controller.cfg`, Abschnitt `[modi]`.
 - Jeder Modus: Name, **Art** `direkt` / `angle` / `horizon` / `pid`, **Rollausgleich** an/aus, bei Direkt optional eigene Mischtabelle.
 - Art `pid`: je Achse geregelt ja/nein, **Lage oder Drehrate** (Gier nur Drehrate), eigene Kp/Ki/Kd und Sollwert bei vollem Knüppel. Ausgang = 0,01·(Kp·e + Ki·∫e − Kd·D), dann Rollausgleich, dann Mischtabelle.
-- `mode` (Regelart) und `mode_index` (Modus des Piloten) sind getrennt: Der Demo-Flug setzt die Regelart direkt; `mode_cfg()` liefert dann `{}`.
+- `mode` (Regelart) und `mode_index` (Modus des Piloten) sind getrennt; `mode_cfg()` liefert `{}`, wenn die Regelart von außen gesetzt wurde.
+- **Demo-Flug (seit 0.32)** fliegt im gewählten Modus des Piloten (vorher fest Mode 3). Ohne Nick-Lageregelung (Direkt, ohne FC, PID ohne Nick-Lage) hält `autopilot.gd/_pilot_pitch()` die Nicklage selbst wie ein Pilot (KP 0,08 Knüppel/°, KD 0,015 Knüppel/(°/s); KD 0,005 platzte). In Direkt wird der Seitenknüppel auf 30 % begrenzt (sonst verliert die Demo die Bahn). Neue PID-Modi haben eine Gier-Sollrate von **150 °/s** (110 °/s reichte für die enge Acht nicht, 250 °/s platzte). Gemessene Demo-Zeiten Chewie: Direkt 14,4 s · Angle 15,6 s · Horizon 16,1 s · PID 17,9 s.
 - **Sender:** Der Modus-Kanal (Standard SC) wird in so viele gleich große Bereiche geteilt, wie Modi angelegt sind. Ab 4 Modi braucht man einen Mehrstufen-Schalter oder Drehregler.
 
 ### 6.3 Rollausgleich
@@ -205,6 +206,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 - **Modell-String** `LTA1:Name:<Base64(Deflate(JSON))>:<Prüfsumme>`. Seit 0.30 stehen davor **lesbare Eckdaten**; `decode()` beginnt beim letzten `LTA1:`. Logos werden separat als PNG verschickt.
 - `_sanitize()` prüft und begrenzt jeden Wert (fremde Strings sind ungeprüfte Eingaben).
 - **Fingerabdruck** (`fingerprint()`): Bauart ohne Name und Optik. Nur unveränderte Standardmodelle kommen in die Online-Bestenliste. **Nach jeder Änderung an Physik-Feldern oder Presets** `tools/export_server_models.gd` laufen lassen (aktualisiert `server/rc-airship/models.json`); der `leaderboard_test` schlägt sonst fehl.
+- **Testmodelle** (seit 0.32): erscheinen nur, wenn in den Einstellungen 7× auf die Versionsnummer getippt und „Testmodelle zeigen“ eingeschaltet wurde (`AppSettings.show_test_models`, `[entwicklung]`). Quelle „Test“ – nie in Bestenliste und `models.json`. **Chewie27** = Chewie, wie bis 11.11. gerechnet: Hülle fest 85 g (Folienwert wird passend gerechnet), Flossen je 10 g von Hand, Wunsch-Flugmodus Horizon (Meta `mode_art`, `main.gd/_apply_model_mode()` wählt bzw. ergänzt den Modus).
 - Admin-Sammlung: String als Zeile in `models/sammlung.txt` (Zeile `# Autor: … | Team: … | Beschreibung: …` darüber), Logo nach `models/logos/`.
 
 ---
@@ -271,6 +273,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 10.11. | 0.13.4–0.19 | Halle nachgebildet, Akku-Modell, neuer Name **RC Airship Regatta**, Startseite, Modell & Bau, Sprachen-Grundlagen, Regler-Bausteine, .ino-Export, Werkstatt-Musik. |
 | 11.11. | 0.20–0.28 | Flossenprofile + Reynolds, **8 Sprachen**, Plakate, Aufprall/Platzen, **Stickmode 1–4 (Standard 4)**, Rennanzeige mit F7B, neue Startseite, Bestenliste nach gewerteter Zeit, Flugmodi Direkt · Angle · Horizon, Trimm-Anzeige, Online-Bestenliste vorbereitet. |
 | 12.11. | 0.28.1–0.31.1 | Platzen fest ab 20 km/h; Baukasten mit Zahlenfeldern, berechnete Massen, Rennfaktor, Weiterfliegen; Zurücksetzen; Reiter Steuerung mit Mischer von Hand; lesbarer Export; **frei einstellbare Flugmodi (1–5)**, Rollausgleich, Sprung auslösen, interaktiver Signalfluss, Flossen einzeln, kleinere Schrift. |
+| 14.11. | 0.32.0 | Demo fliegt im eingestellten Flugmodus (auch Direkt, mit eigener Nick-Haltung); Gier-Sollrate neuer PID-Modi 150 °/s; verstecktes Testmodell Chewie27 (alter Chewie, Horizon). |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 
@@ -283,7 +286,7 @@ Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den 
 
 ---
 
-## 14. Offene Punkte (Stand 12.11.2026)
+## 14. Offene Punkte (Stand 14.11.2026)
 
 **Zu prüfen / Rückmeldung des Projektinhabers ausstehend**
 - Build 104 (0.31.1) testen: Flugmodi, Rollausgleich, Signalfluss, Flossen einzeln, Mischer von Hand.

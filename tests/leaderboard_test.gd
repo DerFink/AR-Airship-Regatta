@@ -1,3 +1,4 @@
+# 2026-11-14 11:20 – Testmodelle ausgenommen
 # 2026-11-11 20:35 – Erstversion: Bestenliste quartalsweise (Umzug nach „Best Forever“, 10 Beste), Sortierung nach gewerteter Zeit, models.json passt zu den Standardmodellen
 extends SceneTree
 
@@ -35,7 +36,7 @@ func _initialize() -> void:
 	# models.json (Server) muss die Fingerabdrücke der Standardmodelle enthalten
 	var models = JSON.parse_string(FileAccess.get_file_as_string("res://server/rc-airship/models.json"))
 	for entry in AirshipPresets.list():
-		if entry.source == "Eigene": continue
+		if entry.source == "Eigene" or entry.source == "Test": continue
 		var s := AirshipPhysics.new()
 		entry.build.call(s)
 		var fp := ModelCodec.fingerprint(s)

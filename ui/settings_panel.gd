@@ -1,3 +1,4 @@
+# 2026-11-14 11:20 – Versionsnummer unten; 7× tippen zeigt den versteckten Schalter „Testmodelle zeigen“
 # 2026-11-12 10:40 – Schalter fürs Platzen entfernt: die Hülle platzt immer ab 20 km/h (Grundregel)
 # 2026-11-12 10:05 – Regler „Platzt ab“ entfernt; Schalter heißt „Hülle platzt bei Aufprall ab 20 km/h“
 # 2026-11-11 14:40 – Schalter „Hülle platzt bei zu hartem Aufprall“ und Grenzgeschwindigkeit
@@ -22,6 +23,9 @@ signal closed
 signal controls_requested          ## Steuerung & Regler (Stick-Mode, alles zurücksetzen)
 
 var _panel: PanelContainer
+var _test_toggle: CheckButton       ## versteckter Schalter „Testmodelle zeigen“
+var _taps := 0                        ## Tipps auf die Versionsnummer in Folge
+var _tap_time := 0                    ## Zeitpunkt des letzten Tipps (ms)
 
 
 func _ready() -> void:
@@ -59,6 +63,18 @@ func _ready() -> void:
 	var b_ctl := UITheme.make_button("Steuerung & Regler (Knüppel-Mode, alles zurücksetzen) …")
 	b_ctl.pressed.connect(func(): AppSettings.save(); controls_requested.emit())
 	box.add_child(b_ctl)
+	# --- Versionsnummer; 7× tippen schaltet den versteckten Schalter frei ---
+	# „Testmodelle zeigen“ (z. B. Chewie27) ist nur für Entwicklung und Vergleich
+	# gedacht und erscheint erst nach dem Freischalten (oder wenn er schon an ist).
+	_test_toggle = _toggle("Testmodelle zeigen (z. B. Chewie27, nicht für die Bestenliste)",
+		AppSettings.show_test_models, func(on): AppSettings.show_test_models = on; AppSettings.save())
+	_test_toggle.visible = AppSettings.show_test_models
+	box.add_child(_test_toggle)
+	var ver := UITheme.make_button(BuildInfo.text())
+	ver.flat = true
+	ver.add_theme_color_override("font_color", UITheme.color("text_muted"))
+	ver.pressed.connect(_on_version_tap)
+	box.add_child(ver)
 	resized.connect(_layout)
 	_layout.call_deferred()
 
@@ -74,3 +90,14 @@ func _toggle(text: String, on: bool, cb: Callable) -> CheckButton:
 func _layout() -> void:
 	_panel.size = _panel.get_combined_minimum_size()
 	_panel.position = (size - _panel.size) * 0.5
+
+
+## Tipp auf die Versionsnummer: 7 Tipps (Abstand je unter 1,5 s) zeigen den
+## Schalter „Testmodelle zeigen“.
+func _on_version_tap() -> void:
+	var now := Time.get_ticks_msec()
+	_taps = _taps + 1 if now - _tap_time < 1500 else 1
+	_tap_time = now
+	if _taps >= 7 and not _test_toggle.visible:
+		_test_toggle.visible = true
+		_layout.call_deferred()

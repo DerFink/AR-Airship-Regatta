@@ -1,3 +1,4 @@
+# 2026-11-14 11:20 – Testmodelle: Wunsch-Flugmodus des Modells (Chewie27 → Horizon) übernehmen; Modellliste nach den Einstellungen neu laden
 # 2026-11-12 20:45 – _reset_selected(): Baukasten-Knopf „Zurücksetzen“ (Luftschiff, Regler, Sender, Knüppelbelegung + Strecke einzeln)
 # 2026-11-12 11:00 – Modell & Bau erfährt, ob ein Flug begonnen wurde (Weiterfliegen / Rückfrage)
 # 2026-11-12 10:40 – Platzen nicht mehr abschaltbar (Grundregel)
@@ -326,7 +327,7 @@ func _build_ui() -> void:
 	settings = SettingsPanel.new()
 	root.add_child(settings)
 	start_screen.settings_requested.connect(func(): _settings_back = View.START; _set_view(View.SETTINGS))
-	settings.closed.connect(func(): _set_view(_settings_back))
+	settings.closed.connect(func(): builder.reload_model_list(); _set_view(_settings_back))   # Testmodelle ein/aus
 	# ⚙ auch im Flug und im Baukasten; zurück geht es dorthin, wo man herkam
 	hud.settings_requested.connect(func(): _settings_back = View.FLY; _set_view(View.SETTINGS))
 	builder.settings_requested.connect(func(): _settings_back = View.BUILD; _set_view(View.SETTINGS))
@@ -369,7 +370,8 @@ func _build_ui() -> void:
 		fc.apply_model_gains(ship.fc_gains)
 		if fc.preset == "sim":                       # Reglerwahl „Sim-optimiert“ bleibt bestehen
 			fc.apply_overrides(fc.SIM_OPT)
-			fc.save_settings())
+			fc.save_settings()
+		_apply_model_mode())
 	# Erster Start (oder Einstellungen aus älterer Version): PID-Vorgaben des
 	# Startmodells übernehmen; danach bleiben die eigenen Werte erhalten.
 	if fc.settings_outdated:
@@ -716,3 +718,25 @@ func _process(dt: float) -> void:
 		camera.global_position = camera.global_position.lerp(PILOT_EYE, a)
 	if camera.global_position.distance_to(p) > 0.01:
 		camera.look_at(p, Vector3.UP)
+
+
+## Wünscht das übernommene Modell einen Flugmodus (Testmodell Chewie27:
+## Horizon), wird er gewählt; fehlt er in der Modus-Liste, wird er angehängt
+## (höchstens 5 Modi, sonst ersetzt er den letzten).
+func _apply_model_mode() -> void:
+	if not ship.has_meta("mode_art"):
+		return
+	var art := str(ship.get_meta("mode_art"))
+	for i in fc.modes.size():
+		if str(fc.modes[i].get("art", "")) == art:
+			fc.mode_index = i
+			fc.save_settings()
+			return
+	var m := {"name": art.capitalize(), "art": art, "roll_comp": false}
+	if fc.modes.size() < FlightController.MAX_MODES:
+		fc.modes.append(m)
+	else:
+		fc.modes[fc.modes.size() - 1] = m
+	fc.modes_changed.emit()
+	fc.mode_index = fc.modes.size() - 1
+	fc.save_settings()

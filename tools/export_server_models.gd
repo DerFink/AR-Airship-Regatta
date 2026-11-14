@@ -1,3 +1,4 @@
+# 2026-11-14 11:20 – Testmodelle (Quelle „Test“) nicht exportieren
 # 2026-11-11 19:30 – Erstversion: schreibt server/rc-airship/models.json (Fingerabdruck, Name und Boxmaß der Standardmodelle) für die Online-Bestenliste
 # =============================================================================
 # export_server_models.gd
@@ -27,7 +28,7 @@ func _process(_dt: float) -> bool:
 	f += 1
 	if names.is_empty():
 		for e in AirshipPresets.list():
-			if e.source != "Eigene": names.append(e)
+			if e.source != "Eigene" and e.source != "Test": names.append(e)
 	if f % 3 != 0: return false
 	if idx < names.size():
 		var e: Dictionary = names[idx]

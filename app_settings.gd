@@ -1,3 +1,4 @@
+# 2026-11-14 11:20 – Versteckter Schalter show_test_models (Testmodelle wie Chewie27 zeigen), gespeichert unter [entwicklung]
 # 2026-11-12 10:40 – Einstellung „Platzen an/aus“ entfernt (Grundregel, immer an)
 # 2026-11-12 10:05 – Grenzgeschwindigkeit fürs Platzen entfernt (jetzt fest 20 km/h in AirshipPhysics)
 # 2026-11-11 14:40 – Platzen beim Aufprall an/aus und Grenzgeschwindigkeit
@@ -22,6 +23,9 @@ static var music_vol := 0.7
 static var motor_on := true
 static var motor_vol := 1.0
 static var track_on := true
+## Testmodelle (z. B. Chewie27) in der Modellauswahl zeigen – versteckt,
+## eingeschaltet durch 7× Tippen auf die Versionsnummer in den Einstellungen
+static var show_test_models := false
 static var _loaded := false
 ## wird bei jeder Änderung aufgerufen (z. B. Spur ein-/ausblenden)
 static var on_change: Array[Callable] = []
@@ -38,6 +42,7 @@ static func load_all() -> void:
 		motor_on = bool(cfg.get_value("ton", "motor_an", motor_on))
 		motor_vol = clampf(float(cfg.get_value("ton", "motor_laut", motor_vol)), 0.0, 1.0)
 		track_on = bool(cfg.get_value("anzeige", "spur_an", track_on))
+		show_test_models = bool(cfg.get_value("entwicklung", "testmodelle", show_test_models))
 	apply()
 
 
@@ -48,6 +53,7 @@ static func save() -> void:
 	cfg.set_value("ton", "motor_an", motor_on)
 	cfg.set_value("ton", "motor_laut", motor_vol)
 	cfg.set_value("anzeige", "spur_an", track_on)
+	cfg.set_value("entwicklung", "testmodelle", show_test_models)
 	cfg.save(PATH)
 	apply()
 

@@ -1,3 +1,4 @@
+# 2026-11-14 11:00 – Neue PID-Modi: Gier-Sollrate bei vollem Knüppel 150 °/s (mit 110 schaffte die Demo die enge Acht nicht)
 # 2026-11-13 00:30 – Flugmodi des Piloten (1–5, Name + Art: Direkt/Angle/Horizon/PID je Achse Lage oder Drehrate), Rollausgleich je Modus (Höhe und Seite mit dem Rollwinkel umgerechnet), eigene Mischtabelle je Direkt-Modus, Sprung fürs Reglermenü (trigger_step), probe_outputs() für den Signalfluss
 # 2026-11-12 22:55 – Mischer von Hand (mix_table) im Modus Direkt und ohne FC; suggest_mix() = Vorschlag aus der Einbaulage
 # 2026-11-12 09:50 – Stickmode-Korrektur: in 0.26.0 hängengebliebenes „Mode 1“ (Gas rechts) wird einmalig zu Mode 4; Einstellungen tragen jetzt Nomenklatur 5
@@ -163,7 +164,7 @@ static func default_axes(all_on := false) -> Dictionary:
 	return {
 		"pitch": {"on": true, "kind": "angle", "Kp": 0.6, "Ki": 0.4, "Kd": 0.15, "max": 30.0},
 		"roll": {"on": all_on, "kind": "angle", "Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "max": 30.0},
-		"yaw": {"on": true, "kind": "rate", "Kp": 1.0, "Ki": 0.4, "Kd": 0.0, "max": 110.0},
+		"yaw": {"on": true, "kind": "rate", "Kp": 1.0, "Ki": 0.4, "Kd": 0.0, "max": 150.0},   # 150 °/s: enge Acht (Demo) noch flugbar
 	}
 
 
