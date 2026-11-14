@@ -276,6 +276,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 12.11. | 0.28.1–0.31.1 | Platzen fest ab 20 km/h; Baukasten mit Zahlenfeldern, berechnete Massen, Rennfaktor, Weiterfliegen; Zurücksetzen; Reiter Steuerung mit Mischer von Hand; lesbarer Export; **frei einstellbare Flugmodi (1–5)**, Rollausgleich, Sprung auslösen, interaktiver Signalfluss, Flossen einzeln, kleinere Schrift. |
 | 14.11. | 0.32.0 | Demo fliegt im eingestellten Flugmodus (auch Direkt, mit eigener Nick-Haltung); Gier-Sollrate neuer PID-Modi 150 °/s; verstecktes Testmodell Chewie27 (alter Chewie, Horizon). |
 | 14.11. | 0.33.0 | Einzelmotor (oben/unten/Heck); Canards mit Streckung und Pfeilung, symmetrische Canard-Paare und Einzel-Canards. |
+| 14.11. | 0.33.1 | Fehler: Motor/Canard ließ sich nach Import nicht mehr öffnen (Eintrag blieb markiert, item_selected feuerte nicht) → Listen reagieren auf jedes Antippen (item_clicked). |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

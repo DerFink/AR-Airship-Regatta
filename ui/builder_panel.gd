@@ -1,3 +1,4 @@
+# 2026-11-14 18:10 – Motoren und Canards: jedes Antippen in der Liste öffnet den Editor (item_clicked), Markierung wird nach Import/Modellwechsel aufgehoben
 # 2026-11-14 17:20 – Canards: Streckung und Pfeilung einstellbar; „+ Canard-Paar“ (symmetrisch, gemeinsam eingestellt) und „+ Einzel-Canard“
 # 2026-11-14 17:00 – Antrieb: Knopf „+ Einzelmotor“ (mittig, unten, fest); Einzelmotor-Lage oben / unten / Heck
 # 2026-11-12 22:30 – Kleinere Schrift (compact_theme); Anzahl Flossen immer wählbar (andere Zahl → Anordnung „gleichmäßig“)
@@ -389,7 +390,10 @@ func _build_tail_page(col: VBoxContainer) -> void:
 	_canard_list = ItemList.new()
 	_canard_list.custom_minimum_size.y = 90
 	_canard_list.auto_height = true
-	_canard_list.item_selected.connect(func(i): ui_action.emit("select"); _edit_canard(i))
+	# item_clicked kommt bei JEDEM Antippen – item_selected nur, wenn sich die
+	# Auswahl ändert; nach Import/Modellwechsel blieb der Eintrag markiert, der
+	# Editor war aber leer und ließ sich nicht mehr öffnen
+	_canard_list.item_clicked.connect(func(i, _pos, _btn): ui_action.emit("select"); _edit_canard(i))
 	col.add_child(_canard_list)
 	_canard_editor = UITheme.make_vbox("sm")
 	col.add_child(_canard_editor)
@@ -713,7 +717,7 @@ func _build_drive_page(col: VBoxContainer) -> void:
 	_parts_list = ItemList.new()
 	_parts_list.custom_minimum_size.y = 90
 	_parts_list.auto_height = true
-	_parts_list.item_selected.connect(func(i): ui_action.emit("select"); _on_part_selected(i))
+	_parts_list.item_clicked.connect(func(i, _pos, _btn): ui_action.emit("select"); _on_part_selected(i))   # jedes Antippen öffnet den Editor
 	col.add_child(_parts_list)
 	_editor_box = UITheme.make_vbox("sm")
 	col.add_child(_editor_box)
@@ -1524,6 +1528,8 @@ func _sync_from_ship() -> void:
 		UITheme.set_row_value(_hull_rows[k], vals[k], fmts[k])
 	_clear_editor()
 	for c in _canard_editor.get_children(): c.queue_free()
+	_parts_list.deselect_all()          # Editor ist leer → keine Markierung stehen lassen
+	_canard_list.deselect_all()
 	_fill_tail_page()
 	_fill_look_page()
 	_refresh()
