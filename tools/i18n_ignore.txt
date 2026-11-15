@@ -174,3 +174,11 @@ Android
 Web
 paypal.me/LuftschiffFink
  (Eigene)
+HTTP
+keine Verbindung
+DNS
+TLS
+Zeitüberschreitung
+Verbindungsfehler
+Fehler %d
+VisualInstance3D

@@ -291,6 +291,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 15.11. | 0.37.1 | Baukasten rechts: Knopf „In ‚Eigene‘ speichern“ über Einstellungen; Kennwerte scrollen, damit die Knöpfe auf niedrigen Bildschirmen sichtbar bleiben. |
 | 16.11. | 0.38.0 | Bestenliste nur noch online (keine Liste auf dem Gerät, kein „Liste löschen“; nur der Name wird gemerkt); Hinweise, warum eine Zeit nicht eingetragen wurde; Einwilligung „Nicht eintragen“. Vorschaubilder (Modell & Bau, Startseite) als echtes 3D-Bild wie auf dem Flugfeld (`ui/ship_render3d.gd`, SubViewport je Modell, gemerkt je Modell-Code). |
 | 16.11. | 0.38.1 | Sammlung: Modell „Example“ (0,10 m³, L/D 4,5, 4 Flossen ×, 2 Motoren) fest aufgenommen; Fingerabdruck in `models.json` (Bestenliste). |
+| 16.11. | 0.38.2 | Bestenliste nur mit Standard-Pylonabstand (Halle Cup 18 m, Wiese 200 m; `Course.is_ranked()`, Server nimmt nur `cup`/`wiese_200.0`): Hinweis vor dem Start, unter dem Pylonabstand und im Ziel. Zurücksetzen: „Strecke“ eigener Punkt (vorausgewählt), Knüppelbelegung getrennt. „Keine Verbindung“ zeigt die Ursache in Klammern (Fehlersuche). |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

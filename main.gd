@@ -1,3 +1,4 @@
+# 2026-11-16 01:40 – Ziel mit geändertem Pylonabstand: Hinweis statt Bestenliste; Zurücksetzen „Strecke“ getrennt von der Knüppelbelegung
 # 2026-11-16 01:00 – ShipRender3D für Vorschaubilder; Startseite bekommt das aktuelle Luftschiff
 # 2026-11-16 00:30 – Nach dem Ziel immer Ergebnis zeigen (Platz kommt vom Server)
 # 2026-11-15 23:30 – Zuletzt benutztes Luftschiff (auch Eigenbau) wird gespeichert und beim Start wieder geladen (vorher nach Neuladen immer Chewie)
@@ -492,6 +493,10 @@ func _on_race_changed() -> void:
 		hud.show_notice("%s · %s (%s)" % [tr("Demo"), Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
 		autopilot.stop()
 		return
+	# Bestenliste nur mit dem Standard-Pylonabstand (Cup bzw. Wiese 200 m)
+	if not course.is_ranked():
+		hud.show_notice(I18n.t("Ziel · %s – Pylonabstand geändert, nicht in der Bestenliste") % Course.format_time(course.time_s), "info", 5.0)
+		return
 	# Bestenliste nur mit unveränderten Modellen aus der Auswahl (Aussehen/Regler egal)
 	if AirshipPresets.standard_model_of(ship) == "":
 		hud.show_notice(I18n.t("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl") % Course.format_time(course.time_s), "info", 5.0)
@@ -554,8 +559,10 @@ func _reset_selected(opts: Dictionary) -> void:
 		fc.stick_mode = FlightController.STICK_MODE_DEFAULT
 		fc.save_settings()
 		fc.stick_mode_changed.emit()
-		course.set_course(0, 25.0)
-		done.append(tr("Knüppelbelegung und Strecke"))
+		done.append(tr("Knüppelbelegung"))
+	if opts.get("strecke", false):
+		course.reset_scenario()                       # Halle, Cup 18 m, Wiese 200 m
+		done.append(tr("Strecke"))
 	reset_ship()
 	if done.size() > 0:
 		hud.show_notice(tr("Zurückgesetzt: ") + ", ".join(done), "info", 2.5)

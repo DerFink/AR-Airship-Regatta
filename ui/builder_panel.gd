@@ -1,3 +1,4 @@
+# 2026-11-16 01:40 – Zurücksetzen: „Strecke“ als eigener Punkt (vorausgewählt), Knüppelbelegung getrennt
 # 2026-11-16 00:05 – Knopf „In ‚Eigene‘ speichern“ rechts über Einstellungen (ohne Umweg über Teilen); Kennwerte scrollen, Knöpfe rechts bleiben immer sichtbar
 # 2026-11-14 18:10 – Motoren und Canards: jedes Antippen in der Liste öffnet den Editor (item_clicked), Markierung wird nach Import/Modellwechsel aufgehoben
 # 2026-11-14 17:20 – Canards: Streckung und Pfeilung einstellbar; „+ Canard-Paar“ (symmetrisch, gemeinsam eingestellt) und „+ Einzel-Canard“
@@ -1440,7 +1441,8 @@ func _refresh() -> void:
 #   │ [✓] Dieses Luftschiff („Chewie“)   Hülle, Leitwerk, …     │
 #   │ [✓] Regler                         PID, Bausteine, Angle  │
 #   │ [ ] Sender                         Kalibrierung, Zuordnung│
-#   │ [ ] Knüppelbelegung und Strecke    Mode 4 · Hugo Eckener  │
+#   │ [ ] Knüppelbelegung                Mode 4 (Gas links)     │
+#   │ [✓] Strecke                        Halle Cup 18 m, Wiese 200 m │
 #   │ Bleibt erhalten: Bestenliste, eigene Modelle, Sprache …   │
 #   │              [Abbrechen]  [Zurücksetzen]                  │
 #   └───────────────────────────────────────────────────────────┘
@@ -1449,7 +1451,7 @@ func _open_reset() -> void:
 		_build_reset_dlg()
 	_reset_ship_lbl.text = I18n.t("Dieses Luftschiff („%s“)") % ship.model_name
 	for k in _reset_checks:
-		_reset_checks[k].button_pressed = k == "ship" or k == "fc"     # Vorauswahl
+		_reset_checks[k].button_pressed = k == "ship" or k == "fc" or k == "strecke"     # Vorauswahl
 	_reset_dlg.visible = true
 
 
@@ -1472,7 +1474,8 @@ func _build_reset_dlg() -> void:
 		["ship", "", "Hülle, Leitwerk, Antrieb, Massen und Optik wie das Standardmodell. Bei eigenen Modellen: letzter gespeicherter Stand."],
 		["fc", "Regler", "PID-Werte des Modells, Bausteine alle an, Flugmodus Angle"],
 		["sender", "Sender", "Kalibrierung, Umkehr und Kanalzuordnung – danach neu kalibrieren"],
-		["sticks", "Knüppelbelegung und Strecke", "Mode 4 (Gas links) · FN Hugo Eckener Cup"]]
+		["sticks", "Knüppelbelegung", "Mode 4 (Gas links)"],
+		["strecke", "Strecke", "Halle mit FN Hugo Eckener Cup (18 m), Wiese 200 m – nur so zählt die Bestenliste"]]
 	for it in items:
 		var row := UITheme.make_hbox("sm")
 		var cb := CheckBox.new()

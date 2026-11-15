@@ -1,3 +1,4 @@
+# 2026-11-16 01:40 – is_ranked(): nur Standard-Pylonabstand zählt für die Bestenliste (Hinweis vor dem Start); reset_scenario()
 # 2026-11-15 23:10 – Glasdach 18 m statt 15 m; dunkelgrauer Bodenstrich an der Säulenlinie
 # 2026-11-15 22:50 – Halle neu nach Foto: Glasdach 15 m; Säulenreihe (fest) mit 5 m tiefen Laufgängen rundum auf zwei Ebenen (0–5, 5–10 m, hineinfliegen möglich, Zwischendecke und Geländer fest); 10–15 m an der Säulenlinie geschlossen mit Wandbildern und großen Plakaten
 # 2026-11-15 21:40 – Fehler grünes Flackern: Gras liegt in der Halle 20 cm unter dem Hallenboden (vorher 4 mm → Z-Fighting)
@@ -571,7 +572,29 @@ func race_text() -> String:
 
 ## Hinweiszeile oben links unter der Rennanzeige (nur vor dem Start).
 func hint_text() -> String:
-	return "Pilotenseite, Richtung Pylon 2" if race == Race.WAIT else ""
+	if race != Race.WAIT:
+		return ""
+	if not is_ranked():
+		return I18n.t("Pylonabstand geändert – keine Wertung für die Bestenliste")
+	return "Pilotenseite, Richtung Pylon 2"
+
+
+## Zählt diese Strecke für die Bestenliste? Nur mit dem Standard-Pylonabstand:
+## Halle = FN Hugo Eckener Cup (18 m), Wiese = 200 m. Geänderter Abstand = keine Wertung.
+func is_ranked() -> bool:
+	if location == 1:
+		return is_equal_approx(meadow_distance, MEADOW_DISTANCE)
+	return preset == 0
+
+
+## Szenario wie ab Werk: Halle, FN Hugo Eckener Cup, Wiese 200 m.
+func reset_scenario() -> void:
+	location = 0
+	preset = 0
+	meadow_distance = MEADOW_DISTANCE
+	free_distance = 25.0
+	save_settings()
+	rebuild()
 
 
 ## Zeit der laufenden Runde (s).

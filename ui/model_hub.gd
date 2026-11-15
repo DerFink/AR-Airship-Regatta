@@ -1,3 +1,4 @@
+# 2026-11-16 01:40 – Hinweis unter dem Pylonabstand, wenn er geändert ist (keine Wertung)
 # 2026-11-16 01:00 – Vorschaubilder als echtes 3D-Bild wie auf dem Flugfeld (mit Logos), gezeichnete Ansicht nur bis es fertig ist
 # 2026-11-15 23:40 – Knopf „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen, zweimal tippen)
 # 2026-11-12 11:00 – Kopfzeile: ▶ Weiterfliegen (nur bei begonnenem Flug) · Startseite · Bestenliste · Sender kalibrieren; Knopf „Dieses Luftschiff fliegen“ mit Rückfrage „Der begonnene Flug wird beendet“ (Verwerfen/Bestätigen); Rennfaktor (F7B) hinter jedem Modellnamen
@@ -48,6 +49,7 @@ var _detail_meta: Label
 var _detail_desc: Label
 var _detail_data: Label
 var _selected := -1               ## Index in AirshipPresets.list(); -1 = aktuelles Modell
+var _dist_warn: Label             ## Hinweis: geänderter Pylonabstand = keine Wertung
 var _b_del: Button                ## „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen sichtbar)
 var _del_armed := false           ## erster Tipp gemacht → zweiter löscht
 ## Wurde schon ein Flug begonnen? (setzt main.gd beim Wechsel in die Flugansicht)
@@ -114,6 +116,13 @@ func _ready() -> void:
 	drow.add_child(_dist_edit)
 	drow.add_child(UITheme.make_label("m", "MutedLabel"))
 	lcol.add_child(drow)
+	# Hinweis bei geändertem Pylonabstand: zählt nicht für die Bestenliste
+	_dist_warn = UITheme.make_label("Geänderter Pylonabstand – keine Wertung für die Bestenliste (Halle 18 m, Wiese 200 m).")
+	_dist_warn.add_theme_color_override("font_color", UITheme.color("warning"))
+	_dist_warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dist_warn.custom_minimum_size.x = 300
+	_dist_warn.visible = false
+	lcol.add_child(_dist_warn)
 	cols.add_child(lcol)
 	# --- Modell ---
 	var mcol := UITheme.make_vbox("sm")
@@ -203,6 +212,8 @@ func _fill() -> void:
 			_fill())
 		_loc_list.add_child(it)
 	_dist_edit.text = "%d" % roundi(course.distance())
+	if _dist_warn:
+		_dist_warn.visible = not course.is_ranked()
 	# Modelle
 	var models := AirshipPresets.list()
 	for i in models.size():
@@ -418,6 +429,7 @@ func _apply_distance() -> void:
 		course.set_distance(float(t))
 		location_changed.emit()
 	_dist_edit.text = "%d" % roundi(course.distance())
+	_dist_warn.visible = not course.is_ranked()
 
 
 ## Kleines Bild je Location (als SVG gezeichnet – keine Bilddateien nötig).

@@ -1,3 +1,4 @@
+# 2026-11-16 01:45 – Bei Fehlern Ursache mitgeben ("net": z. B. TLS/0, HTTP/503) für die Anzeige
 # 2026-11-14 22:00 – Einwilligung (Fassung + Text), Geräte-Kennung beim Eintragen, eigene Einträge löschen, Besucherzähler, Links zu Impressum/Datenschutz
 # 2026-11-11 19:45 – Erstversion: Online-Bestenliste auf flinkfink.de (Liste, Best Forever, Eintragen) – ohne Verbindung arbeitet die App mit der Liste auf dem Gerät weiter
 # =============================================================================
@@ -77,6 +78,18 @@ static func needs_consent() -> bool:
 	return AppSettings.online_on and AppSettings.online_consent != CONSENT_VERSION
 
 
+## Kurzname des HTTPRequest-Ergebnisses für die Fehleranzeige.
+static func _result_name(r: int) -> String:
+	match r:
+		HTTPRequest.RESULT_SUCCESS: return "HTTP"
+		HTTPRequest.RESULT_CANT_CONNECT: return "keine Verbindung"
+		HTTPRequest.RESULT_CANT_RESOLVE: return "DNS"
+		HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR: return "TLS"
+		HTTPRequest.RESULT_TIMEOUT: return "Zeitüberschreitung"
+		HTTPRequest.RESULT_CONNECTION_ERROR: return "Verbindungsfehler"
+	return "Fehler %d" % r
+
+
 func _get_api(query: String, cb: Callable) -> void:
 	_request(API_URL + query, HTTPClient.METHOD_GET, "", cb)
 
@@ -94,7 +107,8 @@ func _request(url: String, method: int, body: String, cb: Callable) -> void:
 		var ok := parsed is Dictionary and (code < 500)
 		reachable = ok
 		if cb.is_valid():
-			cb.call(parsed if ok else {}))
+			# bei Fehlern Ursache mitgeben (Anzeige „Keine Verbindung (…)“ zur Fehlersuche)
+			cb.call(parsed if ok else {"ok": false, "net": "%s/%d" % [_result_name(result), code]}))
 	var err := rq.request(url, ["Content-Type: application/json"], method, body)
 	if err != OK:
 		rq.queue_free()

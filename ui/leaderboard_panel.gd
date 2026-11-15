@@ -1,3 +1,4 @@
+# 2026-11-16 01:45 – Bei „Keine Verbindung“ die Ursache in Klammern (Fehlersuche); Hinweis bei geändertem Pylonabstand
 # 2026-11-16 00:30 – Keine Liste mehr auf dem Gerät: nur online (Laden/keine Verbindung), Hinweise warum nicht eingetragen, „Liste löschen“ entfernt
 # 2026-11-14 22:00 – Online-Eintrag nur mit Einwilligung: beim ersten Mal fragt ein Fenster (ConsentDialog); „Nur auf diesem Gerät“ trägt nicht online ein
 # 2026-11-12 12:55 – Aufklapp-Pfeile ▶/▼ (▸/▾ fehlten in der Schrift)
@@ -59,6 +60,7 @@ var _quarter := ""
 var _days := 0
 var _highlight := {}               ## neuer Eintrag: {"id": …} (online)
 var _loading := false              ## Online-Liste wird gerade geladen
+var _net_err := ""                 ## Ursache, wenn die Online-Liste nicht kam (z. B. „TLS/0“)
 var _msg := ""                     ## Hinweis nach dem Eintragen (z. B. warum nicht eingetragen)
 var _bold: FontVariation
 
@@ -115,6 +117,7 @@ func _fetch_online() -> void:
 		return
 	online.list(course.course_key(), func(r: Dictionary):
 		_loading = false
+		_net_err = str(r.get("net", r.get("error", "")))
 		if r.get("ok", false):
 			_rows_cur = r.entries
 			_is_online = true
@@ -156,6 +159,8 @@ func _fill_list() -> void:
 	var src_txt := "online · flinkfink.de"
 	if not _is_online:
 		src_txt = "Lade die Online-Liste …" if _loading else "Keine Verbindung – die Bestenliste gibt es nur online."
+		if not _loading and _net_err != "":
+			src_txt = tr(src_txt) + "  (" + _net_err + ")"          # Ursache zur Fehlersuche
 	var src := UITheme.make_label(src_txt, "MutedLabel")
 	_box.add_child(src)
 	if _msg != "":
@@ -438,9 +443,10 @@ func _submit_online(entry: Dictionary) -> void:
 				_msg = I18n.t("Eingetragen, aber nicht unter den besten %d.") % Leaderboard.MAX_ENTRIES
 		else:
 			match str(r.get("error", "")):
+				"course": _msg = I18n.t("Nicht eingetragen: Pylonabstand geändert – gewertet wird nur der Standardabstand.")
 				"model": _msg = I18n.t("Nicht eingetragen: nur unveränderte Modelle aus der Auswahl werden gewertet.")
 				"rate": _msg = I18n.t("Nicht eingetragen: zu viele Einträge in kurzer Zeit – bitte später nochmal.")
-				_: _msg = I18n.t("Nicht eingetragen: keine Verbindung zu flinkfink.de.")
+				_: _msg = I18n.t("Nicht eingetragen: keine Verbindung zu flinkfink.de.") + "  (" + str(r.get("net", r.get("error", ""))) + ")"
 		_fetch_online())
 
 
