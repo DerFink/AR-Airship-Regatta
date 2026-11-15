@@ -1,3 +1,4 @@
+# 2026-11-16 00:05 – Knopf „In ‚Eigene‘ speichern“ rechts über Einstellungen (ohne Umweg über Teilen); Kennwerte scrollen, Knöpfe rechts bleiben immer sichtbar
 # 2026-11-14 18:10 – Motoren und Canards: jedes Antippen in der Liste öffnet den Editor (item_clicked), Markierung wird nach Import/Modellwechsel aufgehoben
 # 2026-11-14 17:20 – Canards: Streckung und Pfeilung einstellbar; „+ Canard-Paar“ (symmetrisch, gemeinsam eingestellt) und „+ Einzel-Canard“
 # 2026-11-14 17:00 – Antrieb: Knopf „+ Einzelmotor“ (mittig, unten, fest); Einzelmotor-Lage oben / unten / Heck
@@ -155,18 +156,28 @@ func _ready() -> void:
 	_preset.item_selected.connect(_on_preset)
 	rcol.add_child(_preset)
 	reload_model_list()
-	rcol.add_child(UITheme.make_title("Kennwerte"))
+	# Kennwerte scrollen, wenn der Bildschirm niedrig ist – die Knöpfe darunter
+	# bleiben immer sichtbar (vorher rutschten sie unten aus dem Bild)
+	var kscroll := ScrollContainer.new()
+	kscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	kscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var kcol := UITheme.make_vbox("sm")
+	kcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kscroll.add_child(kcol)
+	rcol.add_child(kscroll)
+	kcol.add_child(UITheme.make_title("Kennwerte"))
 	_stats = UITheme.make_label("")
 	_stats.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
-	rcol.add_child(_stats)
+	kcol.add_child(_stats)
 	# Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird
 	_factor_lbl = UITheme.make_label("")
 	_factor_lbl.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
 	_factor_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rcol.add_child(_factor_lbl)
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	rcol.add_child(spacer)
+	kcol.add_child(_factor_lbl)
+	# In „Eigene“ speichern: direkt hier, ohne Umweg über „Teilen“
+	var b_save := UITheme.make_primary_button(I18n.t("In „Eigene“ speichern"))
+	b_save.pressed.connect(_save_own)
+	rcol.add_child(b_save)
 	var b_set := UITheme.make_button("Einstellungen")
 	b_set.icon = load("res://textures/zahnrad.svg")
 	b_set.add_theme_constant_override("icon_max_width", 24)
@@ -223,6 +234,7 @@ func _layout() -> void:
 	var m := float(UITheme.space("lg"))
 	_left.position = Vector2(m, m)
 	_left.size = Vector2(UITheme.size("panel_side_width"), size.y - 2.0 * m)
+	_right.size = Vector2.ZERO                                 # erst Mindestgröße, dann auf volle Höhe
 	_right.size = Vector2(_right.get_combined_minimum_size().x, size.y - 2.0 * m)
 	_right.position = Vector2(size.x - _right.size.x - m, m)
 	var cx0 := _left.position.x + _left.size.x + m        # freie Mitte links
@@ -251,6 +263,18 @@ func free_span() -> Vector2:
 	if _left == null or _right == null:
 		return Vector2(0, size.x)
 	return Vector2(_left.position.x + _left.size.x, _right.position.x)
+
+
+## Aktuelles Luftschiff unter seinem Namen in „Eigene“ speichern (gleicher Name
+## ersetzt den alten Stand) – erscheint dann in Modell & Bau.
+func _save_own() -> void:
+	if ModelLibrary.save_own(ModelCodec.encode(ship)):
+		reload_model_list()
+		UITheme.set_banner(_banner, I18n.t("Gespeichert als „%s“ – steht jetzt in Modell & Bau unter „Eigene“.") % ship.model_name, "success")
+		ui_action.emit("ok")
+	else:
+		UITheme.set_banner(_banner, "Speichern hat nicht geklappt.", "danger")
+		ui_action.emit("warn")
 
 
 func _on_visibility() -> void:
