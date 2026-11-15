@@ -1,3 +1,4 @@
+# 2026-11-15 22:05 – Browser: Schalter „Motorklang fein“ (Standard aus = Säuseln)
 # 2026-11-14 22:50 – Inhalt scrollt unter fester Kopfzeile (passt auch auf kleine Bildschirme)
 # 2026-11-14 22:10 – Abschnitt „Online-Bestenliste“ (Zeiten online eintragen = Einwilligung, eigene Einträge löschen) und Knöpfe Impressum / Datenschutz
 # 2026-11-14 11:20 – Versionsnummer unten; 7× tippen zeigt den versteckten Schalter „Testmodelle zeigen“
@@ -22,6 +23,8 @@ class_name SettingsPanel
 extends Control
 
 signal closed
+## Browser: Motorklang einfach/fein umgeschaltet → Klang neu aufbauen
+signal sound_mode_changed
 signal controls_requested          ## Steuerung & Regler (Stick-Mode, alles zurücksetzen)
 
 var _panel: PanelContainer
@@ -81,6 +84,14 @@ func _ready() -> void:
 	var b_ctl := UITheme.make_button("Steuerung & Regler (Knüppel-Mode, alles zurücksetzen) …")
 	b_ctl.pressed.connect(func(): AppSettings.save(); controls_requested.emit())
 	box.add_child(b_ctl)
+	# --- Browser: Motorklang einfach (Säuseln) oder fein ---
+	if OS.has_feature("web"):
+		box.add_child(_toggle("Motorklang fein (braucht schnellen Rechner, sonst einfaches Säuseln)",
+			AppSettings.sound_fine_web, func(on):
+				AppSettings.sound_fine_web = on
+				AppSettings.save()
+				AppSettings.apply_sound_mode()
+				sound_mode_changed.emit()))
 	# --- Online-Bestenliste: Einwilligung widerrufen, eigene Einträge löschen ---
 	box.add_child(UITheme.make_title("Online-Bestenliste"))
 	_online_toggle = _toggle("Zeiten online eintragen (fragt beim ersten Mal nach Einwilligung)",

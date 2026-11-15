@@ -78,4 +78,5 @@ E = [
 ('Impressum', 'Legal notice', 'Mentions légales', 'Aviso legal', 'Note legali', 'Tiráž', 'Nota prawna', '網站資訊'),
 ('Datenschutz', 'Privacy', 'Confidentialité', 'Privacidad', 'Privacy', 'Ochrana údajů', 'Prywatność', '隱私權'),
 ('Vollbild an/aus (F11)', 'Fullscreen on/off (F11)', 'Plein écran on/off (F11)', 'Pantalla completa sí/no (F11)', 'Schermo intero on/off (F11)', 'Celá obrazovka zap/vyp (F11)', 'Pełny ekran wł./wył. (F11)', '全螢幕 開/關 (F11)'),
+('Motorklang fein (braucht schnellen Rechner, sonst einfaches Säuseln)', 'Detailed motor sound (needs a fast computer, otherwise a simple whoosh)', 'Son moteur détaillé (ordinateur rapide requis, sinon simple souffle)', 'Sonido de motor detallado (requiere un ordenador rápido; si no, un simple susurro)', 'Suono motore dettagliato (serve un computer veloce, altrimenti un semplice fruscio)', 'Podrobný zvuk motoru (vyžaduje rychlý počítač, jinak jen šumění)', 'Szczegółowy dźwięk silnika (wymaga szybkiego komputera, inaczej prosty szum)', '精細馬達聲（需要較快的電腦，否則為簡單的風聲）'),
 ]

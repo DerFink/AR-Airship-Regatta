@@ -1,3 +1,4 @@
+# 2026-11-15 22:05 – Browser-Motorklang beim Start setzen; Umschalten in den Einstellungen baut den Klang neu
 # 2026-11-15 21:40 – Gegen grünes Flackern: Gras-Boden an die Strecke übergeben (Halle: tiefer), Kamera near 0,1 m
 # 2026-11-14 22:10 – Einstellungen bekommen die Online-Liste (eigene Einträge löschen); Besucherzähler beim Start
 # 2026-11-14 11:20 – Testmodelle: Wunsch-Flugmodus des Modells (Chewie27 → Horizon) übernehmen; Modellliste nach den Einstellungen neu laden
@@ -219,6 +220,7 @@ func _build_ship() -> void:
 	watchdog = PerformanceWatchdog.new()
 	watchdog.airship = ship
 	add_child(watchdog)
+	AppSettings.apply_sound_mode()                   # Browser: Säuseln statt vollem Klang (Einstellung)
 	sound_guard = SoundGuard.new()
 	add_child(sound_guard)
 	watchdog.simplified_changed.connect(sound_guard.on_low_fps)
@@ -334,6 +336,7 @@ func _build_ui() -> void:
 	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
 	settings = SettingsPanel.new()
 	settings.online = lb_online                      # „Meine Online-Einträge löschen“
+	settings.sound_mode_changed.connect(func(): _rebuild_prop_sounds(true))   # Motorklang einfach/fein
 	root.add_child(settings)
 	lb_online.hit()                                  # Besucherzähler: ein Start = ein Aufruf (ohne IP/Kennung)
 	start_screen.settings_requested.connect(func(): _settings_back = View.START; _set_view(View.SETTINGS))

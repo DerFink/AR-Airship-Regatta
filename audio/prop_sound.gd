@@ -1,3 +1,4 @@
+# 2026-11-15 22:00 – Säuseln (whisper): nur Rauschschleife, Tonhöhe/Lautstärke nach Gas; im Browser als Strom gemischt, damit Lautstärke/Tonhöhe wirken
 # 2026-11-11 16:35 – Bus „Motoren“ (Lautstärke/aus unter Einstellungen)
 # 2026-11-09 14:55 – Schneller Klang als Rückmeldung beim Gasgeben: keine Zusatzglättung mehr (nur noch der Motor-Hochlauf), Nachführung in jedem Bild (am PC oft 120–144/s statt 60/s)
 # 2026-11-09 14:20 – Weichere Übergänge: Drehzahl zweistufig geglättet (je 50 ms, wie Propeller- und Reglerträgheit) und im festen Physiktakt nachgeführt (unabhängig von der Bildrate) – Tonhöhe ändert sich je Schritt nur noch wenig statt in Sprüngen
@@ -42,6 +43,9 @@ const RPM_TAU := 0.005              ## nur gegen Knacksen (5 ms); die Trägheit 
 
 ## Fertige Schleifen je Blattzahl und Richtung zwischenspeichern (alle Motoren teilen sie)
 static var _cache := {}
+## „Säuseln“ (Browser, Standard): nur die Rauschschleife, lauter und mit sanfter
+## Tonhöhe – kaum Rechenaufwand, klingt wie Luftstrom statt Propellerton.
+static var whisper := false
 
 var motor: VectorMotor
 var _rev_player: AudioStreamPlayer3D   ## zweite Tonschleife für den Rückwärtslauf
@@ -84,6 +88,14 @@ func _ready() -> void:
 	_noise_gain = _cache["noise_g"]
 	_noise_player.volume_db = -80.0
 	add_child(_noise_player)
+	# Im Browser spielt Godot 4.3 Schleifen sonst als Web-Audio-„Sample“ – dort
+	# wirken Lautstärke- und Tonhöhenänderungen nicht. Als Strom gemischt schon.
+	if OS.has_feature("web"):
+		for p in [self, _rev_player, _noise_player]:
+			p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
+	if whisper:
+		_noise_player.play(randf() * 3.5)           # Säuseln: nur Rauschen, Ton-Schleifen bleiben aus
+		return
 	# Beide laufen dauernd (stumm im Stillstand) – so gibt es beim Anlaufen
 	# keinen Startverzug.
 	play()
@@ -106,6 +118,13 @@ func _process(dt: float) -> void:
 		volume_db = -80.0                       # Stillstand = Stille
 		_rev_player.volume_db = -80.0
 		_noise_player.volume_db = -80.0
+		return
+	if whisper:
+		# Säuseln: Rauschen wird mit dem Gas lauter und etwas höher (0,7…1,4)
+		var r := clampf(_rpm / maxf(motor.max_rpm, 1.0), 0.0, 1.0)
+		_noise_player.pitch_scale = lerpf(0.7, 1.4, r)
+		var sg := clampf(pow(motor.prop_diameter_in / 5.0, 1.2), 0.4, 3.0) * 0.45
+		_noise_player.volume_db = linear_to_db(maxf(pow(r, 1.5) * sg * 1.6 * _noise_gain, 1e-4))
 		return
 	# Tonhöhe: Blattfolge-Frequenz, Drehrichtung verstimmt minimal (Schwebung)
 	var detune := 1.0 + 0.012 * float(motor.spin_dir)

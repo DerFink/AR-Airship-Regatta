@@ -1,3 +1,4 @@
+# 2026-11-15 22:00 – Browser-Motorklang: Säuseln (Standard) oder fein; apply_sound_mode()
 # 2026-11-14 22:00 – Online-Bestenliste: Schalter „eintragen“, Fassung der Einwilligung, zufällige Geräte-Kennung (zum Selbstlöschen)
 # 2026-11-14 11:20 – Versteckter Schalter show_test_models (Testmodelle wie Chewie27 zeigen), gespeichert unter [entwicklung]
 # 2026-11-12 10:40 – Einstellung „Platzen an/aus“ entfernt (Grundregel, immer an)
@@ -34,6 +35,8 @@ static var online_consent := 0
 ## Zufällige Geräte-Kennung (32 Hex-Zeichen) – nur damit man die eigenen
 ## Online-Einträge später selbst löschen kann; verrät nichts über die Person
 static var device_id := ""
+## Browser: voller Motorklang (braucht schnellen Rechner). Aus = einfaches Säuseln.
+static var sound_fine_web := false
 static var _loaded := false
 ## wird bei jeder Änderung aufgerufen (z. B. Spur ein-/ausblenden)
 static var on_change: Array[Callable] = []
@@ -54,7 +57,17 @@ static func load_all() -> void:
 		online_on = bool(cfg.get_value("online", "eintragen", online_on))
 		online_consent = int(cfg.get_value("online", "einwilligung", online_consent))
 		device_id = str(cfg.get_value("online", "geraet", device_id))
+		sound_fine_web = bool(cfg.get_value("ton", "fein_browser", sound_fine_web))
 	apply()
+
+
+## Klangstufe beim Start setzen: im Browser (ohne Hilfsthreads wird der Ton im
+## Bildtakt gemischt – Ruckler reißen ihn ab) standardmäßig Säuseln.
+static func apply_sound_mode() -> void:
+	load_all()
+	var simple := OS.has_feature("web") and not sound_fine_web
+	PropSound.whisper = simple
+	PropSynth.level = 0 if simple else 2
 
 
 ## Geräte-Kennung; wird beim ersten Bedarf zufällig erzeugt und gespeichert.
@@ -77,6 +90,7 @@ static func save() -> void:
 	cfg.set_value("online", "eintragen", online_on)
 	cfg.set_value("online", "einwilligung", online_consent)
 	cfg.set_value("online", "geraet", device_id)
+	cfg.set_value("ton", "fein_browser", sound_fine_web)
 	cfg.save(PATH)
 	apply()
 
