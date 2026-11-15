@@ -1,3 +1,4 @@
+// 2026-11-15 23:10 – Glasdach heller (fast weißes Himmelslicht, stärker leuchtend, helleres Holz)
 // 2026-11-15 22:50 – Neue Halle: kind 0 = obere Wand (10–15 m, Wandbilder), kind 2 = Außenwand der Laufgänge (Glastüren, Fenster)
 // 2026-11-10 14:00 – Erstversion: Muster der Halle (nachgebildet nach Fotos der Windreiter-Halle) für Wände und Glasdach
 // =============================================================================
@@ -51,11 +52,12 @@ void fragment() {
 		float beam = step(min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * 6.0, 0.18);   // Holzbalken 36 cm
 		float diag = step(min(abs(f.x - f.y), abs(f.x + f.y - 1.0)) * 6.0, 0.05);      // Grate der Pyramiden
 		float bar = step(min(fract(m.x / 1.5), fract(m.y / 1.5)) * 1.5, 0.04);        // feine Sprossen
-		vec3 sky = mix(vec3(0.55, 0.75, 0.95), vec3(0.85, 0.93, 1.0), 0.5 + 0.5 * sin(m.x * 0.07 + m.y * 0.05));
+		// heller als zuerst (Rückmeldung 15.11.: das Grau wirkte drückend): fast weißes Himmelslicht
+		vec3 sky = mix(vec3(0.72, 0.86, 1.0), vec3(0.96, 0.98, 1.0), 0.5 + 0.5 * sin(m.x * 0.07 + m.y * 0.05));
 		col = sky;
-		emit = 0.55;
-		col = mix(col, vec3(0.80, 0.82, 0.85), max(diag, bar * 0.7));
-		col = mix(col, vec3(0.78, 0.58, 0.34), beam);                                    // Holz
+		emit = 1.0;
+		col = mix(col, vec3(0.92, 0.93, 0.95), max(diag, bar * 0.7));
+		col = mix(col, vec3(0.86, 0.68, 0.44), beam);                                    // Holz (heller)
 		emit *= (1.0 - beam);
 		rough = mix(0.1, 0.8, beam);
 	} else {

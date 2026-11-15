@@ -1,3 +1,4 @@
+# 2026-11-15 23:10 – Glasdach 18 m statt 15 m; dunkelgrauer Bodenstrich an der Säulenlinie
 # 2026-11-15 22:50 – Halle neu nach Foto: Glasdach 15 m; Säulenreihe (fest) mit 5 m tiefen Laufgängen rundum auf zwei Ebenen (0–5, 5–10 m, hineinfliegen möglich, Zwischendecke und Geländer fest); 10–15 m an der Säulenlinie geschlossen mit Wandbildern und großen Plakaten
 # 2026-11-15 21:40 – Fehler grünes Flackern: Gras liegt in der Halle 20 cm unter dem Hallenboden (vorher 4 mm → Z-Fighting)
 # 2026-11-12 11:00 – race_factor(): Rennfaktor ∛(L·B·H·π/6) für Modellliste und Kennwerte
@@ -61,11 +62,11 @@ const LOCATION_NAMES := ["Halle", "Wiese"]
 const PYLON_HEIGHT := 5.0
 const FIELD_MARGIN := 3.5        ## Rechteck reicht so weit vor/hinter die Pylone
 const FIELD_WIDTH := 20.0
-## Halle: Säulenlinie 10 m außerhalb des weißen Rechtecks, Glasdach in 15 m Höhe.
+## Halle: Säulenlinie 10 m außerhalb des weißen Rechtecks, Glasdach in 18 m Höhe.
 ## Hinter den Säulen rundum ein 5 m tiefer Laufgang auf zwei Ebenen (0–5 und
-## 5–10 m, hineinfliegen möglich); 10–15 m ist die Halle an der Säulenlinie zu.
+## 5–10 m, hineinfliegen möglich); darüber ist die Halle an der Säulenlinie zu.
 const HALL_GAP := 10.0
-const HALL_HEIGHT := 15.0
+const HALL_HEIGHT := 18.0
 const LEVEL_HEIGHT := 5.0       ## Höhe einer Ebene
 const WALK_DEPTH := 5.0         ## Tiefe der Laufgänge hinter den Säulen
 const SLAB := 0.3               ## Dicke der Zwischendecken
@@ -294,6 +295,17 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 	floor_mi.material_override = fmat
 	floor_mi.position = Vector3(cx, 0.004, 0)
 	add_child(floor_mi)
+	# Dunkelgrauer Strich am Boden entlang der Säulenlinie (wo früher die Wand war)
+	var line_mat := StandardMaterial3D.new()
+	line_mat.albedo_color = Color(0.07, 0.08, 0.09)
+	line_mat.roughness = 0.6
+	var lw := 0.15                                    # Strichbreite (m), mittig auf der früheren Wandlinie
+	for bx in [
+		[Vector3(cx, 0.012, -hz), Vector3(lx + lw, 0.016, lw)],
+		[Vector3(cx, 0.012, hz), Vector3(lx + lw, 0.016, lw)],
+		[Vector3(xa, 0.012, 0), Vector3(lw, 0.016, lz)],
+		[Vector3(xb, 0.012, 0), Vector3(lw, 0.016, lz)]]:
+		_box_mesh(bx, line_mat)
 	# Zwischendecken (weiß) und Geländer (Glas mit dunklem Handlauf)
 	var slab_mat := StandardMaterial3D.new()
 	slab_mat.albedo_color = Color(0.86, 0.86, 0.85)
