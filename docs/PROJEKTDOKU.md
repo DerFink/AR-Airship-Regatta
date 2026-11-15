@@ -286,6 +286,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 15.11. | 0.35.0 | Vollbild-Knopf (Startseite oben rechts und Flugansicht; Browser außer iPhone, PC); obere Knopfreihe im Flug verkleinert sich, wenn sie nicht passt. |
 | 15.11. | 0.35.1 | Fehler grünes Flackern (Browser, Handy stark): Hallenboden lag nur 4 mm über dem Gras → Z-Fighting. Gras in der Halle jetzt 20 cm tiefer, Kamera near 0,1 m. Erster Build mit automatischem Upload nach flinkfink.de. |
 | 15.11. | 0.36.0 | Browser-Ton: Standard „Säuseln“ (nur Rauschschleife, `PropSound.whisper`, Stufe 0), als Strom gemischt (Web-Audio-Samples ignorieren Lautstärke/Tonhöhe); Tonpuffer 150 ms statt 80 ms; Einstellung „Motorklang fein“ (nur Browser). Ursache des abgehackten Tons: Browser-Version ohne Threads mischt im Bildtakt. |
+| 15.11. | 0.36.1 | Säuseln höher (Tonhöhe 1,2–2,6) und deutlich lauter (×4, bis +9 dB). |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

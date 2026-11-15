@@ -1,3 +1,4 @@
+# 2026-11-15 22:30 – Säuseln höher (Tonhöhe 1,2…2,6) und deutlich lauter (×4, früher hörbar, bis +9 dB)
 # 2026-11-15 22:00 – Säuseln (whisper): nur Rauschschleife, Tonhöhe/Lautstärke nach Gas; im Browser als Strom gemischt, damit Lautstärke/Tonhöhe wirken
 # 2026-11-11 16:35 – Bus „Motoren“ (Lautstärke/aus unter Einstellungen)
 # 2026-11-09 14:55 – Schneller Klang als Rückmeldung beim Gasgeben: keine Zusatzglättung mehr (nur noch der Motor-Hochlauf), Nachführung in jedem Bild (am PC oft 120–144/s statt 60/s)
@@ -94,6 +95,7 @@ func _ready() -> void:
 		for p in [self, _rev_player, _noise_player]:
 			p.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
 	if whisper:
+		_noise_player.max_db = 9.0                    # Säuseln darf lauter werden als der Einzelton
 		_noise_player.play(randf() * 3.5)           # Säuseln: nur Rauschen, Ton-Schleifen bleiben aus
 		return
 	# Beide laufen dauernd (stumm im Stillstand) – so gibt es beim Anlaufen
@@ -122,9 +124,11 @@ func _process(dt: float) -> void:
 	if whisper:
 		# Säuseln: Rauschen wird mit dem Gas lauter und etwas höher (0,7…1,4)
 		var r := clampf(_rpm / maxf(motor.max_rpm, 1.0), 0.0, 1.0)
-		_noise_player.pitch_scale = lerpf(0.7, 1.4, r)
+		# Höher und deutlich lauter als zuerst (Rückmeldung 15.11.: „viel zu leise“):
+		# Tonhöhe 1,2…2,6, Lautstärke ×4 und schon bei wenig Gas hörbar (Potenz 1,0)
+		_noise_player.pitch_scale = lerpf(1.2, 2.6, r)
 		var sg := clampf(pow(motor.prop_diameter_in / 5.0, 1.2), 0.4, 3.0) * 0.45
-		_noise_player.volume_db = linear_to_db(maxf(pow(r, 1.5) * sg * 1.6 * _noise_gain, 1e-4))
+		_noise_player.volume_db = linear_to_db(maxf(r * sg * 6.4 * _noise_gain, 1e-4))
 		return
 	# Tonhöhe: Blattfolge-Frequenz, Drehrichtung verstimmt minimal (Schwebung)
 	var detune := 1.0 + 0.012 * float(motor.spin_dir)
