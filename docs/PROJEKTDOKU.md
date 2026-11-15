@@ -282,6 +282,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 14.11. | 0.33.0 | Einzelmotor (oben/unten/Heck); Canards mit Streckung und Pfeilung, symmetrische Canard-Paare und Einzel-Canards. |
 | 14.11. | 0.33.1 | Fehler: Motor/Canard ließ sich nach Import nicht mehr öffnen (Eintrag blieb markiert, item_selected feuerte nicht) → Listen reagieren auf jedes Antippen (item_clicked). |
 | 14.11. | 0.34.0 | Online-Gang vorbereitet: Einwilligung vor dem ersten Online-Eintrag, eigene Einträge löschen, 2 Jahre Speicherdauer, Besucherzähler im Admin, Login-Sperre, Einrichtungsseite, Impressum und Datenschutz (Links in der App), PayPal paypal.me/LuftschiffFink. |
+| 15.11. | 0.34.1 | Fehler: Sender steuerte nicht (Schalter gingen). Ursache: Tasten werden direkt abgefragt; ein „w“/„s“/Pfeil – auch beim Tippen von Namen – schaltete dauerhaft auf Tastatur. Jetzt nur in der Flugansicht ohne Textfeld-Fokus, und Bewegung am Sender gibt die Steuerung zurück. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

@@ -1,3 +1,4 @@
+# 2026-11-15 20:10 – Fehler Sender wirkungslos: Tastatur übernahm dauerhaft, sobald irgendwo „w“/„s“/Pfeil gedrückt wurde (auch beim Tippen von Namen) → Tasten nur in der Flugansicht ohne Textfeld-Fokus; Bewegung am Sender gibt die Steuerung zurück
 # 2026-11-13 00:50 – Modusknöpfe aus den Flugmodi des Piloten (1–5, frei benannt), Tasten 1–5, Modus-Kanal in N Bereiche
 # 2026-11-11 20:05 – Zählt, womit gesteuert wird (Sender/Tastatur/Touch) für „gespielt mit“ in der Bestenliste
 # 2026-11-11 17:50 – Knopf ⚙ (Einstellungen) neben „Menü“
@@ -81,6 +82,7 @@ var _kb_throttle := 0.0
 var _kb_pitch := 0.0
 var _kb_yaw := 0.0
 var _kb_used := false                     ## Tastatur hat zuletzt gesteuert
+var _kb_joy_thr0 := 0.0                   ## Gasstellung des Senders, als die Tastatur übernahm (Gas hat keine Mittenfeder)
 var _calib: CalibrationPanel              ## Fenster „Sender kalibrieren“
 ## Von main.gd gesetzt: Strecke (für die Location-Anzeige) und Akku-Modell
 var course: Course
@@ -403,6 +405,12 @@ func set_race_text(text: String, laps := "") -> void:
 ## Gas hält seine Stellung wie ein ratschender Gasknüppel, Nick und Gier laufen
 ## beim Drücken in ≈ 0,25 s auf Vollausschlag und federn beim Loslassen zurück.
 func _keyboard(dt: float) -> bool:
+	# Tasten nur in der Flugansicht und nicht beim Tippen in ein Textfeld werten:
+	# Tasten werden direkt abgefragt (unabhängig vom Fokus) – sonst schaltete
+	# z. B. ein „w“ oder „s“ im Modellnamen („Chewie“) oder im Pilotennamen
+	# dauerhaft auf Tastatursteuerung um, und der Sender wirkte nicht mehr.
+	if not is_visible_in_tree() or _typing():
+		return _kb_used and _kb_hold(dt)
 	var up := Input.is_physical_key_pressed(KEY_UP)
 	var dn := Input.is_physical_key_pressed(KEY_DOWN)
 	var lf := Input.is_physical_key_pressed(KEY_LEFT)
@@ -423,13 +431,34 @@ func _keyboard(dt: float) -> bool:
 	for st in [stick_left, stick_right]:
 		if st._finger >= 0 or st._mouse_down:
 			_kb_used = false
+	# Sender bewegt (ein Knüppel deutlich aus der Mitte) → Tastatur gibt ab
+	if _kb_used and _joy and _joy.active() and not (up or dn or lf or rt or w or sk):
+		if maxf(maxf(absf(_joy.f_pitch), absf(_joy.f_yaw)), maxf(absf(_joy.f_roll), absf(_joy.f_thr - _kb_joy_thr0))) > 0.15:
+			_kb_used = false
 	if not _kb_used:
+		_kb_joy_thr0 = _joy.f_thr if _joy else 0.0
 		return false
 	# Tasten liefern Funktionen; der Stickmode legt fest, welcher Knüppel sie zeigt
 	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw)
 	stick_left.show_external(ks[0])
 	stick_right.show_external(ks[1])
 	return true
+
+
+## Tastatursteuerung ohne neue Tasten fortführen (Gas bleibt, Knüppel gehen zur Mitte).
+func _kb_hold(dt: float) -> bool:
+	_kb_pitch = move_toward(_kb_pitch, 0.0, dt * 4.0)
+	_kb_yaw = move_toward(_kb_yaw, 0.0, dt * 4.0)
+	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw)
+	stick_left.show_external(ks[0])
+	stick_right.show_external(ks[1])
+	return true
+
+
+## Wird gerade in ein Textfeld getippt (Pilotenname, Modellname …)?
+func _typing() -> bool:
+	var f := get_viewport().gui_get_focus_owner()
+	return f is LineEdit or f is TextEdit
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
