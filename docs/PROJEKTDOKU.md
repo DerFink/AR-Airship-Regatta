@@ -289,6 +289,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 15.11. | 0.36.1 | Säuseln höher (Tonhöhe 1,2–2,6) und deutlich lauter (×4, bis +9 dB). |
 | 15.11. | 0.37.0 | Neue Halle nach Foto: Glasdach 18 m (heller), Säulenreihe 10 m hinter der Feldlinie (fest, dunkler Bodenstrich), dahinter rundum 5 m tiefe Laufgänge auf zwei Ebenen (0–5, 5–10 m; Zwischendecke und Glasgeländer 1,1 m fest), darüber geschlossene Wand mit Wandbildern und großen Plakaten; kleine Plakate an den Glastüren der Außenwand. Knopf „Aus ‚Eigene‘ löschen“ (zweimal tippen). Zuletzt benutztes Luftschiff wird gespeichert (`user://aktuelles_modell.txt`) und beim Start geladen – vorher war nach Neuladen immer Chewie da. |
 | 15.11. | 0.37.1 | Baukasten rechts: Knopf „In ‚Eigene‘ speichern“ über Einstellungen; Kennwerte scrollen, damit die Knöpfe auf niedrigen Bildschirmen sichtbar bleiben. |
+| 16.11. | 0.38.0 | Bestenliste nur noch online (keine Liste auf dem Gerät, kein „Liste löschen“; nur der Name wird gemerkt); Hinweise, warum eine Zeit nicht eingetragen wurde; Einwilligung „Nicht eintragen“. Vorschaubilder (Modell & Bau, Startseite) als echtes 3D-Bild wie auf dem Flugfeld (`ui/ship_render3d.gd`, SubViewport je Modell, gemerkt je Modell-Code). |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

@@ -1,3 +1,4 @@
+# 2026-11-16 00:30 – Liste auf dem Gerät wird nicht mehr geführt (nur noch online); remember_name() merkt den Namen
 # 2026-11-11 19:40 – Quartalsweise: 100 Plätze je Strecke und Quartal; zum Quartalsende kommen die 10 Besten in „Best Forever“, der Rest wird gelöscht; Einträge mit Plattform („PC · Sender“ …) und Quartal
 # 2026-11-11 18:30 – Sortierung nach gewerteter Zeit (F7B: Gesamtzeit × Boxfaktor); Feld "score" je Eintrag, alte Einträge zählen mit der Gesamtzeit
 # 2026-11-09 13:40 – Ungültige Einträge (Zeit 0 oder keine 3 Runden) werden nicht gespeichert und nicht angezeigt; clear(): Liste einer Strecke löschen
@@ -126,6 +127,14 @@ static func forever(course_key: String) -> Array:
 
 
 ## Zuletzt verwendeter Name (Vorbelegung des Eingabefelds).
+## Namen für das nächste Eintragen merken (die Liste selbst gibt es nur noch online).
+static func remember_name(name: String) -> void:
+	var data := _load()
+	var clean := name.strip_edges().left(MAX_NAME)
+	data.name = clean if clean != "" else "Pilot"
+	_save(data)
+
+
 static func last_name() -> String:
 	return _load().name
 

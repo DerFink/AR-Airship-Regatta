@@ -1,3 +1,4 @@
+# 2026-11-16 00:35 – Knopf „Nicht eintragen“ statt „Nur auf diesem Gerät“ (keine Liste mehr auf dem Gerät)
 # 2026-11-14 22:00 – Erstversion: Einwilligung vor dem ersten Online-Eintrag (Text wie abgestimmt, Link Datenschutz, „Einverstanden, online eintragen“ / „Nur auf diesem Gerät“)
 # =============================================================================
 # ConsentDialog.gd
@@ -7,13 +8,13 @@
 #   │ Deine Zeit online eintragen? Gespeichert … │
 #   │ Datenschutzerklärung ↗                     │
 #   │ [Einverstanden, online eintragen]          │
-#   │ [Nur auf diesem Gerät]                     │
+#   │ [Nicht eintragen]                          │
 #   └────────────────────────────────────────────┘
 # Erscheint, wenn eine Zeit eingetragen wird und noch keine Einwilligung in
 # der aktuellen Fassung (LeaderboardOnline.CONSENT_VERSION) vorliegt.
 #   Einverstanden → Fassung merken, Zeit online eintragen
-#   Nur Gerät     → Online-Eintragen aus (in den Einstellungen wieder einschaltbar)
-# Fliegen und die Bestenliste auf dem Gerät gehen immer – auch ohne Zustimmung.
+#   Nicht eintragen → Online-Eintragen aus (in den Einstellungen wieder einschaltbar)
+# Fliegen geht immer – auch ohne Zustimmung (eine Liste auf dem Gerät gibt es nicht).
 # =============================================================================
 class_name ConsentDialog
 extends Control
@@ -51,7 +52,7 @@ func _ready() -> void:
 	var yes := UITheme.make_primary_button(I18n.t("Einverstanden, online eintragen"))
 	yes.pressed.connect(func(): _decide(true))
 	v.add_child(yes)
-	var no := UITheme.make_button("Nur auf diesem Gerät")
+	var no := UITheme.make_button("Nicht eintragen")
 	no.pressed.connect(func(): _decide(false))
 	v.add_child(no)
 	v.add_child(UITheme.make_label("Du kannst das jederzeit in den Einstellungen ändern und deine Online-Einträge dort löschen.", "MutedLabel"))

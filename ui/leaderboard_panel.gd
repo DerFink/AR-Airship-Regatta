@@ -1,3 +1,4 @@
+# 2026-11-16 00:30 – Keine Liste mehr auf dem Gerät: nur online (Laden/keine Verbindung), Hinweise warum nicht eingetragen, „Liste löschen“ entfernt
 # 2026-11-14 22:00 – Online-Eintrag nur mit Einwilligung: beim ersten Mal fragt ein Fenster (ConsentDialog); „Nur auf diesem Gerät“ trägt nicht online ein
 # 2026-11-12 12:55 – Aufklapp-Pfeile ▶/▼ (▸/▾ fehlten in der Schrift)
 # 2026-11-11 20:00 – Neu nach freigegebenem Entwurf: echte Tabelle (eine Zeile je Pilot, Spaltenüberschrift bleibt oben, Zeilen abwechselnd hinterlegt), 100 Plätze mit Scrollen, neuer Eintrag: Liste scrollt hin und die Zeile blinkt; Reiter Aktuell (Quartal) / Best Forever (je Quartal die 3 Besten, aufklappbar 10) / So funktioniert's; Online-Liste von flinkfink.de, ohne Netz die Liste des Geräts
@@ -56,7 +57,9 @@ var _rows_cur: Array = []          ## angezeigte Einträge (online oder Gerät)
 var _is_online := false
 var _quarter := ""
 var _days := 0
-var _highlight := {}               ## neuer Eintrag: {"id": …} (online) oder {"name", "score"} (Gerät)
+var _highlight := {}               ## neuer Eintrag: {"id": …} (online)
+var _loading := false              ## Online-Liste wird gerade geladen
+var _msg := ""                     ## Hinweis nach dem Eintragen (z. B. warum nicht eingetragen)
 var _bold: FontVariation
 
 
@@ -91,31 +94,34 @@ func _ready() -> void:
 ## Liste der aktuellen Strecke zeigen (erst die des Geräts, dann – sobald da – online).
 func show_list() -> void:
 	_pending = false
-	_load_local()
+	_reset_rows()
 	_fill_list()
 	_fetch_online()
 
 
-func _load_local() -> void:
-	_rows_cur = Leaderboard.entries(course.course_key())
-	for i in _rows_cur.size():
-		_rows_cur[i]["rank"] = i + 1
+## Liste leeren und „wird geladen“ anzeigen. Eine Liste auf dem Gerät gibt es
+## seit 0.38 nicht mehr – die Bestenliste ist nur online (flinkfink.de).
+func _reset_rows() -> void:
+	_rows_cur = []
 	_is_online = false
+	_loading = true
 	_quarter = Leaderboard.current_quarter()
 	_days = Leaderboard.days_left()
 
 
 func _fetch_online() -> void:
 	if online == null:
+		_loading = false
 		return
 	online.list(course.course_key(), func(r: Dictionary):
-		if r.get("ok", false) and visible:
+		_loading = false
+		if r.get("ok", false):
 			_rows_cur = r.entries
 			_is_online = true
 			_quarter = str(r.get("quarter", _quarter))
 			_days = int(r.get("days_left", _days))
-			if not _pending and _tab == 0:
-				_fill_list())
+		if visible and not _pending and _tab == 0:
+			_fill_list())
 
 
 ## Inhalt sofort entfernen (nicht erst am Bildende), damit die Fenstergröße stimmt.
@@ -147,8 +153,17 @@ func _fill_list() -> void:
 		b.pressed.connect(func(): _tab = i; _fill_list(); if i == 1: _fetch_forever())
 		tabs.add_child(b)
 	_box.add_child(tabs)
-	var src := UITheme.make_label("online · flinkfink.de" if _is_online else "Liste auf diesem Gerät (offline)", "MutedLabel")
+	var src_txt := "online · flinkfink.de"
+	if not _is_online:
+		src_txt = "Lade die Online-Liste …" if _loading else "Keine Verbindung – die Bestenliste gibt es nur online."
+	var src := UITheme.make_label(src_txt, "MutedLabel")
 	_box.add_child(src)
+	if _msg != "":
+		var ml := UITheme.make_label(_msg)
+		ml.add_theme_color_override("font_color", UITheme.color("warning"))
+		ml.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ml.custom_minimum_size.x = _table_width()
+		_box.add_child(ml)
 	match _tab:
 		0: _fill_current()
 		1: _fill_forever(_forever_cache)
@@ -166,7 +181,7 @@ func _fill_current() -> void:
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 0)
 	sc.add_child(rows)
-	if _rows_cur.is_empty():
+	if _rows_cur.is_empty() and _is_online:
 		rows.add_child(UITheme.make_label("Noch keine Einträge – flieg 3 Runden!"))
 	var hl_row: Control = null
 	for i in _rows_cur.size():
@@ -177,17 +192,6 @@ func _fill_current() -> void:
 			hl_row = row
 	if hl_row:
 		_blink.call_deferred(sc, hl_row)
-	# „Liste löschen“ nur für die Liste auf dem Gerät (online löscht der Admin)
-	if not _is_online and not _rows_cur.is_empty():
-		var clr := UITheme.make_button("Liste löschen")
-		clr.size_flags_horizontal = Control.SIZE_SHRINK_END
-		clr.pressed.connect(func():
-			if clr.text == tr("Liste löschen"):
-				clr.text = tr("Wirklich löschen?")
-			else:
-				Leaderboard.clear(course.course_key())
-				show_list())
-		_box.add_child(clr)
 
 
 func _table_width() -> float:
@@ -278,7 +282,7 @@ func _blink(sc: ScrollContainer, row: Control) -> void:
 var _forever_cache: Array = []
 
 func _fetch_forever() -> void:
-	_forever_cache = Leaderboard.forever(course.course_key())
+	_forever_cache = []
 	_fill_list()
 	if online:
 		online.forever(course.course_key(), func(r: Dictionary):
@@ -327,7 +331,12 @@ static func _quarter_text(q: String) -> String:
 
 
 func _fill_info() -> void:
-	var t := UITheme.make_label("So funktioniert die Bestenliste:\n• Gewertet werden 3 Runden. Die gewertete Zeit ist die gemessene Zeit × Boxfaktor nach dem F7B-Reglement – so haben auch kleine, langsamere Luftschiffe eine Chance (Formel unter „Über den Simulator“).\n• Nur unveränderte Modelle aus der Auswahl werden gewertet.\n• Die Liste hat 100 Plätze und gilt für ein Quartal. Am Quartalsende wird sie geleert; die 10 Besten kommen in „Best Forever“.\n• In „Best Forever“ steht jedes vergangene Quartal mit den 3 Besten – antippen zeigt die 10 Besten.\n• „gespielt mit“ zeigt Gerät und Steuerung (PC, Handy, Browser · Sender, Touch, Tastatur).\n• Online-Liste: flinkfink.de. Ohne Verbindung zeigt die App die Liste dieses Geräts.")
+	# Text wie bisher übersetzt, nur die letzte Zeile (früher: „ohne Verbindung die
+	# Liste dieses Geräts“) wird ersetzt – die Liste gibt es nur noch online
+	var lines := I18n.t("So funktioniert die Bestenliste:\n• Gewertet werden 3 Runden. Die gewertete Zeit ist die gemessene Zeit × Boxfaktor nach dem F7B-Reglement – so haben auch kleine, langsamere Luftschiffe eine Chance (Formel unter „Über den Simulator“).\n• Nur unveränderte Modelle aus der Auswahl werden gewertet.\n• Die Liste hat 100 Plätze und gilt für ein Quartal. Am Quartalsende wird sie geleert; die 10 Besten kommen in „Best Forever“.\n• In „Best Forever“ steht jedes vergangene Quartal mit den 3 Besten – antippen zeigt die 10 Besten.\n• „gespielt mit“ zeigt Gerät und Steuerung (PC, Handy, Browser · Sender, Touch, Tastatur).\n• Online-Liste: flinkfink.de. Ohne Verbindung zeigt die App die Liste dieses Geräts.").split("\n")
+	lines.remove_at(lines.size() - 1)
+	lines.append(I18n.t("• Die Bestenliste gibt es nur online (flinkfink.de) und nur mit deiner Einwilligung."))
+	var t := UITheme.make_label("\n".join(lines))
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.custom_minimum_size = Vector2(_table_width(), 0)
 	_box.add_child(t)
@@ -343,8 +352,7 @@ func show_result() -> void:
 	_res_score = Course.scored_time(_res_total, box_m) if box_m.x > 0.0 else _res_total
 	_res_laps = PackedFloat32Array(course.lap_times)
 	_clear()
-	var place := Leaderboard.rank_for(course.course_key(), _res_score)
-	_box.add_child(UITheme.make_title(I18n.t("Ziel · gewertet %s · Platz %d") % [Course.format_time(_res_score), place]))
+	_box.add_child(UITheme.make_title(I18n.t("Ziel · gewertet %s") % Course.format_time(_res_score)))
 	_box.add_child(UITheme.make_label(I18n.t("gemessen %s · Runden %s") % [Course.format_time(_res_total), _laps_text(_res_laps)], "MutedLabel"))
 	_box.add_child(UITheme.make_label("Name", "MutedLabel"))
 	_name_edit = LineEdit.new()
@@ -398,13 +406,16 @@ func confirm_by_switch() -> void:
 func _on_enter() -> void:
 	var platform: String = platform_source.call() if platform_source.is_valid() else ""
 	var name := _name_edit.text
-	Leaderboard.add(course.course_key(), _res_total, _res_laps, name, ship.model_name, _res_score, platform)
-	var clean := name.strip_edges().left(Leaderboard.MAX_NAME)
-	_highlight = {"name": clean if clean != "" else "Pilot", "score": snappedf(_res_score, 0.01)}
+	Leaderboard.remember_name(name)                  # nur der Name bleibt auf dem Gerät
+	_highlight = {}
+	_msg = ""
 	_pending = false
 	_tab = 0
-	_load_local()
+	_reset_rows()
+	if not LeaderboardOnline.may_submit() and not LeaderboardOnline.needs_consent():
+		_msg = I18n.t("Nicht eingetragen: Online-Eintragen ist ausgeschaltet (Einstellungen → Online-Bestenliste).")
 	_fill_list()
+	_fetch_online()
 	if online and fingerprint_source.is_valid():
 		var laps := []
 		for t in _res_laps: laps.append(snappedf(t, 0.01))
@@ -423,6 +434,13 @@ func _submit_online(entry: Dictionary) -> void:
 	online.submit(entry, func(r: Dictionary):
 		if r.get("ok", false):
 			_highlight = {"id": int(r.id)}
+			if not r.get("listed", true):
+				_msg = I18n.t("Eingetragen, aber nicht unter den besten %d.") % Leaderboard.MAX_ENTRIES
+		else:
+			match str(r.get("error", "")):
+				"model": _msg = I18n.t("Nicht eingetragen: nur unveränderte Modelle aus der Auswahl werden gewertet.")
+				"rate": _msg = I18n.t("Nicht eingetragen: zu viele Einträge in kurzer Zeit – bitte später nochmal.")
+				_: _msg = I18n.t("Nicht eingetragen: keine Verbindung zu flinkfink.de.")
 		_fetch_online())
 
 
@@ -436,7 +454,10 @@ func _ask_consent(entry: Dictionary) -> void:
 		_consent.decided.disconnect(c.callable)
 	_consent.decided.connect(func(ok: bool):
 		if ok:
-			_submit_online(entry), CONNECT_ONE_SHOT)
+			_submit_online(entry)
+		else:
+			_msg = I18n.t("Nicht eingetragen (ohne Einwilligung bleibt die Zeit nirgends gespeichert).")
+			_fill_list(), CONNECT_ONE_SHOT)
 	_consent.open()
 
 

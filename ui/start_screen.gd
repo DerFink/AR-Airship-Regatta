@@ -1,3 +1,4 @@
+# 2026-11-16 01:00 – Startseite: 3D-Bild des Luftschiffs (mit Logos) statt nur gezeichneter Ansicht
 # 2026-11-15 20:40 – Vollbild-Knopf oben rechts neben Sender und Sprache (Browser/PC)
 # 2026-11-14 22:10 – unten rechts Links „Impressum“ und „Datenschutz“
 # 2026-11-11 17:45 – Neuer Aufbau nach freigegebenem Entwurf: App-Icon als Logo, Titel groß und fett, Luftschiff fliegt im Hintergrund im Kreis (orange gestrichelte Bahn), keine Pylone; „Fliegen“ fett mit blauem Rand; neu „Bestenliste“; „⚙ Einstellungen“ und „Nach Update suchen“ als Knöpfe; „Support“ (ohne Farbe) öffnet ein Fenster mit PayPal-QR-Code
@@ -35,6 +36,8 @@ signal leaderboard_requested
 var info_source: Callable
 ## Liefert die Vorschau des aktuellen Luftschiffs (Texture2D) – setzt main.gd
 var preview_source: Callable
+## liefert das aktuelle Luftschiff (für das 3D-Vorschaubild)
+var ship_source: Callable
 
 var _bg: TextureRect
 var _ship: TextureRect
@@ -224,6 +227,10 @@ func _refresh() -> void:
 	_lang_btn.text = I18n.LANG_NAMES[I18n.current] + " ▼"
 	if preview_source.is_valid():
 		_orbit.ship_tex = preview_source.call()
+	# echtes 3D-Bild des aktuellen Luftschiffs (mit Logos), sobald fertig
+	if ship_source.is_valid():
+		ShipRender3D.request(ShipRender3D.copy_of(ship_source.call()), 900, func(t: Texture2D):
+			if is_instance_valid(_orbit): _orbit.ship_tex = t; _orbit.queue_redraw())
 	_layout.call_deferred()
 
 

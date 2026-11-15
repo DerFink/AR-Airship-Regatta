@@ -1,3 +1,4 @@
+# 2026-11-16 01:00 – Vorschaubilder als echtes 3D-Bild wie auf dem Flugfeld (mit Logos), gezeichnete Ansicht nur bis es fertig ist
 # 2026-11-15 23:40 – Knopf „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen, zweimal tippen)
 # 2026-11-12 11:00 – Kopfzeile: ▶ Weiterfliegen (nur bei begonnenem Flug) · Startseite · Bestenliste · Sender kalibrieren; Knopf „Dieses Luftschiff fliegen“ mit Rückfrage „Der begonnene Flug wird beendet“ (Verwerfen/Bestätigen); Rennfaktor (F7B) hinter jedem Modellnamen
 # 2026-11-11 17:45 – Modellbeschreibung und Kenndaten übersetzt (Dezimalzeichen je Sprache)
@@ -210,6 +211,7 @@ func _fill() -> void:
 		var meta := AirshipPresets.meta(e.name)
 		var sub: String = meta.get("team", "")
 		var it := _item(tex, "%s   ×%s" % [e.name, _factor_text(race_factor_of(e.build))], sub, e.name == ship.model_name)
+		ShipRender3D.into(it.get_meta("img"), e.build, 240)          # echtes 3D-Bild (mit Logos), sobald fertig
 		var idx := i
 		it.pressed.connect(func(): _select(idx))
 		_mod_list.add_child(it)
@@ -217,6 +219,7 @@ func _fill() -> void:
 	own.pressed.connect(func(): edit_requested.emit())
 	_mod_list.add_child(own)
 	_show_detail(ship.model_name, ShipPreview.texture(ship, 700), ship)
+	ShipRender3D.into(_detail_img, ShipRender3D.copy_of(ship), 760)
 
 
 ## Listeneintrag: Bild links, Name und Zeile darunter rechts; ausgewählt = blau umrandet.
@@ -239,6 +242,7 @@ func _item(tex: Texture2D, title: String, sub: String, on: bool) -> Button:
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.texture = tex
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.set_meta("img", img)                       # für das 3D-Bild, das später nachkommt
 	if tex == null:
 		var plus := UITheme.make_label("＋")
 		plus.add_theme_font_size_override("font_size", 34)
@@ -273,6 +277,7 @@ func _select(i: int) -> void:
 	var s := AirshipPhysics.new()
 	e.build.call(s)
 	_show_detail(e.name, ShipPreview.texture(s, 700), s)
+	ShipRender3D.into(_detail_img, e.build, 760)
 	s.free()
 	for k in _mod_list.get_child_count():
 		var b := _mod_list.get_child(k) as Button

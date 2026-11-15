@@ -1,3 +1,5 @@
+# 2026-11-16 01:00 – ShipRender3D für Vorschaubilder; Startseite bekommt das aktuelle Luftschiff
+# 2026-11-16 00:30 – Nach dem Ziel immer Ergebnis zeigen (Platz kommt vom Server)
 # 2026-11-15 23:30 – Zuletzt benutztes Luftschiff (auch Eigenbau) wird gespeichert und beim Start wieder geladen (vorher nach Neuladen immer Chewie)
 # 2026-11-15 22:05 – Browser-Motorklang beim Start setzen; Umschalten in den Einstellungen baut den Klang neu
 # 2026-11-15 21:40 – Gegen grünes Flackern: Gras-Boden an die Strecke übergeben (Halle: tiefer), Kamera near 0,1 m
@@ -230,6 +232,9 @@ func _build_ship() -> void:
 	watchdog.airship = ship
 	add_child(watchdog)
 	AppSettings.apply_sound_mode()                   # Browser: Säuseln statt vollem Klang (Einstellung)
+	var r3d := ShipRender3D.new()                    # Vorschaubilder der Luftschiffe in 3D
+	ShipRender3D.inst = r3d
+	add_child(r3d)
 	sound_guard = SoundGuard.new()
 	add_child(sound_guard)
 	watchdog.simplified_changed.connect(sound_guard.on_low_fps)
@@ -338,6 +343,7 @@ func _build_ui() -> void:
 			joy = Input.get_joy_name(hud._joy.device)
 		return {"model": ship.model_name, "location": tr(Course.LOCATION_NAMES[course.location]), "joy": joy}
 	start_screen.preview_source = func(): return ShipPreview.texture(ship, 900)
+	start_screen.ship_source = func(): return ship
 	root.add_child(start_screen)
 	start_screen.fly_requested.connect(func(): _set_view(View.FLY))
 	start_screen.build_requested.connect(func(): _set_view(View.HUB))
@@ -490,12 +496,10 @@ func _on_race_changed() -> void:
 	if AirshipPresets.standard_model_of(ship) == "":
 		hud.show_notice(I18n.t("Ziel · %s – Bestenliste nur mit unveränderten Modellen aus der Auswahl") % Course.format_time(course.time_s), "info", 5.0)
 		return
-	if Leaderboard.rank_for(course.course_key(), Course.scored_time(course.time_s, hud.race_panel.box_m)) > 0:
-		# Armed bleibt, wie der Pilot es geschaltet hat (Gas hat er ja in der Hand)
-		leader_panel.show_result()
-		_set_view(View.LEADER)
-	else:
-		hud.show_notice(I18n.t("Ziel · %s – nicht unter den besten %d") % [Course.format_time(course.time_s), Leaderboard.MAX_ENTRIES], "info", 4.0)
+	# Ob es für die Online-Liste reicht, sagt der Server nach dem Eintragen
+	# (eine Liste auf dem Gerät gibt es nicht mehr). Armed bleibt, wie der Pilot es geschaltet hat.
+	leader_panel.show_result()
+	_set_view(View.LEADER)
 
 
 ## Rundenzählung: Bug-Position an die Strecke melden, Anzeige im HUD.
