@@ -1,10 +1,14 @@
+// 2026-11-15 22:50 – Neue Halle: kind 0 = obere Wand (10–15 m, Wandbilder), kind 2 = Außenwand der Laufgänge (Glastüren, Fenster)
 // 2026-11-10 14:00 – Erstversion: Muster der Halle (nachgebildet nach Fotos der Windreiter-Halle) für Wände und Glasdach
 // =============================================================================
 // hall.gdshader
 // -----------------------------------------------------------------------------
 // Zeichnet das Aussehen der Hallenflächen direkt in Metern, damit eine einzige
 // Fläche je Wand reicht – egal wie groß die Halle ist.
-//   kind = 0  Wand (von unten nach oben):
+//   kind = 0  obere Wand an der Säulenlinie (10–15 m): weiß, Lüftungsdüsen, Wandbilder
+//   kind = 2  Außenwand hinter den Laufgängen (0–10 m): Glastüren unten, Fenster oben
+//   (bis 15.11.2026 – alte Halle, 25 m – zeichnete kind 0 die ganze Wand:)
+//   kind = 0 alt (von unten nach oben):
 //             0 – 3,6 m   Glastüren mit Sprossen (Erdgeschoss)
 //             3,6 – 4,2   Deckenkante
 //             4,2 – 7,4   1. Galerie: dunkler Innenraum, Geländer
@@ -55,41 +59,42 @@ void fragment() {
 		emit *= (1.0 - beam);
 		rough = mix(0.1, 0.8, beam);
 	} else {
-		// ---------------- Wand ----------------
 		float y = m.y;
-		if (y < 3.6) {
-			// Glastüren: Glas, Sprossen alle 1,5 m, Querholm bei 2,6 m
-			col = mix(vec3(0.30, 0.37, 0.43), vec3(0.55, 0.66, 0.74), y / 3.6);
-			float mull = step(fract(m.x / 1.5) * 1.5, 0.07) + step(abs(y - 2.6), 0.05);
-			col = mix(col, vec3(0.20, 0.22, 0.25), clamp(mull, 0.0, 1.0));
-			rough = 0.15;
-		} else if (y < 4.2 || (y > 7.4 && y < 8.0)) {
-			col = white;                                                                  // Deckenkanten
-		} else if (y < 11.2) {
-			// Galerien: dunkler Innenraum, oben etwas heller (Licht), Geländer
-			float y0 = y < 7.4 ? 4.2 : 8.0;
-			col = mix(vec3(0.42, 0.44, 0.47), vec3(0.70, 0.71, 0.72), clamp((y - y0) / 3.2, 0.0, 1.0));
-			col = mix(col, vec3(0.32, 0.33, 0.35), railing(m, y0));
-		} else if (y < 16.5) {
-			col = white;
-			// Reihe runder Lüftungsdüsen knapp unter den Wandbildern
-			vec2 v = vec2(fract(m.x / 2.0) * 2.0 - 1.0, y - 15.7);
-			col = mix(col, vec3(0.62, 0.64, 0.66), step(length(v), 0.16));
-		} else if (y < 20.5) {
-			// Wandbilder: 7 m breit, 1 m weißer Rahmen dazwischen
-			float px = fract(m.x / 8.0) * 8.0;
-			if (px > 0.5 && px < 7.5) {
-				float t = (y - 16.5) / 4.0;                                               // 0 unten … 1 oben
-				vec3 navy = vec3(0.08, 0.10, 0.36);
-				vec3 blue = vec3(0.18, 0.28, 0.72);
-				vec3 violet = vec3(0.42, 0.30, 0.62);
-				vec3 glow = vec3(0.95, 0.88, 0.62);
-				col = mix(navy, blue, smoothstep(0.0, 0.40, t));
-				col = mix(col, glow, exp(-pow((t - 0.48) * 14.0, 2.0)));                  // heller Horizont
-				col = mix(col, violet, smoothstep(0.55, 0.75, t));
-				col = mix(col, vec3(0.12, 0.12, 0.45), smoothstep(0.80, 1.0, t));
-				col *= 0.92 + 0.08 * sin(y * 40.0 + sin(m.x * 0.8) * 3.0);               // feine Pinselstreifen
-				rough = 0.5;
+		if (kind == 2) {
+			// ---------- Außenwand der Laufgänge (0–10 m) ----------
+			if (y < 3.6) {
+				// Glastüren: Glas, Sprossen alle 1,5 m, Querholm bei 2,6 m
+				col = mix(vec3(0.30, 0.37, 0.43), vec3(0.55, 0.66, 0.74), y / 3.6);
+				float mull = step(fract(m.x / 1.5) * 1.5, 0.07) + step(abs(y - 2.6), 0.05);
+				col = mix(col, vec3(0.20, 0.22, 0.25), clamp(mull, 0.0, 1.0));
+				rough = 0.15;
+			} else if (y > 5.6 && y < 8.8) {
+				// Fenster der oberen Ebene (Büros): dunkles Glas, Sprossen alle 2 m
+				col = mix(vec3(0.26, 0.30, 0.34), vec3(0.45, 0.52, 0.58), (y - 5.6) / 3.2);
+				col = mix(col, vec3(0.70, 0.71, 0.72), step(fract(m.x / 2.0) * 2.0, 0.1));
+				rough = 0.2;
+			}
+		} else {
+			// ---------- obere Wand an der Säulenlinie (10–15 m, Fläche 5 m hoch) ----------
+			// 0–0,9 weiß (Deckenkante), Lüftungsdüsen, 1,4–4,6 Wandbilder, darüber weiß
+			vec2 v = vec2(fract(m.x / 2.0) * 2.0 - 1.0, y - 1.05);
+			col = mix(col, vec3(0.62, 0.64, 0.66), step(length(v), 0.14));
+			if (y > 1.4 && y < 4.6) {
+				// Wandbilder: 7 m breit, 1 m weißer Rahmen dazwischen
+				float px = fract(m.x / 8.0) * 8.0;
+				if (px > 0.5 && px < 7.5) {
+					float t = (y - 1.4) / 3.2;                                                 // 0 unten … 1 oben
+					vec3 navy = vec3(0.08, 0.10, 0.36);
+					vec3 blue = vec3(0.18, 0.28, 0.72);
+					vec3 violet = vec3(0.42, 0.30, 0.62);
+					vec3 glow = vec3(0.95, 0.88, 0.62);
+					col = mix(navy, blue, smoothstep(0.0, 0.40, t));
+					col = mix(col, glow, exp(-pow((t - 0.48) * 14.0, 2.0)));                  // heller Horizont
+					col = mix(col, violet, smoothstep(0.55, 0.75, t));
+					col = mix(col, vec3(0.12, 0.12, 0.45), smoothstep(0.80, 1.0, t));
+					col *= 0.92 + 0.08 * sin(y * 40.0 + sin(m.x * 0.8) * 3.0);               // feine Pinselstreifen
+					rough = 0.5;
+				}
 			}
 		}
 	}

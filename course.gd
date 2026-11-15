@@ -1,3 +1,4 @@
+# 2026-11-15 22:50 – Halle neu nach Foto: Glasdach 15 m; Säulenreihe (fest) mit 5 m tiefen Laufgängen rundum auf zwei Ebenen (0–5, 5–10 m, hineinfliegen möglich, Zwischendecke und Geländer fest); 10–15 m an der Säulenlinie geschlossen mit Wandbildern und großen Plakaten
 # 2026-11-15 21:40 – Fehler grünes Flackern: Gras liegt in der Halle 20 cm unter dem Hallenboden (vorher 4 mm → Z-Fighting)
 # 2026-11-12 11:00 – race_factor(): Rennfaktor ∛(L·B·H·π/6) für Modellliste und Kennwerte
 # 2026-11-11 16:35 – Rennanzeige oben links nur noch nächster Kontrollpunkt; current_lap_time(), hint_text(), scored_time() (F7B: Gesamtzeit × ∛(L·B·H·π/6))
@@ -60,13 +61,20 @@ const LOCATION_NAMES := ["Halle", "Wiese"]
 const PYLON_HEIGHT := 5.0
 const FIELD_MARGIN := 3.5        ## Rechteck reicht so weit vor/hinter die Pylone
 const FIELD_WIDTH := 20.0
-## Halle: Wände 10 m außerhalb des weißen Rechtecks, Decke in 25 m Höhe
+## Halle: Säulenlinie 10 m außerhalb des weißen Rechtecks, Glasdach in 15 m Höhe.
+## Hinter den Säulen rundum ein 5 m tiefer Laufgang auf zwei Ebenen (0–5 und
+## 5–10 m, hineinfliegen möglich); 10–15 m ist die Halle an der Säulenlinie zu.
 const HALL_GAP := 10.0
-const HALL_HEIGHT := 25.0
+const HALL_HEIGHT := 15.0
+const LEVEL_HEIGHT := 5.0       ## Höhe einer Ebene
+const WALK_DEPTH := 5.0         ## Tiefe der Laufgänge hinter den Säulen
+const SLAB := 0.3               ## Dicke der Zwischendecken
+const RAIL_H := 1.1             ## Geländerhöhe auf Ebene 2 (fest)
+const COL_W := 0.8              ## Säulenquerschnitt
 ## aerarium-Plakate an den Hallenwänden (Bild: textures/aerarium_plakat.png)
 const POSTER_TEX := "res://textures/aerarium_plakat.png"
-const POSTER_BIG_H := 4.6       # Höhe der großen Plakate (m), weiße Wand 11,2–16,5 m
-const POSTER_BIG_Y := 13.85     # Mitte der großen Plakate (m)
+const POSTER_BIG_H := 3.4       # Höhe der großen Plakate (m) auf der oberen Wand (10–15 m)
+const POSTER_BIG_Y := 12.6      # Mitte der großen Plakate (m)
 const POSTER_SMALL_H := 2.0     # Höhe der kleinen Plakate (m) an den Glastüren
 const POSTER_SMALL_Y := 2.0     # Mitte der kleinen Plakate (m)
 const POSTER_SPACING := 16.0    # Abstand zwischen zwei großen Plakaten (m) = 2 Säulenfelder
@@ -189,6 +197,9 @@ func rebuild() -> void:
 # daran ab (Abprall-Material nur an Wänden/Decke, der Boden bleibt ohne Abprall).
 # =============================================================================
 func _build_hall(xa: float, xb: float, hz: float) -> void:
+	# Innenraum (Atrium): xa…xb, −hz…hz – dort stehen die Säulen. Dahinter rundum
+	# ein Laufgang (WALK_DEPTH) auf zwei Ebenen (0–5 m und 5–10 m); darüber ist
+	# die Halle an der Säulenlinie geschlossen (Wand mit Wandbildern und Logos).
 	var hall := StaticBody3D.new()
 	hall.name = "Halle"
 	var pm := PhysicsMaterial.new()
@@ -196,19 +207,40 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 	pm.friction = 0.2
 	hall.physics_material_override = pm
 	add_child(hall)
-	var cx := (xa + xb) * 0.5
-	var lx := xb - xa
-	var lz := 2.0 * hz
-	var th := 1.0                                     # Wanddicke (nur Kollision)
+	var D := WALK_DEPTH
 	var H := HALL_HEIGHT
-	# [Mitte, Größe] der Kollisionsquader: Wand vorn/hinten, links/rechts, Decke
+	var L := LEVEL_HEIGHT
+	var cx := (xa + xb) * 0.5
+	var lx := xb - xa                      # Innenraum
+	var lz := 2.0 * hz
+	var ox := lx + 2.0 * D                 # außen (mit Laufgang)
+	var oz := lz + 2.0 * D
+	var th := 1.0                          # Wanddicke (nur Kollision)
+	var walk_top := 2.0 * L                # Laufgänge bis 10 m
+	# --- Kollision -------------------------------------------------------------
 	var boxes := [
-		[Vector3(xa - th * 0.5, H * 0.5, 0), Vector3(th, H, lz + 2 * th)],
-		[Vector3(xb + th * 0.5, H * 0.5, 0), Vector3(th, H, lz + 2 * th)],
-		[Vector3(cx, H * 0.5, -hz - th * 0.5), Vector3(lx, H, th)],
-		[Vector3(cx, H * 0.5, hz + th * 0.5), Vector3(lx, H, th)],
+		# Außenwände hinter den Laufgängen (0–10 m)
+		[Vector3(xa - D - th * 0.5, walk_top * 0.5, 0), Vector3(th, walk_top, oz + 2 * th)],
+		[Vector3(xb + D + th * 0.5, walk_top * 0.5, 0), Vector3(th, walk_top, oz + 2 * th)],
+		[Vector3(cx, walk_top * 0.5, -hz - D - th * 0.5), Vector3(ox, walk_top, th)],
+		[Vector3(cx, walk_top * 0.5, hz + D + th * 0.5), Vector3(ox, walk_top, th)],
+		# obere, geschlossene Wand an der Säulenlinie (10–15 m)
+		[Vector3(xa - th * 0.5, (walk_top + H) * 0.5, 0), Vector3(th, H - walk_top, lz + 2 * th)],
+		[Vector3(xb + th * 0.5, (walk_top + H) * 0.5, 0), Vector3(th, H - walk_top, lz + 2 * th)],
+		[Vector3(cx, (walk_top + H) * 0.5, -hz - th * 0.5), Vector3(lx, H - walk_top, th)],
+		[Vector3(cx, (walk_top + H) * 0.5, hz + th * 0.5), Vector3(lx, H - walk_top, th)],
+		# Glasdach über dem Innenraum
 		[Vector3(cx, H + th * 0.5, 0), Vector3(lx + 2 * th, th, lz + 2 * th)],
 	]
+	# Zwischendecke (5 m) und Decke der oberen Laufgänge (10 m) als Ring aus 4 Platten
+	for y in [L, walk_top]:
+		boxes.append_array(_ring_boxes(xa, xb, hz, D, y - SLAB * 0.5, SLAB))
+	# Geländer an der Kante der Ebene 2 (fest – man kann hängenbleiben)
+	boxes.append_array(_ring_edge(xa, xb, hz, L + RAIL_H * 0.5, RAIL_H, 0.1))
+	# Säulen (fest, wie Wände) – bis 10 m, darüber geht die Wand durch
+	var cols := _column_spots(xa, xb, hz)
+	for c in cols:
+		boxes.append([Vector3(c.x, walk_top * 0.5, c.y), Vector3(COL_W, walk_top, COL_W)])
 	for bx in boxes:
 		var cs := CollisionShape3D.new()
 		var sh := BoxShape3D.new()
@@ -216,33 +248,27 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 		cs.shape = sh
 		cs.position = bx[0]
 		hall.add_child(cs)
-	# --- Aussehen wie die Windreiter-Halle (Fotos 10.11.2026) ---------------------
-	# Wände und Decke sind je eine Fläche mit einem Shader, der das Muster in Metern
-	# zeichnet (Glastüren, Galerien, Säulen, Wandbilder bzw. Glasdach). Das ist
-	# schnell (keine hunderte Einzelteile) und passt sich jeder Hallengröße an.
+	# --- Aussehen (Windreiter-Halle) --------------------------------------------
 	var shader := load("res://hall.gdshader") as Shader
-	# [Mitte, Breite, Drehung um y] der vier Wände; die Vorderseite zeigt nach innen
-	var walls := [
-		[Vector3(cx, H * 0.5, -hz), lx, 0.0],          # hinten (dem Piloten abgewandt)
-		[Vector3(cx, H * 0.5, hz), lx, PI],            # vorn (Pilotenseite)
-		[Vector3(xa, H * 0.5, 0), lz, PI * 0.5],       # Stirnwand links
-		[Vector3(xb, H * 0.5, 0), lz, -PI * 0.5],      # Stirnwand rechts
+	# Außenwände der Laufgänge (kind 2: Glastüren unten, Fenster oben); Vorderseite nach innen
+	var outer := [
+		[Vector3(cx, walk_top * 0.5, -hz - D), ox, 0.0],
+		[Vector3(cx, walk_top * 0.5, hz + D), ox, PI],
+		[Vector3(xa - D, walk_top * 0.5, 0), oz, PI * 0.5],
+		[Vector3(xb + D, walk_top * 0.5, 0), oz, -PI * 0.5],
 	]
-	for w in walls:
-		var mi := MeshInstance3D.new()
-		var q := QuadMesh.new()
-		q.size = Vector2(w[1], H)
-		mi.mesh = q
-		var mat := ShaderMaterial.new()
-		mat.shader = shader
-		mat.set_shader_parameter("size_m", Vector2(w[1], H))
-		mat.set_shader_parameter("kind", 0)
-		mi.material_override = mat
-		mi.position = w[0]
-		mi.rotation.y = w[2]
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
-	# Decke: Glasdach mit Holzbalken-Raster, Vorderseite nach unten
+	for w in outer:
+		_wall_quad(shader, 2, w[0], Vector2(w[1], walk_top), w[2])
+	# obere Wand an der Säulenlinie (kind 0: weiß, Lüftungsdüsen, Wandbilder)
+	var upper := [
+		[Vector3(cx, (walk_top + H) * 0.5, -hz), lx, 0.0],
+		[Vector3(cx, (walk_top + H) * 0.5, hz), lx, PI],
+		[Vector3(xa, (walk_top + H) * 0.5, 0), lz, PI * 0.5],
+		[Vector3(xb, (walk_top + H) * 0.5, 0), lz, -PI * 0.5],
+	]
+	for w in upper:
+		_wall_quad(shader, 0, w[0], Vector2(w[1], H - walk_top), w[2])
+	# Glasdach über dem Innenraum, Vorderseite nach unten
 	var ceil := MeshInstance3D.new()
 	var cq := QuadMesh.new()
 	cq.size = Vector2(lx, lz)
@@ -253,13 +279,13 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 	cmat.set_shader_parameter("kind", 1)
 	ceil.material_override = cmat
 	ceil.position = Vector3(cx, H, 0)
-	ceil.rotation.x = PI * 0.5                       # Quad liegt flach, Vorderseite zeigt nach unten
+	ceil.rotation.x = PI * 0.5
 	ceil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ceil)
-	# Boden: dunkelgrauer, glänzender Steinboden (knapp über der Wiese)
+	# Boden: dunkelgrauer, glänzender Steinboden bis unter die Laufgänge
 	var floor_mi := MeshInstance3D.new()
 	var fp := PlaneMesh.new()
-	fp.size = Vector2(lx, lz)
+	fp.size = Vector2(ox, oz)
 	floor_mi.mesh = fp
 	var fmat := StandardMaterial3D.new()
 	fmat.albedo_color = Color(0.13, 0.15, 0.17)
@@ -268,23 +294,105 @@ func _build_hall(xa: float, xb: float, hz: float) -> void:
 	floor_mi.material_override = fmat
 	floor_mi.position = Vector3(cx, 0.004, 0)
 	add_child(floor_mi)
-	# Säulen: weiße Vierkantpfeiler an den Längswänden (alle 8 m), nur Optik
+	# Zwischendecken (weiß) und Geländer (Glas mit dunklem Handlauf)
+	var slab_mat := StandardMaterial3D.new()
+	slab_mat.albedo_color = Color(0.86, 0.86, 0.85)
+	slab_mat.roughness = 0.8
+	# Unterseiten bekommen kaum Licht und wirkten braun → leicht selbstleuchtend (wie beleuchtete Decken)
+	slab_mat.emission_enabled = true
+	slab_mat.emission = Color(0.55, 0.56, 0.57)
+	for y in [L, walk_top]:
+		for bx in _ring_boxes(xa, xb, hz, D, y - SLAB * 0.5, SLAB):
+			_box_mesh(bx, slab_mat)
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.55, 0.75, 0.85, 0.28)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.roughness = 0.1
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for bx in _ring_edge(xa, xb, hz, L + RAIL_H * 0.5, RAIL_H, 0.05):
+		_box_mesh(bx, glass)
+	var rail_mat := StandardMaterial3D.new()
+	rail_mat.albedo_color = Color(0.25, 0.26, 0.28)
+	for bx in _ring_edge(xa, xb, hz, L + RAIL_H, 0.06, 0.08):
+		_box_mesh(bx, rail_mat)
+	# Säulen: weiße Vierkantpfeiler
 	var col_mat := StandardMaterial3D.new()
 	col_mat.albedo_color = Color(0.95, 0.95, 0.94)
 	col_mat.roughness = 0.7
-	var col_mesh := BoxMesh.new()
-	col_mesh.size = Vector3(0.8, 17.0, 0.8)
+	for c in cols:
+		_box_mesh([Vector3(c.x, walk_top * 0.5, c.y), Vector3(COL_W, walk_top, COL_W)], col_mat)
+	_build_posters(xa, xb, hz)
+
+
+## Vier Platten eines Rings zwischen Säulenlinie (innen) und Außenwand, Unterkante y0.
+func _ring_boxes(xa: float, xb: float, hz: float, d: float, y0: float, t: float) -> Array:
+	var cx := (xa + xb) * 0.5
+	var y := y0 + t * 0.5
+	var full := xb - xa + 2.0 * d
+	return [
+		[Vector3(cx, y, -hz - d * 0.5), Vector3(full, t, d)],
+		[Vector3(cx, y, hz + d * 0.5), Vector3(full, t, d)],
+		[Vector3(xa - d * 0.5, y, 0), Vector3(d, t, 2.0 * hz)],
+		[Vector3(xb + d * 0.5, y, 0), Vector3(d, t, 2.0 * hz)],
+	]
+
+
+## Schmale Kante entlang der Säulenlinie (Geländer), Mitte in Höhe y.
+func _ring_edge(xa: float, xb: float, hz: float, y: float, h: float, t: float) -> Array:
+	var cx := (xa + xb) * 0.5
+	var o := COL_W * 0.5 + t * 0.5           # knapp hinter der Säulenvorderkante
+	return [
+		[Vector3(cx, y, -hz - o), Vector3(xb - xa, h, t)],
+		[Vector3(cx, y, hz + o), Vector3(xb - xa, h, t)],
+		[Vector3(xa - o, y, 0), Vector3(t, h, 2.0 * hz)],
+		[Vector3(xb + o, y, 0), Vector3(t, h, 2.0 * hz)],
+	]
+
+
+## Säulenplätze (x, z): Längsseiten alle 8 m (ab xa + 4), Stirnseiten alle 8 m
+## symmetrisch zur Mitte, dazu die vier Ecken.
+func _column_spots(xa: float, xb: float, hz: float) -> Array:
+	var out := []
 	var px := xa + 4.0
 	while px < xb - 2.0:
-		for zz in [-hz + 0.4, hz - 0.4]:
-			var c := MeshInstance3D.new()
-			c.mesh = col_mesh
-			c.material_override = col_mat
-			c.position = Vector3(px, 8.5, zz)
-			c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			add_child(c)
+		out.append(Vector2(px, -hz)); out.append(Vector2(px, hz))
 		px += 8.0
-	_build_posters(xa, xb, hz)
+	var n := int(floor((2.0 * hz - 4.0) / 8.0))
+	for i in n + 1:
+		var pz := (i - n * 0.5) * 8.0
+		out.append(Vector2(xa, pz)); out.append(Vector2(xb, pz))
+	for c in [Vector2(xa, -hz), Vector2(xa, hz), Vector2(xb, -hz), Vector2(xb, hz)]:
+		out.append(c)
+	return out
+
+
+## Wandfläche mit dem Hallen-Shader (Vorderseite in Richtung Drehung).
+func _wall_quad(shader: Shader, kind: int, at: Vector3, size_m: Vector2, rot_y: float) -> void:
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = size_m
+	mi.mesh = q
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("size_m", size_m)
+	mat.set_shader_parameter("kind", kind)
+	mi.material_override = mat
+	mi.position = at
+	mi.rotation.y = rot_y
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+## Sichtbarer Quader [Mitte, Größe].
+func _box_mesh(bx: Array, mat: Material) -> void:
+	var mi := MeshInstance3D.new()
+	var b := BoxMesh.new()
+	b.size = bx[1]
+	mi.mesh = b
+	mi.material_override = mat
+	mi.position = bx[0]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 
 ## aerarium-Plakate wie aufgehängt: große oben an der weißen Wand über der
@@ -325,8 +433,9 @@ func _build_posters(xa: float, xb: float, hz: float) -> void:
 			_poster(mat, aspect, POSTER_BIG_H, POSTER_BIG_Y, w[0] + along * d + normal * POSTER_GAP, basis)
 			# kleines Plakat unten, um eine halbe Teilung versetzt (zwischen den großen)
 			var ds := d + POSTER_SPACING * 0.5
+			# kleine Plakate hängen unten an den Glastüren der Außenwand (hinter dem Laufgang)
 			if absf(ds) + POSTER_SMALL_H * aspect * 0.5 < length * 0.5 - 1.0:
-				_poster(mat, aspect, POSTER_SMALL_H, POSTER_SMALL_Y, w[0] + along * ds + normal * POSTER_GAP, basis)
+				_poster(mat, aspect, POSTER_SMALL_H, POSTER_SMALL_Y, w[0] + along * ds - normal * (WALK_DEPTH - POSTER_GAP), basis)
 
 
 ## Positionen entlang einer Wand (Abstand von der Wandmitte). Mit Säulen liegen
