@@ -1,3 +1,4 @@
+# 2026-11-15 21:40 – Fehler grünes Flackern: Gras liegt in der Halle 20 cm unter dem Hallenboden (vorher 4 mm → Z-Fighting)
 # 2026-11-12 11:00 – race_factor(): Rennfaktor ∛(L·B·H·π/6) für Modellliste und Kennwerte
 # 2026-11-11 16:35 – Rennanzeige oben links nur noch nächster Kontrollpunkt; current_lap_time(), hint_text(), scored_time() (F7B: Gesamtzeit × ∛(L·B·H·π/6))
 # 2026-11-11 12:15 – aerarium-Plakate an allen vier Hallenwänden: große oben (weiße Wand über der 2. Galerie), kleine unten an den Glastüren; Seitenverhältnis kommt aus dem Bild, nie gestreckt
@@ -86,6 +87,11 @@ const COLOR_GREEN := Color("3fb27f")
 var preset := 0
 ## 0 = Halle (Wände und Decke), 1 = Wiese (keine Begrenzung)
 var location := 0
+## Wiesen-Boden (setzt main.gd). In der Halle liegt er 20 cm tiefer: vorher lag
+## der Hallenboden nur 4 mm über dem grünen Gras – beide Flächen „kämpften“ um
+## dieselbe Tiefe, das Gras blitzte grünlich durch (am Handy stark, wegen
+## geringerer Tiefengenauigkeit im Browser).
+var ground_mesh: MeshInstance3D
 ## Pylonabstand auf der Wiese (eigener Wert, Halle behält ihren)
 var meadow_distance := MEADOW_DISTANCE
 ## Abstand bei „frei“ (m)
@@ -138,6 +144,8 @@ func title() -> String:
 # =============================================================================
 func rebuild() -> void:
 	for c in get_children(): c.queue_free()
+	if ground_mesh:
+		ground_mesh.position.y = -0.2 if location == 0 else 0.0
 	var d := distance()
 	var near_mat := StandardMaterial3D.new()
 	near_mat.albedo_color = COLOR_RED

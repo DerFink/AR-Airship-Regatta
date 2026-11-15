@@ -1,3 +1,4 @@
+# 2026-11-15 21:40 – Gegen grünes Flackern: Gras-Boden an die Strecke übergeben (Halle: tiefer), Kamera near 0,1 m
 # 2026-11-14 22:10 – Einstellungen bekommen die Online-Liste (eigene Einträge löschen); Besucherzähler beim Start
 # 2026-11-14 11:20 – Testmodelle: Wunsch-Flugmodus des Modells (Chewie27 → Horizon) übernehmen; Modellliste nach den Einstellungen neu laden
 # 2026-11-12 20:45 – _reset_selected(): Baukasten-Knopf „Zurücksetzen“ (Luftschiff, Regler, Sender, Knüppelbelegung + Strecke einzeln)
@@ -66,6 +67,7 @@ var fc: FlightController
 var watchdog: PerformanceWatchdog
 var ar: ARToggle
 var camera: Camera3D
+var _ground_mesh: MeshInstance3D          ## Wiesen-Boden (Gras)
 var hud: FlightHUD
 var builder: BuilderPanel
 var pid: PIDPanel
@@ -162,10 +164,12 @@ func _build_world() -> void:
 	gm.material_override = mat
 	ground.add_child(gm)
 	_scenery.add_child(ground)
+	_ground_mesh = gm
 
 	# Regatta-Strecke: Pylone, weißes Feld, Rundenzählung (siehe course.gd)
 	course = Course.new()
 	course.name = "Course"
+	course.ground_mesh = _ground_mesh                # Halle: Gras tiefer legen (gegen Flackern)
 	_scenery.add_child(course)
 
 
@@ -230,6 +234,9 @@ func _build_ship() -> void:
 
 	camera = Camera3D.new()
 	camera.fov = FOV
+	# Nahe Schnittebene 10 cm statt 5 cm: doppelt so genaue Tiefe in der Ferne
+	# (weniger Flimmern auf Handys im Browser); näher kommt die Kamera nie heran
+	camera.near = 0.1
 	add_child(camera)
 	camera.make_current()
 
