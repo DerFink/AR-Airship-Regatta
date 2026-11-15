@@ -1,3 +1,4 @@
+# 2026-11-15 23:30 – Zuletzt benutztes Luftschiff (auch Eigenbau) wird gespeichert und beim Start wieder geladen (vorher nach Neuladen immer Chewie)
 # 2026-11-15 22:05 – Browser-Motorklang beim Start setzen; Umschalten in den Einstellungen baut den Klang neu
 # 2026-11-15 21:40 – Gegen grünes Flackern: Gras-Boden an die Strecke übergeben (Halle: tiefer), Kamera near 0,1 m
 # 2026-11-14 22:10 – Einstellungen bekommen die Online-Liste (eigene Einträge löschen); Besucherzähler beim Start
@@ -69,6 +70,8 @@ var watchdog: PerformanceWatchdog
 var ar: ARToggle
 var camera: Camera3D
 var _ground_mesh: MeshInstance3D          ## Wiesen-Boden (Gras)
+const CURRENT_MODEL := "user://aktuelles_modell.txt"   ## zuletzt benutztes Luftschiff (Modell-Code)
+var _save_model_t := -1.0                 ## Sekunden bis zum Speichern des aktuellen Modells (−1 = nichts zu tun)
 var hud: FlightHUD
 var builder: BuilderPanel
 var pid: PIDPanel
@@ -181,6 +184,7 @@ func _build_ship() -> void:
 	ship = AirshipPhysics.new()
 	ship.name = "Airship"
 	AirshipPresets.chewie(ship)              # Startmodell: Chewie
+	_restore_current_model()                 # … außer es gibt ein zuletzt benutztes Modell
 	# Start: Bug 1 m hinter dem vorderen Pylon, Nase Richtung hinterer Pylon
 	ship.transform = course.start_transform(ship)
 	visual = AirshipVisual.new()
@@ -190,6 +194,11 @@ func _build_ship() -> void:
 	ship.add_child(fc)
 	add_child(ship)
 	ship.config_changed.connect(_rebuild_prop_sounds)
+	# Aktuelles Modell merken (auch selbst gebaute), damit es nach Neuladen der
+	# Seite bzw. Neustart der App wieder da ist – kurz verzögert, weil der
+	# Baukasten bei jeder Eingabe meldet
+	ship.config_changed.connect(func(): _save_model_t = 1.0)
+	ship.model_applied.connect(func(): _save_model_t = 0.2)
 	# Boxmaß-Ecke (nur im Baukasten sichtbar), folgt jeder Änderung am Modell
 	gauge = BoxGauge.new()
 	gauge.visible = false
@@ -676,6 +685,10 @@ func _set_view(v: View) -> void:
 # Kamera: hinter dem Schiff (Flug) oder seitlich (Baukasten)
 # =============================================================================
 func _process(dt: float) -> void:
+	if _save_model_t >= 0.0:                         # aktuelles Modell verzögert speichern
+		_save_model_t -= dt
+		if _save_model_t < 0.0:
+			_save_current_model()
 	if not ready_done: return
 	var p := ship.global_position
 	var L := ship.hull.length_m
@@ -753,3 +766,22 @@ func _apply_model_mode() -> void:
 	fc.modes_changed.emit()
 	fc.mode_index = fc.modes.size() - 1
 	fc.save_settings()
+
+
+## Zuletzt benutztes Luftschiff laden (Modell-Code aus CURRENT_MODEL). Nicht in
+## Tests/Werkzeugen ohne Bildschirm – die erwarten immer Chewie.
+func _restore_current_model() -> void:
+	if DisplayServer.get_name() == "headless" or not FileAccess.file_exists(CURRENT_MODEL):
+		return
+	var r := ModelCodec.decode(FileAccess.get_file_as_string(CURRENT_MODEL).strip_edges())
+	if r.ok:
+		ModelCodec.apply(ship, r.name, r.data)
+
+
+## Aktuelles Luftschiff als Modell-Code speichern.
+func _save_current_model() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var f := FileAccess.open(CURRENT_MODEL, FileAccess.WRITE)
+	if f:
+		f.store_string(ModelCodec.encode(ship))

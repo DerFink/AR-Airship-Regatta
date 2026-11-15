@@ -1,3 +1,4 @@
+# 2026-11-15 23:40 – Knopf „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen, zweimal tippen)
 # 2026-11-12 11:00 – Kopfzeile: ▶ Weiterfliegen (nur bei begonnenem Flug) · Startseite · Bestenliste · Sender kalibrieren; Knopf „Dieses Luftschiff fliegen“ mit Rückfrage „Der begonnene Flug wird beendet“ (Verwerfen/Bestätigen); Rennfaktor (F7B) hinter jedem Modellnamen
 # 2026-11-11 17:45 – Modellbeschreibung und Kenndaten übersetzt (Dezimalzeichen je Sprache)
 # 2026-11-11 01:40 – Knopf „Sender kalibrieren“ hier (statt Startseite)
@@ -46,6 +47,8 @@ var _detail_meta: Label
 var _detail_desc: Label
 var _detail_data: Label
 var _selected := -1               ## Index in AirshipPresets.list(); -1 = aktuelles Modell
+var _b_del: Button                ## „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen sichtbar)
+var _del_armed := false           ## erster Tipp gemacht → zweiter löscht
 ## Wurde schon ein Flug begonnen? (setzt main.gd beim Wechsel in die Flugansicht)
 var flight_begun := false
 var _b_back: Button               ## „Weiterfliegen“ (nur sichtbar bei begonnenem Flug)
@@ -148,6 +151,11 @@ func _ready() -> void:
 	for b in [b_fly, b_edit, b_exp]:
 		brow.add_child(b)
 	dcol.add_child(brow)
+	# Löschen nur für eigene Modelle: erster Tipp fragt nach, zweiter löscht
+	_b_del = UITheme.make_button("Aus „Eigene“ löschen")
+	_b_del.visible = false
+	_b_del.pressed.connect(_on_delete)
+	dcol.add_child(_b_del)
 	var note := UITheme.make_label("Export: Modell als Datei speichern. Schick sie an den Admin – geprüfte Modelle werden als Standardmodell für alle aufgenommen.")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_color_override("font_color", Color("ffcf9a"))
@@ -174,6 +182,9 @@ func _scroll(content: Control) -> ScrollContainer:
 ## Listen aufbauen (beim Öffnen).
 func _fill() -> void:
 	_selected = -1
+	if _b_del:
+		_b_del.visible = false
+		_reset_delete()
 	_b_back.visible = flight_begun
 	_confirm.visible = false
 	for c in _loc_list.get_children(): c.queue_free()
@@ -257,6 +268,8 @@ func _item(tex: Texture2D, title: String, sub: String, on: bool) -> Button:
 func _select(i: int) -> void:
 	_selected = i
 	var e: Dictionary = AirshipPresets.list()[i]
+	_b_del.visible = e.source == "Eigene"
+	_reset_delete()
 	var s := AirshipPhysics.new()
 	e.build.call(s)
 	_show_detail(e.name, ShipPreview.texture(s, 700), s)
@@ -288,6 +301,29 @@ func _show_detail(name: String, tex: Texture2D, s: AirshipPhysics) -> void:
 		if e.name == name: e_build = e.build
 	if e_build.is_valid():
 		_detail_name.text = "%s   ×%s" % [name, _factor_text(race_factor_of(e_build))]
+
+
+## „Aus ‚Eigene‘ löschen“: erster Tipp fragt nach, zweiter löscht das gewählte
+## eigene Modell. Ein gerade geladenes Luftschiff bleibt geladen (weiterfliegen).
+func _on_delete() -> void:
+	if _selected < 0:
+		return
+	var e: Dictionary = AirshipPresets.list()[_selected]
+	if e.source != "Eigene":
+		return
+	if not _del_armed:
+		_del_armed = true
+		_b_del.text = I18n.t("Wirklich löschen? Nochmal tippen")
+		return
+	# Modellname ohne „ (Eigene)“
+	var raw: String = str(e.name).trim_suffix(" (Eigene)")
+	ModelLibrary.delete_own(raw)
+	_fill()
+
+
+func _reset_delete() -> void:
+	_del_armed = false
+	_b_del.text = I18n.t("Aus „Eigene“ löschen")
 
 
 ## Ausgewähltes Modell auf das Luftschiff übernehmen.

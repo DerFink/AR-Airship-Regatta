@@ -1,3 +1,4 @@
+# 2026-11-15 23:40 – delete_own(): eigenes Modell löschen
 # 2026-11-11 15:00 – Angaben zum Modell: Kommentarzeile „# Autor: … | Team: … | Beschreibung: …“ direkt über dem Modell-String wird gelesen (meta) und in „Modell & Bau“ angezeigt
 # 2026-10-27 11:08 – Erstversion: Modellsammlung aus Textdateien – Admin-Sammlung (res://models/sammlung.txt) und eigene Modelle (user://meine_modelle.txt); Speichern eigener Modelle
 # =============================================================================
@@ -61,6 +62,30 @@ static func parse_meta(line: String) -> Dictionary:
 		elif k == "team": out.team = v; found = true
 		elif k in ["beschreibung", "description", "desc"]: out.desc = v; found = true
 	return out if found else {}
+
+
+## Eigenes Modell löschen (alle Einträge mit diesem Modellnamen). true = etwas gelöscht.
+static func delete_own(name: String) -> bool:
+	if not FileAccess.file_exists(USER_FILE):
+		return false
+	var keep: PackedStringArray = []
+	var removed := false
+	for line in FileAccess.get_file_as_string(USER_FILE).split("\n"):
+		var t := line.strip_edges()
+		if t == "":
+			continue
+		var r := ModelCodec.decode(t)
+		if r.ok and r.name == name:
+			removed = true
+			continue
+		keep.append(t)
+	if not removed:
+		return false
+	var f := FileAccess.open(USER_FILE, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string("\n".join(keep) + ("\n" if keep.size() > 0 else ""))
+	return true
 
 
 ## Eigenes Modell lokal speichern (gleicher Name ersetzt den alten Eintrag).
