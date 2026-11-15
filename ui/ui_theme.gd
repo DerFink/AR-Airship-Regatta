@@ -1,3 +1,4 @@
+# 2026-11-15 20:40 – Vollbild-Knopf (make_fullscreen_button): Browser (nicht iPhone) und PC
 # 2026-11-12 22:30 – compact_theme(): kleinere Schrift für den Baukasten
 # 2026-11-12 11:30 – Neu: make_number_row() (Zahlenfeld mit −/+), set_row_value()
 # 2026-11-12 10:50 – Neu: make_primary_button() (fett, blauer Rand) für Weiterfliegen und „Dieses Luftschiff fliegen“
@@ -312,6 +313,35 @@ static func make_primary_button(text: String) -> Button:
 
 
 ## Kleine Kachel (Telemetrie-Anzeige oder Menüschalter in der Flugansicht).
+## Vollbild-Knopf (Symbol mit vier Ecken): schaltet zwischen Fenster und Vollbild.
+## Nur im Browser (außer iPhone/iPad – Safari erlaubt dort kein Vollbild) und am
+## PC sichtbar; auf Android-Handys läuft die App ohnehin im Vollbild.
+## Im Browser klappt das nur nach einem Klick – der Knopf ist genau dieser Klick.
+static func make_fullscreen_button() -> Button:
+	var b := make_pill("", true)
+	b.icon = load("res://textures/vollbild.svg")
+	b.expand_icon = false
+	b.add_theme_constant_override("icon_max_width", 26)
+	b.tooltip_text = "Vollbild an/aus (F11)"
+	b.visible = fullscreen_available()
+	b.pressed.connect(toggle_fullscreen)
+	return b
+
+
+## Gibt es auf dieser Plattform einen Vollbild-Knopf?
+static func fullscreen_available() -> bool:
+	if OS.has_feature("web"):
+		return not OS.has_feature("web_ios")
+	return OS.has_feature("pc")
+
+
+## Vollbild an/aus.
+static func toggle_fullscreen() -> void:
+	var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN \
+		or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+
 static func make_pill(text: String, clickable := false) -> Button:
 	var b := Button.new()
 	b.theme_type_variation = "PillButton" if clickable else "Pill"

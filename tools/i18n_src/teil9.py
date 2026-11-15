@@ -77,4 +77,5 @@ E = [
 ('Keine Verbindung – bitte später nochmal versuchen.', 'No connection – please try again later.', 'Pas de connexion – réessaie plus tard.', 'Sin conexión – inténtalo más tarde.', 'Nessuna connessione – riprova più tardi.', 'Bez připojení – zkus to prosím později.', 'Brak połączenia – spróbuj później.', '沒有連線 – 請稍後再試。'),
 ('Impressum', 'Legal notice', 'Mentions légales', 'Aviso legal', 'Note legali', 'Tiráž', 'Nota prawna', '網站資訊'),
 ('Datenschutz', 'Privacy', 'Confidentialité', 'Privacidad', 'Privacy', 'Ochrana údajů', 'Prywatność', '隱私權'),
+('Vollbild an/aus (F11)', 'Fullscreen on/off (F11)', 'Plein écran on/off (F11)', 'Pantalla completa sí/no (F11)', 'Schermo intero on/off (F11)', 'Celá obrazovka zap/vyp (F11)', 'Pełny ekran wł./wył. (F11)', '全螢幕 開/關 (F11)'),
 ]

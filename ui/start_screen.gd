@@ -1,3 +1,4 @@
+# 2026-11-15 20:40 – Vollbild-Knopf oben rechts neben Sender und Sprache (Browser/PC)
 # 2026-11-14 22:10 – unten rechts Links „Impressum“ und „Datenschutz“
 # 2026-11-11 17:45 – Neuer Aufbau nach freigegebenem Entwurf: App-Icon als Logo, Titel groß und fett, Luftschiff fliegt im Hintergrund im Kreis (orange gestrichelte Bahn), keine Pylone; „Fliegen“ fett mit blauem Rand; neu „Bestenliste“; „⚙ Einstellungen“ und „Nach Update suchen“ als Knöpfe; „Support“ (ohne Farbe) öffnet ein Fenster mit PayPal-QR-Code
 # 2026-11-11 01:40 – „Sender kalibrieren“ wandert nach „Modell & Bau“
@@ -153,6 +154,7 @@ func _ready() -> void:
 	add_child(_top)
 	_joy_chip = UITheme.make_pill("")
 	_top.add_child(_joy_chip)
+	_top.add_child(UITheme.make_fullscreen_button())   # Vollbild (Browser/PC)
 	_lang_btn = MenuButton.new()
 	_lang_btn.flat = false
 	_lang_btn.focus_mode = Control.FOCUS_NONE

@@ -1,3 +1,4 @@
+# 2026-11-15 20:50 – Vollbild-Knopf oben rechts (Browser/PC); obere Knopfreihe wird verkleinert, wenn sie nicht passt (Menü/⚙ rutschten bei 5 Modi aus dem Bild)
 # 2026-11-15 20:10 – Fehler Sender wirkungslos: Tastatur übernahm dauerhaft, sobald irgendwo „w“/„s“/Pfeil gedrückt wurde (auch beim Tippen von Namen) → Tasten nur in der Flugansicht ohne Textfeld-Fokus; Bewegung am Sender gibt die Steuerung zurück
 # 2026-11-13 00:50 – Modusknöpfe aus den Flugmodi des Piloten (1–5, frei benannt), Tasten 1–5, Modus-Kanal in N Bereiche
 # 2026-11-11 20:05 – Zählt, womit gesteuert wird (Sender/Tastatur/Touch) für „gespielt mit“ in der Bestenliste
@@ -194,7 +195,8 @@ func _ready() -> void:
 	b_set.expand_icon = false
 	b_set.add_theme_constant_override("icon_max_width", 26)
 	b_set.pressed.connect(func(): settings_requested.emit())
-	for b in [b_reset, _btn_arm, b_set, b_menu]: tr_box.add_child(b)
+	var b_full := UITheme.make_fullscreen_button()      # Vollbild (Browser/PC)
+	for b in [b_reset, _btn_arm, b_full, b_set, b_menu]: tr_box.add_child(b)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
@@ -273,17 +275,22 @@ func _layout() -> void:
 	var sz := size
 	# Knopfreihe oben rechtsbündig (bei schmalen Bildschirmen so weit links wie nötig)
 	_mode_box.size = _mode_box.get_combined_minimum_size()
-	_mode_box.position = Vector2(maxf(m, sz.x - _mode_box.size.x - m), m)
+	# Passt die Reihe nicht (viele Flugmodi, schmaler Bildschirm), wird sie verkleinert,
+	# damit „Menü“ und ⚙ nie aus dem Bild rutschen
+	var kb := minf(1.0, (sz.x - 2.0 * m) / maxf(_mode_box.size.x, 1.0))
+	_mode_box.scale = Vector2(kb, kb)
+	var row_h := _mode_box.size.y * kb
+	_mode_box.position = Vector2(maxf(m, sz.x - _mode_box.size.x * kb - m), m)
 	# Telemetrie links daneben, wenn Platz ist – sonst in die zweite Reihe
 	_tl.size = _tl.get_combined_minimum_size()
 	if _mode_box.position.x - m >= _tl.size.x + m:
 		_tl.position = Vector2(m, m)
 	else:
-		_tl.position = Vector2(m, _mode_box.position.y + _mode_box.size.y + m * 0.5)
+		_tl.position = Vector2(m, _mode_box.position.y + row_h + m * 0.5)
 	_laps.size = _laps.get_combined_minimum_size()
 	_laps.position = Vector2(m, _tl.position.y + _tl.size.y + m * 0.5)
 	race_panel.size = race_panel.get_combined_minimum_size()
-	race_panel.position = Vector2(sz.x - race_panel.size.x - m, _mode_box.position.y + _mode_box.size.y + m * 0.5)
+	race_panel.position = Vector2(sz.x - race_panel.size.x - m, _mode_box.position.y + row_h + m * 0.5)
 	_batt_box.size = _batt_box.get_combined_minimum_size()
 	_batt_box.position = Vector2(m, _laps.position.y + _laps.size.y + m * 0.5)
 	for st in [stick_left, stick_right]:
