@@ -1,3 +1,4 @@
+# 2026-11-16 16:30 – Tastatur: Gas läuft ohne W/S langsam auf 0 zurück (0,3 je Sekunde) statt stehen zu bleiben
 # 2026-11-16 12:25 – Ohne eingebauten FC werden Regler-Modi (Angle, Horizon, PID) ausgeblendet statt nur ausgegraut
 # 2026-11-15 20:50 – Vollbild-Knopf oben rechts (Browser/PC); obere Knopfreihe wird verkleinert, wenn sie nicht passt (Menü/⚙ rutschten bei 5 Modi aus dem Bild)
 # 2026-11-15 20:10 – Fehler Sender wirkungslos: Tastatur übernahm dauerhaft, sobald irgendwo „w“/„s“/Pfeil gedrückt wurde (auch beim Tippen von Namen) → Tasten nur in der Flugansicht ohne Textfeld-Fokus; Bewegung am Sender gibt die Steuerung zurück
@@ -77,10 +78,13 @@ var _mode_btns := {}                      ## Mode → Button
 var _btn_arm: Button
 var _btn_auto: Button                     ## Autopilot
 var _btn_persp: Button                    ## Perspektive (ein Knopf, wechselt reihum)
-## Tastatur: W/S Gas (bleibt stehen, X = Gas Mitte), Pfeile Nick/Gier (federn
+## Tastatur: W/S Gas (geht losgelassen langsam auf 0 zurück, X = sofort 0), Pfeile Nick/Gier (federn
 ## zurück), Leertaste Armed, R Zurücksetzen, 1/2/3 Modus, A Autopilot,
 ## P Perspektive, M Menü
 var _kb_throttle := 0.0
+## Tastatur: Gas läuft ohne W/S mit dieser Rate (je Sekunde) auf 0 zurück
+## (Vollgas → 0 in gut 3 s; Nick/Gier federn mit 4 je Sekunde)
+const KB_THR_RETURN := 0.3
 var _kb_pitch := 0.0
 var _kb_yaw := 0.0
 var _kb_used := false                     ## Tastatur hat zuletzt gesteuert
@@ -429,6 +433,9 @@ func _keyboard(dt: float) -> bool:
 		_kb_throttle = 0.0
 	if w: _kb_throttle = minf(_kb_throttle + 0.8 * dt, 1.0)
 	if sk: _kb_throttle = maxf(_kb_throttle - 0.8 * dt, -1.0)
+	if not (w or sk):
+		# losgelassen: Gas läuft zurück auf 0 – langsamer als Nick/Gier
+		_kb_throttle = move_toward(_kb_throttle, 0.0, dt * KB_THR_RETURN)
 	var tp := (1.0 if up else 0.0) - (1.0 if dn else 0.0)      # Pfeil hoch = Knüppel vor = Nase runter
 	var ty := (1.0 if rt else 0.0) - (1.0 if lf else 0.0)
 	_kb_pitch = move_toward(_kb_pitch, tp, dt * 4.0)
@@ -453,8 +460,9 @@ func _keyboard(dt: float) -> bool:
 	return true
 
 
-## Tastatursteuerung ohne neue Tasten fortführen (Gas bleibt, Knüppel gehen zur Mitte).
+## Tastatursteuerung ohne neue Tasten fortführen (Gas läuft langsam auf 0, Knüppel gehen zur Mitte).
 func _kb_hold(dt: float) -> bool:
+	_kb_throttle = move_toward(_kb_throttle, 0.0, dt * KB_THR_RETURN)
 	_kb_pitch = move_toward(_kb_pitch, 0.0, dt * 4.0)
 	_kb_yaw = move_toward(_kb_yaw, 0.0, dt * 4.0)
 	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw)
