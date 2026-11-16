@@ -1,3 +1,9 @@
+# 2026-11-16 19:55 – Kurzbeschreibung des vorigen Modells wird beim Laden eines Presets geleert
+# 2026-11-16 19:50 – Albacore: Heckmotor wie Chewie (1804 2450 kV, T4×2×3, berechnet)
+# 2026-11-16 19:45 – Chewie: elastisches Leitwerk als Standard, stark ab 30 km/h (Restausschlag ≈ 30 %)
+# 2026-11-16 19:35 – Chewie: Schriftzug „CHEWIE“ ganz groß
+# 2026-11-16 19:30 – Chewie-Leitwerk: Streckung 0,6, Pfeilung 0,5
+# 2026-11-16 19:10 – Flugmodi je Luftschiff: Chewie behält Direkt + Angle, andere bekommen den Vorschlag
 # 2026-11-16 14:45 – Chewie: Motor 1804 2450 kV mit HQProp T4×2×3, Schub/Drehzahl berechnet statt 7 N
 # 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
 # 2026-11-16 10:30 – Sammlung ohne „(Sammlung)“ im Namen; feste Reihenfolge (ORDER): Picard, Velocita, Schubi, Chewie, Example, Albacore
@@ -157,6 +163,8 @@ static func make_motor(name: String, x: float, angle_deg: float, thrust_n: float
 ## sonst blieben beim Wechsel Werte des vorigen Modells stehen (z. B. Schwere,
 ## Flossenmasse von Chewie im Albacore).
 static func _reset_common(ship: AirshipPhysics) -> void:
+	ship.flight_modes = []                    # Flugmodi: Vorschlag Direkt/Angle/Horizon (Chewie setzt eigene)
+	ship.model_description = ""               # Beschreibung des vorigen Modells nicht stehen lassen (kommt aus meta)
 	ship.trim_heaviness_n = 0.05
 	ship.fin_mass_kg = 0.0
 	ship.fin_mass_auto = true                 # Flossengewicht nach Vorschlag (Depron + Pauschale)
@@ -231,10 +239,13 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	heck.spin_dir = 1
 	heck.reverse_allowed = true
 	heck.reverse_efficiency = 0.55
+	# Motor wie Chewie (Nutzer 16.11.2026): GEPRC SpeedX2 1804 2450 kV mit HQProp
+	# T4×2×3 an 4S – Schub und Drehzahl werden daraus berechnet (vorher fest 7 N)
+	heck.stator = "1804"
+	heck.kv = 2450.0
 	heck.prop_diameter_in = 4.0
-	heck.prop_pitch_in = 3.0
-	heck.prop_blades = 2
-	heck.max_rpm = 27000.0
+	heck.prop_pitch_in = 2.0
+	heck.prop_blades = 3
 	heck.spool_time_s = 0.03
 	heck.mass_kg = 0.025                  # Motor + Propeller, ohne Schwenkservo (Annahme)
 	var mots: Array[VectorMotor] = [heck]
@@ -260,7 +271,8 @@ static func chewie(ship: AirshipPhysics) -> void:
 	ship.set_hull(h)
 	ship.model_name = "Chewie"
 	ship.livery = Livery.new()
-	ship.livery.text = "aerarium e.V."       # fester Schriftzug
+	ship.livery.text = "CHEWIE"              # Name ganz groß (Wunsch 16.11.2026, vorher „aerarium e.V.“)
+	ship.livery.text_size = 0.6              # größte Schrift
 	ship.livery.material = "folie"           # Silberfolie wie das echte Schiff
 	ship.livery.fin_material = "weiss"       # weiße Flossen
 	# Regler: Werte 1:1 aus Chewies Teensy-Code (Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3,
@@ -291,10 +303,13 @@ static func chewie(ship: AirshipPhysics) -> void:
 	t.v_angle_deg = 30.0
 	t.kind = ControlSurface.Kind.ALL_MOVING
 	t.area_m2 = 0.0361
-	t.aspect_ratio = 1.0
-	t.taper = 0.8
+	t.aspect_ratio = 0.6                 # Grundeinstellung laut Nutzer (16.11.2026): Streckung 0,6 (vorher 1,0)
+	t.taper = 0.5                        # Pfeilung (Endtiefe/Wurzeltiefe) 0,5 (vorher 0,8)
 	t.max_deflection_deg = 50.0          # Pendel-Flossen ±50° (Angabe Nutzer)
-	t.pseudo_flex = false                # superleichte, starre 3D-Flossen: keine Verformung
+	# Elastisch als Standard (Nutzer 16.11.2026): ab 30 km/h stark nachgebend –
+	# bei 30 km/h kommen nur noch ≈ 30 % des Servoausschlags an
+	t.pseudo_flex = true
+	t.flex_compliance = 0.055
 	t.profile_naca = true                # NACA 0020 aus leichtem Schaum (Angabe Erich Fink 10.11.2026)
 	t.naca_thickness = 0.20
 	ship.tail = t
@@ -313,6 +328,7 @@ static func chewie(ship: AirshipPhysics) -> void:
 		mo.prop_pitch_in = 2.0
 		mo.prop_blades = 3
 	ship.motors = mots
+	ship.flight_modes = FlightController.default_modes()   # Chewie bleibt wie bisher: Direkt + Angle
 	ship.rebuild_mass_properties()
 
 
@@ -331,6 +347,11 @@ static func chewie27(ship: AirshipPhysics) -> void:
 	ship.hull_film_kg_m2 = 0.085 / (ship.hull.surface_m2() * (1.0 + AirshipPhysics.HULL_EXTRA))
 	ship.fin_mass_auto = false
 	ship.fin_mass_kg = 0.010
+	ship.tail.aspect_ratio = 1.0             # Leitwerk wie damals (Streckung 1, Pfeilung 0,8)
+	ship.tail.taper = 0.8
+	ship.tail.pseudo_flex = false            # damals starr
+	ship.tail.flex_compliance = 0.02
+	ship.surfaces.clear()
 	ship.set_meta("mode_art", "horizon")
 	ship.rebuild_mass_properties()
 

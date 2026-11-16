@@ -1,3 +1,4 @@
+# 2026-11-16 19:40 – flex_compliance: Nachgiebigkeit des elastischen Leitwerks einstellbar
 # 2026-11-13 02:00 – Flossen einzeln einstellen (individual, fin_cfg: Fläche, Streckung, Pfeilung, Bauart fest/Klappe/Pendel, Klappentiefe, Ausschlag), symmetrisch gekoppelt
 # 2026-11-12 22:35 – 2–10 Flossen (gleichmäßig); Klappentiefe flap_chord_ratio für Ruderklappen
 # 2026-11-11 07:25 – Profil (Platte/NACA, Dicke) für alle Leitwerksflossen
@@ -89,6 +90,10 @@ func mirror_of(i: int) -> int:
 			return j
 	return -1
 @export var pseudo_flex: bool = false
+## Nachgiebigkeit der elastischen Flossen (je Pa Staudruck): wirksamer Ausschlag
+## = Servoausschlag / (1 + flex_compliance · q). 0,02 = Standard (bei 30 km/h
+## bleiben ≈ 54 %), 0,055 = weich (bei 30 km/h nur noch ≈ 30 %).
+@export_range(0.0, 0.2, 0.001) var flex_compliance: float = 0.02
 ## Profil aller Flossen: NACA 00xx (true) oder flache Platte (false)
 @export var profile_naca: bool = true
 @export_range(0.04, 0.30, 0.01) var naca_thickness: float = 0.12
@@ -163,6 +168,7 @@ func generate() -> Array[ControlSurface]:
 		s.flap_chord_ratio = flap_chord_ratio
 		s.efficiency = efficiency
 		s.pseudo_flex = pseudo_flex
+		s.flex_compliance = flex_compliance
 		s.profile_naca = profile_naca
 		s.naca_thickness = naca_thickness
 		s.plate_thickness_mm = plate_thickness_mm

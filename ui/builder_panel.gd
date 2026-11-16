@@ -1,3 +1,5 @@
+# 2026-11-16 19:40 – Elastisches Leitwerk: Stärke einstellbar (Restausschlag bei 30 km/h)
+# 2026-11-16 19:20 – Reiter Steuerung: Abschnitt „Flugmodi“ (Anzahl 1–5, FC eingebaut, je Modus Name und Mischer/FC mit FC-Art); Mischer-Fenster ohne Anzahl/Name
 # 2026-11-16 18:45 – Mischer: Modusname wird beim Tippen übernommen; Tabelle immer bearbeitbar (erste Änderung legt die eigene Tabelle des Modus an); ohne FC kein Umstellen der Modusart
 # 2026-11-16 18:20 – Mischer: Spalte Grundstellung und Geber S1…S4 je Ausgang (Ruder, Schwenker, Schub), Hinweis zur Desaturierung
 # 2026-11-16 17:40 – Mischer: Spalte Gas, Schub je Motor (Gas/Nick/Gier/Roll in %, Motor je Modus an/aus), alle Modi wählbar (Regler-Modus ohne FC wird manuell, mit FC per Knopf), Tabelle waagrecht scrollbar, lange Texte umbrechen
@@ -92,6 +94,7 @@ var _preview: TailPreview
 var _hull_rows := {}
 var _teensy_check: CheckBox       ## FC einbauen (Teensy 4.0)
 var _b_pid: Button                ## „Regler einstellen“ (ausgegraut ohne FC)
+var _modes_box: VBoxContainer     ## Reiter Steuerung: Flugmodi (Anzahl, FC, je Modus Mischer/FC)
 var _b_blocks: Button             ## „Bausteine einstellen“ (ausgegraut ohne FC)
 var _flow_win: PanelContainer     ## Fenster Signalfluss
 var _flow: FlowDiagram
@@ -592,7 +595,13 @@ func _fill_tail_page() -> void:
 	var flex := CheckBox.new()
 	flex.text = "Elastisches Leitwerk (Pseudo-Flex) – aus = starr"
 	flex.button_pressed = t.pseudo_flex
-	flex.toggled.connect(func(on): t.pseudo_flex = on; _tail_changed(false))
+	flex.toggled.connect(func(on): t.pseudo_flex = on; _tail_changed(true))
+	# Stärke: wie viel vom Ausschlag bei 30 km/h noch ankommt (weicher = weniger)
+	if t.pseudo_flex:
+		const Q30 := 0.5 * 1.225 * (30.0 / 3.6) * (30.0 / 3.6)      # Staudruck bei 30 km/h (Pa)
+		var rest := 100.0 / (1.0 + t.flex_compliance * Q30)
+		_tail_box.add_child(UITheme.make_number_row("Restausschlag bei 30 km/h (weniger = weicher)", 20.0, 100.0, 1.0, rest,
+			func(v): t.flex_compliance = (100.0 / maxf(v, 1.0) - 1.0) / Q30; _tail_changed(false), "%d %%"))
 	_tail_box.add_child(flex)
 
 
@@ -823,23 +832,26 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	#   ③ Regler (PID)      – ausgegraut ohne FC
 	#   ④ Bausteine         – ausgegraut ohne FC, eigenes Untermenü
 	#   Admin: Teensy-Sketch (.ino)
-	# --- ① Mischer ---
-	col.add_child(UITheme.make_title("Mischer"))
-	col.add_child(_note("Analoge Festlegung ohne Regler: Legt fest: Anzahl Flugmodi, welche Ruder bei Nick, Gier und Roll ausschlagen sollen."))
-	var bm := UITheme.make_button("Mischer einstellen")
-	bm.pressed.connect(func(): ui_action.emit("select"); _show_mixer())
-	col.add_child(bm)
-	# --- ② FC einbauen ---
-	col.add_child(UITheme.make_title("FC einbauen"))
+	# --- ① Flugmodi (Wunsch 16.11.2026): Anzahl, FC ja/nein, je Modus Mischer oder FC ---
+	#   Flugmodi (1–5) · FC eingebaut · Tabelle: Nr | Name | [Mischer|FC] | FC-Art
+	col.add_child(UITheme.make_title("Flugmodi"))
 	_teensy_check = CheckBox.new()
-	_teensy_check.text = "FC einbauen (Teensy 4.0)"
+	_teensy_check.text = "FC eingebaut (Teensy 4.0)"
 	_teensy_check.button_pressed = ship.fc_teensy
-	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _update_fc_enabled(); _changed())
-	col.add_child(_teensy_check)
-	col.add_child(_note("Ein Teensy 4.0 mit Lagesensor ist leicht, schnell und einfach einzubauen. Er hält das Luftschiff in der Lage und dämpft Pendeln. Eine passende .ino-Datei für deinen Teensy erstellt der Admin auf Anfrage aus dem Simulator."))
+	_teensy_check.toggled.connect(func(on): ship.fc_teensy = on; _update_fc_enabled(); _changed(); _fill_modes_box())
+	_modes_box = UITheme.make_vbox("xs")
+	col.add_child(_modes_box)
+	_fill_modes_box()
 	_hull_rows.tm = UITheme.make_number_row("Masse Flugcontroller", 0.0, 100.0, 1.0, ship.teensy_mass_kg * 1000.0,
 		func(v): ship.teensy_mass_kg = v / 1000.0; _changed(), "%d g")
 	col.add_child(_hull_rows.tm)
+	col.add_child(_note("Ein Teensy 4.0 mit Lagesensor ist leicht, schnell und einfach einzubauen. Er hält das Luftschiff in der Lage und dämpft Pendeln. Eine passende .ino-Datei für deinen Teensy erstellt der Admin auf Anfrage aus dem Simulator."))
+	# --- ② Mischer ---
+	col.add_child(UITheme.make_title("Mischer"))
+	col.add_child(_note("Analoge Festlegung ohne Regler: welche Ruder und Motoren bei Nick, Gier, Roll, Gas und den Gebern ausschlagen – je Flugmodus eine eigene Tabelle."))
+	var bm := UITheme.make_button("Mischer einstellen")
+	bm.pressed.connect(func(): ui_action.emit("select"); _show_mixer())
+	col.add_child(bm)
 	# --- ③ Regler (PID) ---
 	col.add_child(UITheme.make_title("Regler (PID)"))
 	col.add_child(_note("Der Regler vergleicht die gewünschte mit der gemessenen Lage oder Drehrate und steuert nach: P reagiert sofort, I gleicht bleibende Abweichungen aus, D dämpft schnelle Bewegungen."))
@@ -859,6 +871,101 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	ba.pressed.connect(func(): ui_action.emit("select"); _show_ino())
 	col.add_child(ba)
 	_update_fc_enabled()
+
+
+## Abschnitt „Flugmodi“ (Reiter Steuerung) neu aufbauen:
+##   Anzahl Flugmodi (1–5)
+##   [✓] FC eingebaut (Teensy 4.0)
+##   Nr | Name | gesteuert über [Mischer | FC] | FC-Art (Angle/Horizon/PID)
+## Die Modi gehören zum Luftschiff (ship.flight_modes = fc.modes).
+const FC_ARTS := ["angle", "horizon", "pid"]
+const FC_ART_NAMES := {"angle": "Angle", "horizon": "Horizon", "pid": "PID (Reglermenü)"}
+
+func _fill_modes_box() -> void:
+	if _modes_box == null:
+		return
+	for c in _modes_box.get_children():
+		_modes_box.remove_child(c)
+		if c != _teensy_check: c.queue_free()      # Haken „FC eingebaut“ wird weiterverwendet
+	var fc := ModelCodec._find_fc(ship)
+	if fc == null:
+		return
+	var modes: Array = fc.modes
+	var notify := func():
+		fc.mode_index = fc.mode_index              # Regelart des aktiven Modus nachziehen
+		fc.modes_changed.emit()
+		fc.save_settings()
+		_refresh()
+	_modes_box.add_child(UITheme.make_number_row("Anzahl Flugmodi (1–5)", 1.0, float(FlightController.MAX_MODES), 1.0, modes.size(),
+		func(v):
+			var n := int(v)
+			while modes.size() < n:
+				modes.append({"name": "Modus %d" % (modes.size() + 1), "art": "direkt", "roll_comp": false})
+			while modes.size() > n:
+				modes.pop_back()
+			fc.mode_index = mini(fc.mode_index, n - 1)
+			notify.call()
+			_fill_modes_box.call_deferred(), "%d"))
+	_modes_box.add_child(_teensy_check)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", UITheme.space("sm"))
+	grid.add_theme_constant_override("v_separation", UITheme.space("xs"))
+	for h in ["Modus", "Name", "gesteuert über", ""]:
+		grid.add_child(UITheme.make_label(h, "MutedLabel"))
+	for i in modes.size():
+		var m: Dictionary = modes[i]
+		grid.add_child(UITheme.make_label("%d" % (i + 1)))
+		# Name: gilt sofort beim Tippen
+		var ne := LineEdit.new()
+		ne.max_length = 20
+		ne.text = str(m.get("name", ""))
+		ne.custom_minimum_size = Vector2(130, UITheme.menu_height())
+		ne.text_changed.connect(func(t): m["name"] = t; fc.save_settings())
+		ne.text_submitted.connect(func(_t): fc.modes_changed.emit(); ne.release_focus())
+		ne.focus_exited.connect(func(): fc.modes_changed.emit())
+		grid.add_child(ne)
+		# Mischer | FC (FC nur mit eingebautem Teensy)
+		var via_fc: bool = ship.fc_teensy and str(m.get("art", "direkt")) != "direkt"
+		var seg := UITheme.make_hbox("xs")
+		var g := UITheme.make_toggle_group()
+		var b_mix := UITheme.make_button("Mischer", true)
+		var b_fc := UITheme.make_button("FC", true)
+		for b in [b_mix, b_fc]:
+			b.button_group = g
+			seg.add_child(b)
+		b_mix.button_pressed = not via_fc
+		b_fc.button_pressed = via_fc
+		b_fc.disabled = not ship.fc_teensy
+		b_mix.pressed.connect(func():
+			m["art"] = "direkt"
+			ui_action.emit("select")
+			notify.call()
+			_fill_modes_box.call_deferred())
+		b_fc.pressed.connect(func():
+			if str(m.get("art", "direkt")) == "direkt":
+				m["art"] = "angle"
+			ui_action.emit("select")
+			notify.call()
+			_fill_modes_box.call_deferred())
+		grid.add_child(seg)
+		# FC-Art (nur bei FC)
+		if via_fc:
+			var ob := OptionButton.new()
+			for a in FC_ARTS:
+				ob.add_item(FC_ART_NAMES[a])
+			ob.select(maxi(FC_ARTS.find(str(m.get("art", "angle"))), 0))
+			ob.item_selected.connect(func(k):
+				m["art"] = FC_ARTS[k]
+				if m["art"] == "pid" and not (m.get("axes") is Dictionary):
+					m["axes"] = FlightController.default_axes()
+				notify.call())
+			grid.add_child(ob)
+		else:
+			grid.add_child(Control.new())
+	_modes_box.add_child(grid)
+	if not ship.fc_teensy:
+		_modes_box.add_child(_note("Ohne FC sind alle Modi Mischer-Modi. Jeder Modus hat seine eigene Mischtabelle (Mischer einstellen)."))
 
 
 ## Hinweistext (grau, umbrechend) für die Steuerung.
@@ -966,20 +1073,7 @@ static func _first_direct(fc: FlightController) -> int:
 ##   - Schub je Motor: Prozent des Vollschubs, Haken „an“ = Motor in diesem Modus an
 func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill: Callable) -> void:
 	var outs := FlightController.mix_outputs(ship)
-	body.add_child(_note("Analoge Festlegung ohne Regler: Legt fest: Anzahl Flugmodi, welche Ruder bei Nick, Gier und Roll ausschlagen sollen."))
-	# --- Anzahl Flugmodi: neue Modi sind „Direkt“ (gehen ohne FC) ---
-	body.add_child(UITheme.make_number_row("Anzahl Flugmodi", 1.0, float(FlightController.MAX_MODES), 1.0, fc.modes.size(),
-		func(v):
-			var n := int(v)
-			while fc.modes.size() < n:
-				fc.modes.append({"name": "Modus %d" % (fc.modes.size() + 1), "art": "direkt", "roll_comp": false})
-			while fc.modes.size() > n:
-				fc.modes.pop_back()
-			fc.mode_index = mini(fc.mode_index, n - 1)
-			_mix_mode = mini(_mix_mode, n - 1)
-			fc.modes_changed.emit()
-			fc.save_settings()
-			refill.call_deferred(), "%d"))
+	# Anzahl und Namen der Flugmodi stehen jetzt im Reiter Steuerung („Flugmodi“)
 	# --- Modusknöpfe: alle wählbar (Wunsch 16.11.: jeder Modus manuell einstellbar) ---
 	var mrow := HFlowContainer.new()
 	mrow.add_theme_constant_override("h_separation", UITheme.space("xs"))
@@ -1017,23 +1111,6 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 	# --- Name und eigene Tabelle des gewählten Modus ---
 	var nrow := HFlowContainer.new()
 	nrow.add_theme_constant_override("h_separation", UITheme.space("sm"))
-	nrow.add_child(UITheme.make_label("Name", "MutedLabel"))
-	var ne := LineEdit.new()
-	ne.max_length = 20
-	ne.text = str(m.get("name", ""))
-	ne.custom_minimum_size = Vector2(180, UITheme.menu_height())
-	# Name wird schon beim Tippen übernommen (vorher erst bei Enter/Fokuswechsel –
-	# beim direkten Schließen ging er verloren); Modusknopf zeigt ihn sofort
-	var mi := _mix_mode
-	ne.text_changed.connect(func(t: String):
-		m["name"] = t
-		var dir := str(m.get("art", "")) == "direkt" or not ship.fc_teensy
-		mbtns[mi].text = "%d · %s%s" % [mi + 1, t, "" if dir else "  " + I18n.t("(Regler)")]
-		fc.save_settings())
-	var announce := func(): fc.modes_changed.emit()      # Flugansicht/Reglermenü nachziehen
-	ne.text_submitted.connect(func(_t): announce.call(); ne.release_focus())
-	ne.focus_exited.connect(announce)
-	nrow.add_child(ne)
 	var own := m.get("mix") is Dictionary
 	if not is_base:
 		var oc := CheckBox.new()
@@ -1958,6 +2035,7 @@ func _sync_from_ship() -> void:
 	var fmts := {"vol": "%.2f m³", "ld": "%.1f", "m": "%.2f", "cp": "%.3f", "hf": "%d g/m²", "el": "%d g", "bx": "%.2f",
 		"tw": "%.1f %%", "pl": "%d g", "px": "%.2f", "pa": "%d°", "bmah": "%d mAh", "bm": "%d g", "tm": "%d g"}
 	_teensy_check.set_pressed_no_signal(ship.fc_teensy)
+	_fill_modes_box.call_deferred()            # Flugmodi des neuen Modells (nach adopt_ship_modes)
 	_update_fc_enabled()
 	(_cells_row.get_meta("out") as Label).text = str(ship.battery_cells)
 	_ballast_auto.set_pressed_no_signal(ship.ballast_auto_x)

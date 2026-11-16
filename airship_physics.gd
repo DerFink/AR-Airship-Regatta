@@ -1,3 +1,4 @@
+# 2026-11-16 19:10 – flight_modes: Flugmodi je Luftschiff (Name, Mischer/FC-Art, eigene Tabelle)
 # 2026-11-16 14:40 – Motoren mit kV-Angabe bekommen Drehzahl und Schub aus kV, Propeller und Akkuzellen (VectorMotor.apply_drive)
 # 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
 # 2026-11-12 22:55 – Mischer von Hand: mix_manual, mix_table
@@ -71,6 +72,11 @@ signal bumped(strength: float)
 ## Mischtabelle: Ausgang → [Nick, Gier, Roll] in % des Vollausschlags.
 ## Ausgänge: "s0", "s1" … = surfaces[i] (Flossen, Canards), "m0" … = motors[i] (Schwenker)
 @export var mix_table := {}
+## Flugmodi dieses Luftschiffs (Wunsch 16.11.2026: Modi gehören zum Modell):
+## [{name, art ("direkt"|"angle"|"horizon"|"pid"), roll_comp, mix?, axes?}, …]
+## Leer = noch nicht festgelegt → Vorschlag Direkt / Angle / Horizon.
+## Der Flugcontroller arbeitet direkt auf dieser Liste (gleiche Referenz).
+var flight_modes: Array = []
 ## Gestaltung der Hülle (Farbe, Schriftzug, Logo) – rein optisch.
 @export var livery: Livery = Livery.new()
 ## Symmetrisches Leitwerk. Seine Flossen werden bei jedem Neuaufbau aus dieser

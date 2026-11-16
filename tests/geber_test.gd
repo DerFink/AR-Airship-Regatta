@@ -1,3 +1,4 @@
+# 2026-11-16 19:25 – Flugmodi je Luftschiff: Modell-String, Fingerabdruck, adopt_ship_modes
 # 2026-11-16 18:25 – Erstversion: Mischer mit Grundstellung, Gebern S1–S4 und Desaturierung; Modell-String behält die Erweiterung
 extends SceneTree
 
@@ -56,6 +57,28 @@ func _initialize() -> void:
 		print("FEHLER Modell-String verliert e-Einträge: ", t.get("em0"), " ", t.get("et1")); ok = false
 	else:
 		print("ok   Modell-String mit Grundstellung/Gebern")
+	# --- Flugmodi je Luftschiff: im Modell-String, aber nicht im Fingerabdruck ---
+	var fp0 := ModelCodec.fingerprint(s)
+	s.flight_modes = [{"name": "Dash", "art": "direkt", "roll_comp": false},
+		{"name": "Hover", "art": "direkt", "roll_comp": false, "mix": {"t0": [50.0, 0.0, 0.0, 0.0], "em0": [-100.0, 0.0, 0.0, 0.0, 0.0]}}]
+	var r2 := ModelCodec.decode(ModelCodec.encode(s))
+	var s2 := AirshipPhysics.new()
+	ModelCodec.apply(s2, r2.name, r2.data)
+	if s2.flight_modes.size() != 2 or str(s2.flight_modes[1].name) != "Hover" or not (s2.flight_modes[1].get("mix") is Dictionary) \
+			or absf(float(s2.flight_modes[1].mix.em0[0]) + 100.0) > 0.01:
+		print("FEHLER Flugmodi gehen im Modell-String verloren: ", s2.flight_modes); ok = false
+	else:
+		print("ok   Flugmodi im Modell-String")
+	if ModelCodec.fingerprint(s) != fp0:
+		print("FEHLER Flugmodi verändern den Fingerabdruck"); ok = false
+	else:
+		print("ok   Fingerabdruck ohne Flugmodi")
+	fc.adopt_ship_modes(s2)
+	if fc.modes != s2.flight_modes or fc.modes.size() != 2:
+		print("FEHLER adopt_ship_modes"); ok = false
+	else:
+		print("ok   Regler arbeitet auf den Modi des Luftschiffs")
+	s2.free()
 	print("geber_test: " + ("OK" if ok else "FEHLER"))
 	print("ENDE")
 	quit(0 if ok else 1)

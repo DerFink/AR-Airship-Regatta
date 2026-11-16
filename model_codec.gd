@@ -1,3 +1,5 @@
+# 2026-11-16 19:40 – Leitwerk: Nachgiebigkeit fxc (nur wenn ≠ 0,02)
+# 2026-11-16 19:10 – Flugmodi im Modell-String (modes, nicht im Fingerabdruck); Tabellenprüfung als _sanitize_table
 # 2026-11-16 18:10 – Mischtabelle: Grundstellung/Geber je Ausgang (e<Ausgang>, fünf Werte)
 # 2026-11-16 17:45 – Mischtabelle: Schub je Motor (t<i>, vier Werte) und Motor aus (x<i>) im Modell-String
 # 2026-11-16 16:55 – kV bis 50 000
@@ -121,6 +123,7 @@ static func readable_header(ship: AirshipPhysics, factor := -1.0) -> String:
 static func fingerprint(ship: AirshipPhysics) -> String:
 	var d := _data(ship, false)
 	d.erase("look")
+	d.erase("modes")                     # Flugmodi zählen wie Reglerwerte nicht als Bauart
 	return JSON.stringify(d, "", true).sha256_text()
 
 
@@ -148,6 +151,8 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 			"k": int(t.kind), "area": t.area_m2, "split": t.split_hv, "ah": t.area_h_m2, "av": t.area_v_m2,
 			"ar": t.aspect_ratio, "tp": t.taper, "tx": t.hull_x, "defl": t.max_deflection_deg, "flex": t.pseudo_flex,
 			"naca": t.profile_naca, "tk": t.naca_thickness, "pmm": t.plate_thickness_mm}
+		if absf(t.flex_compliance - 0.02) > 0.0001:
+			data.tail["fxc"] = t.flex_compliance           # nur wenn nicht Standard (Fingerabdruck der übrigen Modelle bleibt)
 	# Freie Flächen (Canards u. Ä.)
 	for s in ship.surfaces:
 		if (s.tail_member and ship.tail) or s.sail_member:
@@ -188,6 +193,9 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 		"lsize": l.logo_size, "lpos": l.logo_pos, "both": l.both_sides, "tf": l.text_on_fins, "lf": l.logo_on_fins,
 		"desc": ship.model_description}
 	data["mix"] = {"on": ship.mix_manual, "t": ship.mix_table}
+	# Flugmodi des Luftschiffs (Name, Art, Rollausgleich, eigene Tabelle, PID-Achsen)
+	if not ship.flight_modes.is_empty():
+		data["modes"] = ship.flight_modes.duplicate(true)
 
 	return data
 
@@ -278,6 +286,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		t.kind = td.k; t.area_m2 = td.area; t.split_hv = td.split
 		t.area_h_m2 = td.ah; t.area_v_m2 = td.av; t.aspect_ratio = td.ar; t.taper = td.tp
 		t.hull_x = td.tx; t.max_deflection_deg = td.defl; t.pseudo_flex = td.flex
+		t.flex_compliance = float(td.get("fxc", 0.02))
 		t.flap_chord_ratio = float(td.get("flap", 0.3))
 		t.individual = bool(td.get("ind", false))
 		t.symmetric = bool(td.get("sym", true))
@@ -311,6 +320,8 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 	var mx: Dictionary = d.get("mix", {})
 	ship.mix_manual = bool(mx.get("on", false))
 	ship.mix_table = (mx.get("t", {}) as Dictionary).duplicate(true)
+	# Flugmodi: aus dem String, sonst leer (dann Vorschlag Direkt/Angle/Horizon)
+	ship.flight_modes = (d.get("modes", []) as Array).duplicate(true)
 	ship.livery = l
 	ship.rebuild_mass_properties()
 
@@ -460,6 +471,8 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 			"tp": _num(td, "tp", 1.0), "tx": _num(td, "tx", 0.9), "defl": _num(td, "defl", 25.0),
 			"flex": _flag(td, "flex", false),
 			"naca": _flag(td, "naca", true), "tk": _num(td, "tk", 0.12), "pmm": _num(td, "pmm", 3.0)}
+		if td.has("fxc"):
+			out.tail["fxc"] = clampf(float(td.fxc), 0.0, 0.2)
 	var mots = d.get("motors", [])
 	if mots is Array:
 		for m in mots.slice(0, MAX_MOTORS):
@@ -490,22 +503,50 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		"desc": _txt(lk, "desc", "", 100)}
 	# Mischer von Hand: Schlüssel s0…/m0…, je drei Prozentwerte; t0… Schub je Motor (vier), x0… Motor aus
 	var mx = d.get("mix", {})
-	var mt := {}
-	if mx is Dictionary and mx.get("t") is Dictionary:
-		for k in (mx.t as Dictionary).keys().slice(0, 120):
-			var v = mx.t[k]
-			var ks := str(k)
-			if ks.length() <= 4 and (ks.begins_with("s") or ks.begins_with("m")) and v is Array and v.size() == 3:
-				mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0)]
-			# Schub je Motor: t<i> = [Gas, Nick, Gier, Roll] in %, x<i> = Motor aus
-			elif ks.length() <= 4 and ks.begins_with("t") and v is Array and v.size() == 4:
-				mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0), clampf(float(v[3]), -200.0, 200.0)]
-			elif ks.length() <= 4 and ks.begins_with("x") and v is bool and v:
-				mt[ks] = true
-			# Erweiterung je Ausgang: e<s|m|t><i> = [Grundstellung, S1, S2, S3, S4] in %
-			elif ks.length() <= 5 and ks.begins_with("e") and v is Array and v.size() == 5:
-				var arr := []
-				for x in v: arr.append(clampf(float(x), -200.0, 200.0))
-				mt[ks] = arr
+	var mt := _sanitize_table(mx.get("t") if mx is Dictionary else null)
 	out["mix"] = {"on": _flag(mx, "on", false) if mx is Dictionary else false, "t": mt}
+	# Flugmodi (höchstens 5)
+	var mdl = d.get("modes")
+	if mdl is Array and mdl.size() > 0:
+		var ml := []
+		for m in mdl.slice(0, 5):
+			if not (m is Dictionary) or not FlightController.ART_ENGINE.has(str(m.get("art", ""))):
+				continue
+			var e := {"name": _txt(m, "name", "Modus", 20), "art": str(m.art), "roll_comp": _flag(m, "roll_comp", false)}
+			if m.get("mix") is Dictionary:
+				e["mix"] = _sanitize_table(m.mix)
+			if m.get("axes") is Dictionary:
+				var ax := {}
+				for an in ["pitch", "roll", "yaw"]:
+					var v = m.axes.get(an)
+					if v is Dictionary:
+						ax[an] = {"on": _flag(v, "on", true), "kind": "rate" if str(v.get("kind", "angle")) == "rate" else "angle",
+							"Kp": clampf(float(v.get("Kp", 0.6)), 0.0, 10.0), "Ki": clampf(float(v.get("Ki", 0.0)), 0.0, 10.0),
+							"Kd": clampf(float(v.get("Kd", 0.0)), 0.0, 10.0), "max": clampf(float(v.get("max", 30.0)), 1.0, 720.0)}
+				e["axes"] = ax
+			ml.append(e)
+		if not ml.is_empty():
+			out["modes"] = ml
 	return out
+
+
+## Mischtabelle prüfen: s/m = [Nick, Gier, Roll], t = [Gas, Nick, Gier, Roll],
+## x = Motor aus, e = [Grundstellung, S1…S4] – alles in % (−200 … 200).
+static func _sanitize_table(tin) -> Dictionary:
+	var mt := {}
+	if not (tin is Dictionary):
+		return mt
+	for k in (tin as Dictionary).keys().slice(0, 120):
+		var v = tin[k]
+		var ks := str(k)
+		if ks.length() <= 4 and (ks.begins_with("s") or ks.begins_with("m")) and v is Array and v.size() == 3:
+			mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0)]
+		elif ks.length() <= 4 and ks.begins_with("t") and v is Array and v.size() == 4:
+			mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0), clampf(float(v[3]), -200.0, 200.0)]
+		elif ks.length() <= 4 and ks.begins_with("x") and v is bool and v:
+			mt[ks] = true
+		elif ks.length() <= 5 and ks.begins_with("e") and v is Array and v.size() == 5:
+			var arr := []
+			for x in v: arr.append(clampf(float(x), -200.0, 200.0))
+			mt[ks] = arr
+	return mt

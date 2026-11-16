@@ -1,3 +1,4 @@
+# 2026-11-16 19:10 – Flugmodi je Luftschiff (fc.adopt_ship_modes beim Start und bei jeder Modellwahl)
 # 2026-11-16 16:45 – WebTextInput: Textfelder im Handy-Browser über das Browser-Eingabefenster (Tastatur öffnete sich nicht)
 # 2026-11-16 15:10 – Kommentare: Wiese 100 m
 # 2026-11-16 01:40 – Ziel mit geändertem Pylonabstand: Hinweis statt Bestenliste; Zurücksetzen „Strecke“ getrennt von der Knüppelbelegung
@@ -399,7 +400,13 @@ func _build_ui() -> void:
 	leader_panel.stick_source = func(): return hud._joy.right.x if hud._joy and hud._joy.active() else 0.0
 	course.race_changed.connect(_on_race_changed)
 	# Modellwahl im Baukasten: PID-Standardwerte des Modells übernehmen
+	# Flugmodi gehören zum Luftschiff. Ein zuletzt benutztes Modell aus älterer
+	# Version (ohne Modi im String) übernimmt die bisherigen Modi des Reglers.
+	if ship.flight_modes.is_empty():
+		ship.flight_modes = fc.modes.duplicate(true)
+	fc.adopt_ship_modes(ship)
 	ship.model_applied.connect(func():
+		fc.adopt_ship_modes(ship)
 		fc.apply_model_gains(ship.fc_gains)
 		if fc.preset == "sim":                       # Reglerwahl „Sim-optimiert“ bleibt bestehen
 			fc.apply_overrides(fc.SIM_OPT)

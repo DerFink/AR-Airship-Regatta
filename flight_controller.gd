@@ -1,3 +1,4 @@
+# 2026-11-16 19:10 – Flugmodi je Luftschiff: default_ship_modes (Direkt/Angle/Horizon), adopt_ship_modes
 # 2026-11-16 18:10 – Mischer: Grundstellung je Ausgang und Geber S1–S4 (Tabellenschlüssel e<Ausgang> = [Grundstellung, S1…S4]), Desaturierung je Gruppe (alle Motoren bzw. alle Schwenker mit gemeinsamem Faktor)
 # 2026-11-16 17:30 – Schub je Motor im Mischer: Gas/Nick/Gier/Roll in % je Motor, Motor je Modus abschaltbar (motor_throttle, active_table); Regler ändert den Schub weiterhin nie
 # 2026-11-16 16:05 – Signal settings_saved (Sprungantwort startet bei Änderung neu)
@@ -160,6 +161,26 @@ func mode_hint(i: int) -> String:
 static func default_modes() -> Array:
 	return [{"name": "Direkt", "art": "direkt", "roll_comp": false},
 		{"name": "Angle", "art": "angle", "roll_comp": false}]
+
+
+## Vorschlag für neue Luftschiffe: Direkt (Mischer), Angle, Horizon (FC).
+static func default_ship_modes() -> Array:
+	return [{"name": "Direkt", "art": "direkt", "roll_comp": false},
+		{"name": "Angle", "art": "angle", "roll_comp": false},
+		{"name": "Horizon", "art": "horizon", "roll_comp": false}]
+
+
+## Flugmodi des Luftschiffs übernehmen: der Regler arbeitet ab jetzt direkt auf
+## ship.flight_modes (gleiche Liste) – Änderungen landen also im Modell.
+func adopt_ship_modes(ship: AirshipPhysics) -> void:
+	if ship.flight_modes.is_empty():
+		ship.flight_modes = default_ship_modes()
+	for m in ship.flight_modes:
+		if str(m.get("art", "")) == "pid" and not (m.get("axes") is Dictionary):
+			m["axes"] = default_axes()
+	modes = ship.flight_modes
+	mode_index = clampi(mode_index, 0, modes.size() - 1)
+	modes_changed.emit()
 
 
 ## Achsen eines PID-Modus (Werte wie die Chewie-Regler als Startpunkt).
