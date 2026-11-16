@@ -307,6 +307,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 16.11. | 0.42.4 | Handy-Browser: Textfelder (z. B. Pilotenname nach dem Rennen) öffnen das Eingabefenster des Browsers (`WebTextInput`, window.prompt) – die Bildschirmtastatur von Godot erschien im Browser nicht. |
 | 16.11. | 0.42.5 | Antrieb: kV bis 50 000 (z. B. BetaFPV 1102 mit 22 000 kV), Drehzahl bis 200 000 U/min; Lastdrehzahl hängt von der Statorgröße ab (`VectorMotor.load_factor`: 1804 → 0,80, 1102 → ≈ 0,59; abgeglichen an 1102 22 000 kV, 1S, 40-mm-Dreiblatt ≈ 45 g). Chewie unverändert (≈ 5,8 N). |
 | 16.11. | 0.42.6 | Antrieb: Stator-Feld ohne grauen Platzhalter (wirkte gesperrt); neue Motorpaare/Einzelmotoren übernehmen Stator, kV, Propeller und Masse des ersten Motors mit kV-Angabe; neues Paar öffnet gleich im Editor. |
+| 16.11. | 0.43.0 | Mischer: Schub je Motor (Zeile „Schub …“: Gas/Nick/Gier/Roll in % des Vollschubs, Tabellenschlüssel `t<i>`, Motor je Modus aus = `x<i>`; `FlightController.motor_throttle`), z. B. Drehen/Seitwärts mit Schub oder senkrecht hoch mit 4 Motoren – nur aus den Knüppeln des Piloten, der Regler ändert den Schub nie (Regel „kein Differenzschub“ für den Simulator auf Wunsch aufgehoben, echter Chewie/.ino unverändert); alle Modi im Mischer wählbar (Regler-Modus ohne FC → Direkt, mit FC per Knopf); Tabelle waagrecht scrollbar, lange Texte umbrechen. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 
