@@ -46,7 +46,7 @@ La forma dell'involucro deriva dalla serie DTMB 58 (Gertler, 1950), realizzata s
 
 [b]Modelli standard[/b]
 [b]Chewie[/b] – il vero dirigibile da corsa: L/D 6, impennaggio lambda con tre pinne interamente mobili leggere (±50°), due motori orientabili in basso ai lati, flight controller Teensy.
-[b]Albacore Standard[/b] – dal sottomarino USS Albacore, L/D 7,5, impennaggio a croce con flap, due motori in basso ai lati.
+[b]Albacore[/b] – dal sottomarino USS Albacore, L/D 7,5, impennaggio a croce con flap, due motori in basso ai lati.
 
 [b]Masse[/b]
 Involucro (distribuito sulla superficie), motori e pinne nel punto di montaggio, elettronica e batteria sotto l'involucro. Da questi il simulatore calcola baricentro e momenti d'inerzia; la massa residua viene bilanciata automaticamente.

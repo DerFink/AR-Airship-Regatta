@@ -90,7 +90,7 @@ Szene: `main.tscn` mit `main.gd` als Wurzel. Darunter Halle/Wiese, Strecke, das 
 | `fc_blocks.gd` | Bausteine des Reglers (an/aus) |
 | `ino_export.gd` | Teensy-Sketch (.ino) aus dem Modell erzeugen (Vorlage `ino/chewie_beta_1_4.ino.txt`) |
 | `joystick_input.gd` | Sender per USB: Kalibrierung, Kanalzuordnung, Schalter SF/SC/SH |
-| `airship_presets.gd` | Standardmodelle (Chewie, Albacore Standard), Hilfsfunktionen `make_fin`, `make_motor` |
+| `airship_presets.gd` | Standardmodelle (Chewie, Albacore), Hilfsfunktionen `make_fin`, `make_motor` |
 | `model_codec.gd` | Modell-String (Export/Import), lesbare Eckdaten, Fingerabdruck |
 | `model_library.gd` | Modellsammlung (Admin `models/sammlung.txt`, eigene `user://meine_modelle.txt`) |
 | `airship_visual.gd` | 3D-Darstellung (Hülle, Flossen mit Klappe, Motoren, Restmasse, Akku, Platzen) |
@@ -295,7 +295,8 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 16.11. | 0.38.3 | Sammlung: Modell „Picard“ (eingesandt als „Chewie“, umbenannt, damit es nicht mit dem Standard-Chewie verwechselt wird; 0,25 m³, L/D 6, Kreuzleitwerk 4 × 361 cm², 2 feste Motoren, Teensy-FC). |
 | 16.11. | 0.38.4 | Fehler: Pylonabstand zurück auf 18 m blieb „frei“ (keine Wertung) → 18 m in der Halle schaltet wieder auf den Cup. Knopf „Szenario zurücksetzen“ in Modell & Bau über dem Pylonabstand. |
 | 16.11. | 0.38.5 | Fehler „8/200“ im Browser: Strato packt JSON mit gzip, der Browser entpackt, Godot versuchte es nochmal (BODY_DECOMPRESS_FAILED) – Zeiten waren gespeichert, die App meldete „nicht eingetragen“ und die Liste kam nie. `accept_gzip = false` in `leaderboard_online.gd` (Updater im Browser ebenso), `.htaccess` packt JSON nicht mehr. |
-| 16.11. | 0.39.0 | Sammlung: „Velocita“ (eingesandt als „Velocita - Nachempfunden von Erich“; Name gekürzt, Rest als Beschreibung). Auswahl ohne „(Sammlung)“ im Namen, feste Reihenfolge `AirshipPresets.ORDER`: Picard, Velocita, Schubi, Chewie, Example, Albacore Standard; eigene Modelle danach. |
+| 16.11. | 0.39.0 | Sammlung: „Velocita“ (eingesandt als „Velocita - Nachempfunden von Erich“; Name gekürzt, Rest als Beschreibung). Auswahl ohne „(Sammlung)“ im Namen, feste Reihenfolge `AirshipPresets.ORDER`: Picard, Velocita, Schubi, Chewie, Example, Albacore; eigene Modelle danach. |
+| 16.11. | 0.39.1 | „Albacore“ heißt jetzt „Albacore“ (Auswahl, Standardname, Über-Texte, models.json). |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

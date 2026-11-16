@@ -46,7 +46,7 @@ La forma de la envolvente procede de la serie DTMB 58 (Gertler, 1950), implement
 
 [b]Modelos estándar[/b]
 [b]Chewie[/b] – el dirigible de carreras real: L/D 6, cola lambda de tres aletas pendulares ligeras (±50°), dos motores basculantes abajo a los lados, controlador de vuelo Teensy.
-[b]Albacore Standard[/b] – según el submarino USS Albacore, L/D 7,5, cola en cruz con flaps, dos motores abajo a los lados.
+[b]Albacore[/b] – según el submarino USS Albacore, L/D 7,5, cola en cruz con flaps, dos motores abajo a los lados.
 
 [b]Masas[/b]
 Envolvente (repartida por la superficie), motores y aletas en su lugar de montaje, electrónica y batería bajo la envolvente. Con ello el simulador calcula el centro de gravedad y los momentos de inercia; la masa restante se compensa automáticamente.

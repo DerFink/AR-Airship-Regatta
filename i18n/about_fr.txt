@@ -46,7 +46,7 @@ La forme de l'enveloppe vient de la série DTMB 58 (Gertler, 1950), mise en œuv
 
 [b]Modèles standard[/b]
 [b]Chewie[/b] – le vrai dirigeable de course : L/D 6, empennage lambda de trois ailerons monoblocs légers (±50°), deux moteurs orientables bas sur les côtés, contrôleur de vol Teensy.
-[b]Albacore Standard[/b] – d'après le sous-marin USS Albacore, L/D 7,5, empennage en croix avec volets, deux moteurs bas sur les côtés.
+[b]Albacore[/b] – d'après le sous-marin USS Albacore, L/D 7,5, empennage en croix avec volets, deux moteurs bas sur les côtés.
 
 [b]Masses[/b]
 Enveloppe (répartie sur la surface), moteurs et ailerons à leur emplacement, électronique et batterie sous l'enveloppe. Le simulateur en déduit le centre de gravité et les moments d'inertie ; la masse restante est équilibrée automatiquement.

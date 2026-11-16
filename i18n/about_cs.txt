@@ -46,7 +46,7 @@ Tvar obalu pochází z řady DTMB 58 (Gertler, 1950), převzatý podle Gertler S
 
 [b]Standardní modely[/b]
 [b]Chewie[/b] – skutečná závodní vzducholoď: L/D 6, lambda ocasní plochy ze tří lehkých celopohyblivých ploutví (±50°), dva naklápěcí motory dole po stranách, letový kontrolér Teensy.
-[b]Albacore Standard[/b] – podle ponorky USS Albacore, L/D 7,5, křížové ocasní plochy s klapkami, dva motory dole po stranách.
+[b]Albacore[/b] – podle ponorky USS Albacore, L/D 7,5, křížové ocasní plochy s klapkami, dva motory dole po stranách.
 
 [b]Hmotnosti[/b]
 Obal (rozložený po povrchu), motory a ploutve v místě montáže, elektronika a baterie dole na obalu. Z toho simulátor počítá těžiště a momenty setrvačnosti; zbývající hmotnost se vyváží automaticky.

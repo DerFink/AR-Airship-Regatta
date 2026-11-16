@@ -47,7 +47,7 @@ Die Form der Hülle stammt aus der DTMB-Serie 58 (Gertler, 1950), umgesetzt nach
 
 [b]Standardmodelle[/b]
 [b]Chewie[/b] – das echte Rennluftschiff: L/D 6, Lambda-Leitwerk aus drei leichten Pendelflossen (±50°), zwei schwenkbare Motoren seitlich unten, Teensy-Flugcontroller.
-[b]Albacore Standard[/b] – nach dem U-Boot USS Albacore, L/D 7,5, Kreuzleitwerk mit Ruderklappen, zwei Motoren seitlich unten.
+[b]Albacore[/b] – nach dem U-Boot USS Albacore, L/D 7,5, Kreuzleitwerk mit Ruderklappen, zwei Motoren seitlich unten.
 
 [b]Massen[/b]
 Hülle (verteilt über die Fläche), Motoren und Flossen am Einbauort, Elektronik und Akku unten an der Hülle. Daraus berechnet der Simulator Schwerpunkt und Trägheitsmomente; die Restmasse wird automatisch getrimmt.

@@ -47,7 +47,7 @@ The envelope shape comes from the DTMB Series 58 (Gertler, 1950), implemented af
 
 [b]Standard models[/b]
 [b]Chewie[/b] – the real racing airship: L/D 6, lambda tail of three light all-moving fins (±50°), two swivelling motors low on the sides, Teensy flight controller.
-[b]Albacore Standard[/b] – after the submarine USS Albacore, L/D 7.5, cross tail with flaps, two motors low on the sides.
+[b]Albacore[/b] – after the submarine USS Albacore, L/D 7.5, cross tail with flaps, two motors low on the sides.
 
 [b]Masses[/b]
 Envelope (spread over the surface), motors and fins where they are mounted, electronics and battery underneath the hull. From these the simulator computes centre of gravity and moments of inertia; the remaining mass is trimmed automatically.

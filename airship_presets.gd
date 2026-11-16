@@ -1,3 +1,4 @@
+# 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
 # 2026-11-16 10:30 – Sammlung ohne „(Sammlung)“ im Namen; feste Reihenfolge (ORDER): Picard, Velocita, Schubi, Chewie, Example, Albacore
 # 2026-11-14 11:20 – Testmodell Chewie27 (Chewie mit festen Massen 85 g / 10 g, Flugmodus Horizon), nur sichtbar mit AppSettings.show_test_models, nie in der Bestenliste
 # 2026-11-12 22:00 – make_motor: schwenkbar nur mit Schwenkweg > 0
@@ -50,7 +51,7 @@ extends RefCounted
 const META := {
 	"Chewie": {"author": "Erich Fink", "team": "aerarium e.V.",
 		"desc": "Rennluftschiff für die Halle: 0,25 m³ Helium, 260 g, drei Pendelflossen in λ-Anordnung und zwei entlang der Hülle schwenkbare Motoren. Wendet unter 2 m Radius."},
-	"Albacore Standard": {"author": "Simulator-Team", "team": "RC Airship Regatta",
+	"Albacore": {"author": "Simulator-Team", "team": "RC Airship Regatta",
 		"desc": "Standardhülle nach dem U-Boot USS Albacore (Gertler-Form), schwarz wie das Vorbild, Kreuzleitwerk mit Ruderklappen und ein Heckmotor wie beim Original."},
 	"Chewie27": {"author": "Erich Fink", "team": "aerarium e.V.",
 		"desc": "Testmodell: Chewie wie bis 11.11.2026 – Hülle fest 85 g, Flossen je 10 g, fliegt im Flugmodus Horizon (Mode 3)."},
@@ -69,12 +70,12 @@ static func meta(name: String) -> Dictionary:
 
 
 ## Reihenfolge der Luftschiffe in der Auswahl (von oben nach unten)
-const ORDER := ["Picard", "Velocita", "Schubi", "Chewie", "Example", "Albacore Standard"]
+const ORDER := ["Picard", "Velocita", "Schubi", "Chewie", "Example", "Albacore"]
 
 
 static func list() -> Array[Dictionary]:
 	var out: Array[Dictionary] = [
-		{"name": "Albacore Standard", "build": albacore_default, "source": "Standard"},
+		{"name": "Albacore", "build": albacore_default, "source": "Standard"},
 		{"name": "Chewie", "build": chewie, "source": "Standard"},
 	]
 	# Testmodelle nur mit verstecktem Schalter (7× auf die Version tippen);
@@ -176,7 +177,7 @@ static func albacore_default(ship: AirshipPhysics) -> void:
 	h.length_to_diameter = 7.5
 	h.volume_m3 = 0.25
 	ship.set_hull(h)
-	ship.model_name = "Albacore Standard"
+	ship.model_name = "Albacore"
 	ship.livery = Livery.new()
 	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
 	# Schwarz wie das Vorbild (Wunsch Nutzer 11.11.2026): Hülle und Leitwerk schwarz,

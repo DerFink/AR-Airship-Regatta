@@ -46,7 +46,7 @@ Kształt powłoki pochodzi z serii DTMB 58 (Gertler, 1950), zrealizowany według
 
 [b]Modele standardowe[/b]
 [b]Chewie[/b] – prawdziwy sterowiec wyścigowy: L/D 6, usterzenie lambda z trzech lekkich płetw całkowicie ruchomych (±50°), dwa wychylane silniki nisko po bokach, kontroler lotu Teensy.
-[b]Albacore Standard[/b] – wg okrętu podwodnego USS Albacore, L/D 7,5, usterzenie krzyżowe z klapami, dwa silniki nisko po bokach.
+[b]Albacore[/b] – wg okrętu podwodnego USS Albacore, L/D 7,5, usterzenie krzyżowe z klapami, dwa silniki nisko po bokach.
 
 [b]Masy[/b]
 Powłoka (rozłożona na powierzchni), silniki i płetwy w miejscu montażu, elektronika i akumulator pod powłoką. Z tego symulator oblicza środek ciężkości i momenty bezwładności; pozostała masa jest wyważana automatycznie.

@@ -182,3 +182,8 @@ Zeitüberschreitung
 Verbindungsfehler
 Fehler %d
 VisualInstance3D
+Albacore
+Picard
+Velocita
+Schubi
+Example

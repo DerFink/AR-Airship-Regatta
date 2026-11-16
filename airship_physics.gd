@@ -1,3 +1,4 @@
+# 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
 # 2026-11-12 22:55 – Mischer von Hand: mix_manual, mix_table
 # 2026-11-12 22:15 – Akku wahlweise an eigener Stelle (battery_own_x, battery_x); Restmasse/Ballast gleicht weiter aus
 # 2026-11-12 21:30 – model_description (Kurzbeschreibung bis 100 Zeichen)
@@ -60,7 +61,7 @@ signal bumped(strength: float)
 @export var surfaces: Array[ControlSurface] = []
 @export var motors: Array[VectorMotor] = []
 ## Name des Modells (erscheint im Modell-String und in der Auswahl).
-@export var model_name := "Albacore Standard"
+@export var model_name := "Albacore"
 ## Kurzbeschreibung des Modells (bis 100 Zeichen, im Baukasten und in der Modellliste)
 @export var model_description := ""
 ## Mischer von Hand (Reiter Steuerung → Mischer einstellen): an = mix_table gilt
