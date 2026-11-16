@@ -1,3 +1,4 @@
+# 2026-11-16 20:30 – Kommentar: F7B-Faktor √(L_ref) statt L_ref
 # 2026-11-16 16:00 – Knopf „Auf Werkseinstellung zurücksetzen“ je Standardmodell, Hinweis wenn das geladene Luftschiff abweicht (keine Wertung)
 # 2026-11-16 15:10 – Wiese 100 m statt 200 m
 # 2026-11-16 09:50 – Knopf „Szenario zurücksetzen“ über dem Pylonabstand
@@ -22,7 +23,7 @@
 #   │ Pylonabstand [18] │                     │ Hinweis: an den Admin schicken     │
 #   └─────────────────────────────────────────────────────────────────────────────┘
 # Hinter jedem Modellnamen steht der Rennfaktor (F7B): die Zahl, mit der die
-# gemessene Zeit malgenommen wird (∛(L·B·H·π/6), Boxmaß in m).
+# gemessene Zeit malgenommen wird (√(∛(L·B·H·π/6) / 1 m), Boxmaß in m).
 # „Weiterfliegen“ gibt es nur, wenn schon ein Flug begonnen wurde. Wird dann
 # ein anderes Luftschiff gewählt, fragt ein Fenster, ob der Flug enden soll.
 # =============================================================================
@@ -449,7 +450,7 @@ func _build_confirm() -> void:
 	v.add_child(row)
 
 
-## Rennfaktor eines Modells (F7B): ∛(L·B·H·π/6) aus dem Boxmaß aller sichtbaren
+## Rennfaktor eines Modells (F7B): √(∛(L·B·H·π/6) / 1 m) aus dem Boxmaß aller sichtbaren
 ## Teile. Das Modell wird dazu kurz unsichtbar aufgebaut und ausgemessen.
 func race_factor_of(build: Callable) -> float:
 	var s := AirshipPhysics.new()

@@ -1,3 +1,4 @@
+# 2026-11-16 20:30 – F7B-Wertung korrigiert: Zeit × √(L_ref/1 m) mit L_ref = V_ref^(1/3), also V_ref^(1/6) (vorher V_ref^(1/3))
 # 2026-11-16 15:10 – Wiese: Vorgabe-Pylonabstand 100 m statt 200 m (gewertet wird „wiese_100.0“); alte gespeicherte Vorgabe 200 m wird auf 100 m umgestellt
 # 2026-11-16 09:50 – Pylonabstand zurück auf 18 m in der Halle schaltet wieder auf den Cup (vorher blieb „frei“ gemerkt → keine Wertung)
 # 2026-11-16 01:40 – is_ranked(): nur Standard-Pylonabstand zählt für die Bestenliste (Hinweis vor dem Start); reset_scenario()
@@ -604,18 +605,19 @@ func current_lap_time() -> float:
 	return time_s - _lap_start
 
 
-## Gewertete Zeit nach dem F7B-Reglement: Gesamtzeit × ∛V_ref, dabei ist V_ref
-## das Ellipsoid in der Box über alles: V_ref = L · B · H · π/6 (m³).
+## Gewertete Zeit nach dem F7B-Reglement:
+##   V_ref = L · B · H · π/6 (m³, Ellipsoid in der Box über alles)
+##   L_ref = V_ref^(1/3)
+##   gewertet = Gesamtzeit × √(L_ref / 1 m) = Gesamtzeit × V_ref^(1/6)
 ## Kleine Schiffe werden damit belohnt, große bekommen eine längere Zeit.
-## Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird,
-## ∛(L·B·H·π/6) mit dem Boxmaß in m.
+## Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird.
 static func race_factor(box_m: Vector3) -> float:
-	return pow(maxf(box_m.x * box_m.y * box_m.z * PI / 6.0, 1e-6), 1.0 / 3.0)
+	return pow(maxf(box_m.x * box_m.y * box_m.z * PI / 6.0, 1e-6), 1.0 / 6.0)
 
 
 static func scored_time(total_s: float, box_m: Vector3) -> float:
 	var v_ref := box_m.x * box_m.y * box_m.z * PI / 6.0
-	return total_s * pow(maxf(v_ref, 1e-6), 1.0 / 3.0)
+	return total_s * pow(maxf(v_ref, 1e-6), 1.0 / 6.0)
 
 
 ## Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten

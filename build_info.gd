@@ -1,3 +1,4 @@
+# 2026-11-16 20:35 – Version 1.0.1
 # 2026-11-16 20:10 – Version 1.0.0: erste offizielle Veröffentlichung
 # 2026-11-16 20:00 – Version 0.45.0
 # 2026-11-16 19:00 – Version 0.44.1
@@ -71,7 +72,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "1.0.0"
+const VERSION := "1.0.1"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)

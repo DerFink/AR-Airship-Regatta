@@ -1,4 +1,5 @@
 <?php
+// 2026-11-16 20:30 – F7B-Wertung korrigiert: Zeit × √(V_ref^(1/3) / 1 m) = Zeit × V_ref^(1/6); vorhandene Einträge einmalig umgerechnet
 // 2026-11-14 21:40 – Einwilligung (CONSENT_VERSION), Geräte-Kennung zum Selbstlöschen, Speicherdauer 2 Jahre, Besucherzähler (Tag/Plattform), Sperre nach 5 falschen Admin-Passwörtern, keine Fehlerausgabe, Hinweis ohne config.php
 // 2026-11-11 19:10 – Erstversion: gemeinsame Funktionen der Online-Bestenliste (Datenbank, Quartal, Prüfung der Einträge, F7B-Wertung)
 // =============================================================================
@@ -63,6 +64,19 @@ function db(): PDO {
         $pdo->exec("ALTER TABLE entries ADD COLUMN device_hash VARCHAR(16) NOT NULL DEFAULT ''");
         $pdo->exec("ALTER TABLE entries ADD COLUMN consent INT NOT NULL DEFAULT 0");
     }
+    // Wertung bis 1.0.0 mit Faktor V_ref^(1/3) gerechnet; richtig ist √(L_ref) =
+    // V_ref^(1/6). Einmalig umrechnen: neuer Faktor = √(alter Faktor), alter
+    // Faktor = score/total. Die neue Spalte f7b merkt sich, dass es erledigt ist.
+    try { $pdo->query("SELECT f7b FROM entries LIMIT 1"); }
+    catch (Throwable $e) {
+        $pdo->exec("ALTER TABLE entries ADD COLUMN f7b INT NOT NULL DEFAULT 2");
+        $rows = $pdo->query("SELECT id, total, score FROM entries")->fetchAll();
+        $up = $pdo->prepare("UPDATE entries SET score = ? WHERE id = ?");
+        foreach ($rows as $r) {
+            $t = (float)$r['total'];
+            if ($t > 0) $up->execute([round($t * sqrt(max((float)$r['score'] / $t, 0.0)), 2), $r['id']]);
+        }
+    }
     // Besucherzähler: nur Tag, Plattform und Anzahl – keine IP, keine Kennung
     $pdo->exec("CREATE TABLE IF NOT EXISTS hits (
         day VARCHAR(10) NOT NULL,
@@ -100,10 +114,11 @@ function models(): array {
     return $m;
 }
 
-/** F7B-Wertung: Gesamtzeit × (L·B·H·π/6)^(1/3). */
+/** F7B-Wertung: L_ref = V_ref^(1/3) mit V_ref = L·B·H·π/6 (m³);
+ *  gewertet = Gesamtzeit × √(L_ref / 1 m) = Gesamtzeit × V_ref^(1/6). */
 function scored(float $total, array $box): float {
     $v = $box[0] * $box[1] * $box[2] * M_PI / 6.0;
-    return $total * pow(max($v, 1e-6), 1.0 / 3.0);
+    return $total * pow(max($v, 1e-6), 1.0 / 6.0);
 }
 
 /** Name säubern: keine Steuerzeichen, Leerraum zusammenfassen, höchstens MAX_NAME Zeichen. */

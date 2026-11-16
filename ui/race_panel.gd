@@ -1,3 +1,4 @@
+# 2026-11-16 20:30 – Formelzeile korrigiert: Gesamt × √(V_Box^(1/3) / 1 m)
 # 2026-11-16 12:20 – Weniger präsent: kein dunkler, durchsichtiger Kasten mehr, nur weiße Schrift mit weichem Schatten; Titel normal groß
 # 2026-11-11 16:30 – Erstversion: Rennanzeige rechts oben – Rundenzeiten untereinander, Gesamtzeit und gewertete Zeit nach der F7B-Formel
 # =============================================================================
@@ -10,8 +11,8 @@
 #   │ Runde 3             0:09,7 … │   laufende Runde (gelb)
 #   │ ───────────────────────────  │
 #   │ Gesamt              0:45,0   │
-#   │ Gewertet            0:35,6   │   = Gesamt × V_Box^(1/3) (F7B)
-#   │ = Gesamt × V_Box^(1/3) (Box …)    │
+#   │ Gewertet            0:35,6   │   = Gesamt × √(V_Box^(1/3) / 1 m) (F7B)
+#   │ = Gesamt × √(V_Box^(1/3) / 1 m) (Box …) │
 #   └──────────────────────────────┘
 # Wird vor dem Start ausgeblendet; bleibt nach dem Ziel stehen, bis
 # zurückgesetzt wird.
@@ -112,7 +113,7 @@ func refresh() -> void:
 	_total.text = Course.format_time(course.time_s)
 	if box_m.x > 0.0:
 		_scored.text = Course.format_time(Course.scored_time(course.time_s, box_m))
-		_formula.text = I18n.dec(I18n.t("= Gesamt × V_Box^(1/3) (Box %.2f × %.2f × %.2f m)") % [box_m.x, box_m.y, box_m.z])
+		_formula.text = I18n.dec(I18n.t("= Gesamt × √(V_Box^(1/3) / 1 m) (Box %.2f × %.2f × %.2f m)") % [box_m.x, box_m.y, box_m.z])
 	else:
 		_scored.text = "–"
 		_formula.text = ""
