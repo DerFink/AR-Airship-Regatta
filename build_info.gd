@@ -1,3 +1,4 @@
+# 2026-11-16 17:05 – Version 0.42.5
 # 2026-11-16 16:50 – Version 0.42.4
 # 2026-11-16 16:35 – Version 0.42.3
 # 2026-11-16 16:20 – Version 0.42.2
@@ -64,7 +65,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "0.42.4"
+const VERSION := "0.42.5"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)

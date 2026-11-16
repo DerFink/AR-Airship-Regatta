@@ -1,3 +1,4 @@
+# 2026-11-16 16:55 – kV bis 50 000
 # 2026-11-16 14:40 – Motoren: kV und Stator im Modell-String (nur wenn kV gesetzt)
 # 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
 # 2026-11-14 17:20 – Canard-Paare (pair_id als "p", nur wenn gesetzt)
@@ -61,7 +62,7 @@ const LIMITS := {
 	"defl": [0.0, 80.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
 	"reff": [0.1, 1.0], "d": [0.7, 30.0], "pit": [0.2, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
-	"kv": [0.0, 10000.0], "v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
+	"kv": [0.0, 50000.0], "v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
 	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 1.5], "lpos": [0.05, 0.9],
 }
 
@@ -291,7 +292,7 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		mo.prop_diameter_in = m.d; mo.prop_pitch_in = m.pit; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
 		mo.spin_dir = int(m.dir)
 		mo.mass_kg = m.mk
-		mo.kv = clampf(float(m.get("kv", 0.0)), 0.0, 10000.0)
+		mo.kv = clampf(float(m.get("kv", 0.0)), 0.0, 50000.0)
 		mo.stator = str(m.get("st", "")).left(8)
 		mo.set_user_dir(Vector3(m.td[0], m.td[1], m.td[2]))
 		mots.append(mo)

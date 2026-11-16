@@ -1,3 +1,4 @@
+# 2026-11-16 16:55 – kV-Eingabe bis 50 000
 # 2026-11-16 15:10 – Zurücksetzen-Text: Wiese 100 m
 # 2026-11-16 14:50 – Antrieb: Stator und kV statt „Schub vor“/„Drehzahl max“; Drehzahl und Schub werden aus kV, Zellen und Propeller berechnet und angezeigt (kV 0 = wie bisher von Hand)
 # 2026-11-16 14:10 – Mischer mit Flugmodi ohne Regler (Anzahl, Name, eigene Tabelle je Direkt-Modus); Seiten dichter; Felder in Menühöhe
@@ -1316,14 +1317,14 @@ func _on_part_selected(i: int) -> void:
 	show_smass.call()
 	var commit_st := func():
 		if se.text.strip_edges() != mo.stator:
-			set_all.call("stator", se.text.strip_edges(), false)
+			set_all.call("stator", se.text.strip_edges(), mo.kv > 0.0)   # Stator ändert die Lastdrehzahl
 			show_smass.call()
 	se.text_submitted.connect(func(_t): commit_st.call(); se.release_focus())
 	se.focus_exited.connect(commit_st)
 	srow.add_child(se)
 	srow.add_child(smass)
 	_editor_box.add_child(srow)
-	_editor_box.add_child(UITheme.make_number_row("kV (0 = Schub von Hand)", 0.0, 10000.0, 10.0, mo.kv,
+	_editor_box.add_child(UITheme.make_number_row("kV (0 = Schub von Hand)", 0.0, 50000.0, 10.0, mo.kv,
 		func(v):
 			var was := mo.kv > 0.0
 			set_all.call("kv", v, true)
@@ -1722,7 +1723,7 @@ func _update_drive_lbl() -> void:
 	if _drive_lbl == null or not is_instance_valid(_drive_lbl) or _drive_motor == null:
 		return
 	var mo := _drive_motor
-	var e := VectorMotor.estimate(mo.kv, ship.battery_cells, mo.prop_diameter_in, mo.prop_pitch_in, mo.prop_blades)
+	var e := VectorMotor.estimate(mo.kv, ship.battery_cells, mo.prop_diameter_in, mo.prop_pitch_in, mo.prop_blades, mo.stator)
 	# Zahlen einzeln mit dem Dezimalzeichen der Sprache (sonst würden auch die
 	# Satzpunkte zu Kommas)
 	_drive_lbl.text = I18n.t("Berechnet für %dS voll (%s V): Leerlauf %d U/min · unter Last ≈ %d U/min · Standschub ≈ %s N (%d g) je Motor. Näherung, etwa ±20 %%.") % [
