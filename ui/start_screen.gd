@@ -1,3 +1,4 @@
+# 2026-11-16 15:30 – Knopf „Support me“ statt „Support“
 # 2026-11-16 01:00 – Startseite: 3D-Bild des Luftschiffs (mit Logos) statt nur gezeichneter Ansicht
 # 2026-11-15 20:40 – Vollbild-Knopf oben rechts neben Sender und Sprache (Browser/PC)
 # 2026-11-14 22:10 – unten rechts Links „Impressum“ und „Datenschutz“
@@ -16,7 +17,7 @@
 #   │ [ Bestenliste                 ]       ╰ ─ ─ ─ ─ ─ ─ ─╯         │
 #   │ [ Über den Simulator          ]   (fliegt im Kreis, orange      │
 #   │ [⚙ Einstellungen][⟳ Update    ]    gestrichelte Bahn)          │
-#   │ [ Support                     ]                                │
+#   │ [ Support me                  ]                                │
 #   │ Version …  (Update-Status)                                     │
 #   └────────────────────────────────────────────────────────────────┘
 # Jeder Knopf meldet sich per Signal; main.gd schaltet die Ansichten um.
@@ -145,7 +146,7 @@ func _ready() -> void:
 	row.add_child(b_set)
 	row.add_child(b_upd)
 	_menu.add_child(row)
-	var b_sup := _big_button("Support")
+	var b_sup := _big_button("Support me")   # Wunsch 16.11.: „Support me“ (in allen Sprachen)
 	b_sup.pressed.connect(func(): _support.open())
 	_menu.add_child(b_sup)
 	_hint = UITheme.make_label("")

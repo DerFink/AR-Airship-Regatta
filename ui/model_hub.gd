@@ -1,3 +1,4 @@
+# 2026-11-16 16:00 – Knopf „Auf Werkseinstellung zurücksetzen“ je Standardmodell, Hinweis wenn das geladene Luftschiff abweicht (keine Wertung)
 # 2026-11-16 15:10 – Wiese 100 m statt 200 m
 # 2026-11-16 09:50 – Knopf „Szenario zurücksetzen“ über dem Pylonabstand
 # 2026-11-16 01:40 – Hinweis unter dem Pylonabstand, wenn er geändert ist (keine Wertung)
@@ -54,6 +55,8 @@ var _selected := -1               ## Index in AirshipPresets.list(); -1 = aktuel
 var _dist_warn: Label             ## Hinweis: geänderter Pylonabstand = keine Wertung
 var _b_del: Button                ## „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen sichtbar)
 var _del_armed := false           ## erster Tipp gemacht → zweiter löscht
+var _b_factory: Button            ## „Auf Werkseinstellung zurücksetzen“ (Standard- und Sammlungsmodelle)
+var _factory_note: Label          ## Hinweis: geladenes Luftschiff weicht ab / zurückgesetzt ✓
 ## Wurde schon ein Flug begonnen? (setzt main.gd beim Wechsel in die Flugansicht)
 var flight_begun := false
 var _b_back: Button               ## „Weiterfliegen“ (nur sichtbar bei begonnenem Flug)
@@ -175,6 +178,16 @@ func _ready() -> void:
 	_b_del.visible = false
 	_b_del.pressed.connect(_on_delete)
 	dcol.add_child(_b_del)
+	# Werkseinstellung: Standard- und Sammlungsmodelle wieder genau wie ab Werk
+	# (Bauteile, Antrieb, Aussehen) – nur so zählt die Zeit für die Bestenliste.
+	_b_factory = UITheme.make_button("Auf Werkseinstellung zurücksetzen")
+	_b_factory.visible = false
+	_b_factory.pressed.connect(_on_factory)
+	dcol.add_child(_b_factory)
+	_factory_note = UITheme.make_label("", "MutedLabel")
+	_factory_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_factory_note.add_theme_color_override("font_color", Color("ffcf9a"))
+	dcol.add_child(_factory_note)
 	var note := UITheme.make_label("Export: Modell als Datei speichern. Schick sie an den Admin – geprüfte Modelle werden als Standardmodell für alle aufgenommen.")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_color_override("font_color", Color("ffcf9a"))
@@ -294,6 +307,7 @@ func _select(i: int) -> void:
 	var e: Dictionary = AirshipPresets.list()[i]
 	_b_del.visible = e.source == "Eigene"
 	_reset_delete()
+	_update_factory(e)
 	var s := AirshipPhysics.new()
 	e.build.call(s)
 	_show_detail(e.name, ShipPreview.texture(s, 700), s)
@@ -344,6 +358,28 @@ func _on_delete() -> void:
 	var raw: String = str(e.name).trim_suffix(" (Eigene)")
 	ModelLibrary.delete_own(raw)
 	_fill()
+
+
+## Knopf „Werkseinstellung“ nur bei Standard-/Sammlungsmodellen; Hinweis, wenn
+## das gerade geladene Luftschiff gleichen Namens davon abweicht (z. B. nach
+## einem Update mit neuen Werten oder nach Änderungen im Baukasten).
+func _update_factory(e: Dictionary) -> void:
+	var std: bool = e.source != "Eigene" and e.source != "Test"
+	_b_factory.visible = std
+	_factory_note.text = ""
+	if std and ship.model_name == e.name and AirshipPresets.standard_model_of(ship) == "":
+		_factory_note.text = I18n.t("Dein geladenes „%s“ weicht von der Werkseinstellung ab – so gibt es keine Wertung für die Bestenliste.") % e.name
+
+
+## Gewähltes Standardmodell genau wie ab Werk auf das Luftschiff laden.
+## Läuft ein Flug, geht es mit dem zurückgesetzten Luftschiff neu an den Start.
+func _on_factory() -> void:
+	if _selected < 0:
+		return
+	var e: Dictionary = AirshipPresets.list()[_selected]
+	e.build.call(ship)
+	ship.model_applied.emit()                   # speichert auch als aktuelles Modell
+	_factory_note.text = I18n.t("„%s“ ist wieder wie ab Werk ✓") % e.name
 
 
 func _reset_delete() -> void:

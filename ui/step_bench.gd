@@ -1,3 +1,4 @@
+# 2026-11-16 15:45 – Läuft weiter statt nach 6,5 s zu enden; step_now() setzt weitere Sprünge in den laufenden Flug; Neustart mit der Fahrt vom letzten Mal (1 s Anlauf); Plot bekommt nur die letzte Sekunde vor dem Sprung
 # 2026-11-16 12:40 – Erstversion: Prüfstand für die Sprungantwort im Reglermenü – eine Kopie des Luftschiffs fliegt in einer eigenen, unsichtbaren Physikwelt geradeaus, dann kommt der Sprung (vorher stand das echte Schiff im Menü still → blaue Ist-Linie blieb flach)
 # =============================================================================
 # StepBench.gd  (Kind des Reglermenüs)
@@ -12,8 +13,9 @@
 #      mit denselben Modi, PID-Werten und allgemeinen Einstellungen
 #   3. Anlauf: TEST_THROTTLE Gas, Schiff wird PRE_ROLL Sekunden waagrecht
 #      geradeaus geführt (Linie läuft schon mit – Ruhelage vor dem Sprung)
-#   4. Sprung für STEP_TIME Sekunden, danach noch etwas nachlaufen lassen
-#   5. Welt wieder entfernen
+#   4. Sprung für STEP_TIME Sekunden; danach fliegt die Kopie einfach weiter,
+#      weitere Sprünge mit step_now() landen in der laufenden Antwort
+#   5. stop() (Menü zu) entfernt die Welt; run() startet neu (z. B. nach Änderung)
 # Das Gas setzt hier der Prüfstand fest (nur Simulation, kein echter Regler).
 # Die Messwerte kommen über das Signal loop_sample der Kopie – genau wie beim
 # echten Flugcontroller.
@@ -23,23 +25,25 @@ extends Node
 
 ## Messwert der Kopie (wie FlightController.loop_sample)
 signal sample(axis: int, setpoint: float, measurement: float)
-## Anlauf vorbei, Sprung beginnt jetzt (Fahrt in m/s)
+## Sprung beginnt jetzt (Fahrt in m/s)
 signal step_started(speed: float)
-## Durchgang beendet
-signal finished
 
 const TEST_THROTTLE := 0.6     ## Gas im Prüfstand (Anteil von Vollgas)
-const PRE_ROLL := 2.0          ## s Geradeausflug vor dem Sprung
+const PRE_ROLL_FIRST := 2.5    ## s Anlauf beim ersten Start (Fahrt muss erst entstehen)
+const PRE_ROLL := 1.0          ## s Anlauf bei Neustart (Fahrt vom letzten Durchgang)
+const SHOW_PRE := 1.0          ## s vor dem Sprung, die im Plot zu sehen sind
 const STEP_TIME := 3.0         ## s Dauer des Sprungs
-const AFTER := 1.5             ## s Nachlauf nach dem Sprung
 
 var _vp: SubViewport
 var _ship: AirshipPhysics
 var _fc: FlightController
 var _t := 0.0
+var _pre := PRE_ROLL_FIRST
 var _stepped := false
 var _axis := 0
 var _amount := 0.0
+## Fahrt am Ende des letzten Anlaufs (m/s) – Neustarts beginnen damit
+var _last_speed := 0.0
 
 
 ## Läuft gerade ein Durchgang?
@@ -47,7 +51,8 @@ func busy() -> bool:
 	return _vp != null
 
 
-## Durchgang starten: Kopie von src_fc.airship mit den Einstellungen von src_fc.
+## Durchgang (neu) starten: Kopie von src_fc.airship mit den Einstellungen von
+## src_fc, Anlauf, dann Sprung. Danach fliegt die Kopie weiter, bis stop().
 func run(src_fc: FlightController, axis: int, amount: float) -> void:
 	stop()
 	if src_fc == null or src_fc.airship == null:
@@ -56,6 +61,7 @@ func run(src_fc: FlightController, axis: int, amount: float) -> void:
 	_amount = amount
 	_t = 0.0
 	_stepped = false
+	_pre = PRE_ROLL if _last_speed > 0.5 else PRE_ROLL_FIRST
 	# 1. eigene Physikwelt – nichts wird gezeichnet
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true
@@ -67,7 +73,7 @@ func run(src_fc: FlightController, axis: int, amount: float) -> void:
 	ShipRender3D.copy_of(src_fc.airship).call(_ship)
 	_vp.add_child(_ship)
 	_ship.global_transform = Transform3D(Basis.IDENTITY, Vector3(0, 50, 0))   # frei im Raum, Nase −Z
-	_ship.linear_velocity = Vector3(0, 0, -2.0)                                # etwas Anfangsfahrt
+	_ship.linear_velocity = Vector3(0, 0, -maxf(_last_speed, 2.0))             # Fahrt vom letzten Mal
 	_ship.angular_velocity = Vector3.ZERO
 	# eigener Flugcontroller mit denselben Einstellungen wie der echte
 	_fc = FlightController.new()
@@ -84,10 +90,22 @@ func run(src_fc: FlightController, axis: int, amount: float) -> void:
 	_fc.cmd_pitch = 0.0
 	_fc.cmd_yaw = 0.0
 	_fc.cmd_aux = 0.0
-	_fc.loop_sample.connect(func(a, sp, pv): sample.emit(a, sp, pv))
+	# Messwerte erst SHOW_PRE s vor dem Sprung weitergeben (Plot zeigt Ruhelage + Antwort)
+	_fc.loop_sample.connect(func(a, sp, pv):
+		if _t >= _pre - SHOW_PRE: sample.emit(a, sp, pv))
 
 
-## Durchgang abbrechen (Menü zu, neuer Sprung).
+## Weiteren Sprung in den laufenden Flug setzen (ohne Neustart).
+func step_now(axis: int, amount: float) -> void:
+	if _fc == null or not _stepped:
+		return
+	_axis = axis
+	_amount = amount
+	_fc.trigger_step(axis, amount, STEP_TIME)
+	step_started.emit(_ship.airspeed)
+
+
+## Durchgang beenden (Menü zu) – die unsichtbare Welt wird entfernt.
 func stop() -> void:
 	if _vp:
 		_vp.queue_free()
@@ -111,12 +129,14 @@ func _physics_process(dt: float) -> void:
 			Transform3D(Basis.IDENTITY, Vector3(0, 50, _ship.global_position.z)))
 		PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, Vector3(0, 0, -speed))
 		PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_ANGULAR_VELOCITY, Vector3.ZERO)
-	# 4. nach dem Anlauf: Sprung auslösen
-	if not _stepped and _t >= PRE_ROLL:
+	# 4. nach dem Anlauf: Sprung auslösen – danach fliegt die Kopie weiter
+	if not _stepped and _t >= _pre:
 		_stepped = true
+		_last_speed = maxf(-_ship.linear_velocity.z, 0.0)
 		_fc.trigger_step(_axis, _amount, STEP_TIME)
 		step_started.emit(_ship.airspeed)
-	# 5. fertig → Welt entfernen
-	if _t >= PRE_ROLL + STEP_TIME + AFTER:
-		stop()
-		finished.emit()
+	# die Kopie fliegt weit weg – zurück an den Ursprung, damit Zahlen klein bleiben
+	if _stepped and _ship.global_position.length() > 2000.0:
+		var tr := _ship.global_transform
+		tr.origin = Vector3(0, 50, 0)
+		PhysicsServer3D.body_set_state(_ship.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, tr)

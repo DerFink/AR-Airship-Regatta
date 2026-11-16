@@ -1,3 +1,4 @@
+# 2026-11-16 15:30 – Browser: Prüfabfrage der neuen Seite ohne gzip (sonst Fehler, Seite wurde nie neu geladen)
 # 2026-11-16 10:05 – Update-Suche im Browser: nicht doppelt entpacken
 # 2026-11-11 17:45 – Update-Meldungen übersetzt
 # 2026-11-08 18:15 – Browser-Version: „Nach Update suchen“ lädt die neue Seite (ar-<Build>.html, jeder Build mit eigenen Dateinamen – kein Zwischenspeicher-Problem)
@@ -87,6 +88,10 @@ func _web_switch(build: int) -> void:
 	var base := str(JavaScriptBridge.eval("location.origin + location.pathname.replace(/[^/]*$/, '')"))
 	var probe := HTTPRequest.new()
 	probe.timeout = 15.0
+	# Im Browser entpackt schon der Browser – sonst doppelt entpackt, Abfrage
+	# scheitert (war der Grund für „wird gerade veröffentlicht“, obwohl die
+	# neue Seite längst da war)
+	probe.accept_gzip = false
 	add_child(probe)
 	probe.request_completed.connect(func(result: int, code: int, _h, _b):
 		probe.queue_free()

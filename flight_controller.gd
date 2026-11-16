@@ -1,3 +1,5 @@
+# 2026-11-16 16:05 – Signal settings_saved (Sprungantwort startet bei Änderung neu)
+# 2026-11-16 15:35 – Reglerwerte (Kp/Ki/Kd, roll_vs_pitch, yaw_loop) bis 10 statt 2/3
 # 2026-11-16 11:30 – Neue PID-Modi halten auch die Rolllage (mit dem Wirbelauftrieb kippte das Schiff in engen Kurven sonst weg und schlug auf)
 # 2026-11-14 11:00 – Neue PID-Modi: Gier-Sollrate bei vollem Knüppel 150 °/s (mit 110 schaffte die Demo die enge Acht nicht)
 # 2026-11-13 00:30 – Flugmodi des Piloten (1–5, Name + Art: Direkt/Angle/Horizon/PID je Achse Lage oder Drehrate), Rollausgleich je Modus (Höhe und Seite mit dem Rollwinkel umgerechnet), eigene Mischtabelle je Direkt-Modus, Sprung fürs Reglermenü (trigger_step), probe_outputs() für den Signalfluss
@@ -223,6 +225,9 @@ const STICK_MODE_DEFAULT := 4
 const FN_NAMES := {"thr": "Gas", "pitch": "Nick", "yaw": "Gier", "roll": "Rolle"}
 ## Stickmode wurde umgestellt (Beschriftungen nachziehen)
 signal stick_mode_changed
+## Einstellungen wurden gespeichert (jede Änderung im Reglermenü) – der
+## Prüfstand der Sprungantwort startet dann neu
+signal settings_saved
 
 
 ## „Mode 4 · links Gas + Rolle · rechts Nick + Gier“ (übersetzt)
@@ -320,27 +325,27 @@ var params := {
 ## "fmt" (optional) = Anzeigeformat des Werts.
 const UI_PARAMS := {
 	Axis.PITCH: [
-		{"term": "Kp", "label": "Kp (Kp_m2)", "min": 0.0, "max": 3.0, "step": 0.01},
-		{"term": "Ki", "label": "Ki (Ki_m2)", "min": 0.0, "max": 2.0, "step": 0.01},
-		{"term": "Kd", "label": "Kd (Kd_m2)", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "Kp", "label": "Kp (Kp_m2)", "min": 0.0, "max": 10.0, "step": 0.01},
+		{"term": "Ki", "label": "Ki (Ki_m2)", "min": 0.0, "max": 10.0, "step": 0.01},
+		{"term": "Kd", "label": "Kd (Kd_m2)", "min": 0.0, "max": 10.0, "step": 0.01},
 	],
 	Axis.ROLL: [
-		{"term": "Kp", "label": "Kp (Kp_roll_m2)", "min": 0.0, "max": 3.0, "step": 0.01},
-		{"term": "Ki", "label": "Ki (Ki_roll_m2)", "min": 0.0, "max": 2.0, "step": 0.01},
-		{"term": "Kd", "label": "Kd (Kd_roll_m2)", "min": 0.0, "max": 2.0, "step": 0.01},
-		{"term": "roll_vs_pitch", "label": "roll_vs_pitch", "min": 0.0, "max": 3.0, "step": 0.05},
+		{"term": "Kp", "label": "Kp (Kp_roll_m2)", "min": 0.0, "max": 10.0, "step": 0.01},
+		{"term": "Ki", "label": "Ki (Ki_roll_m2)", "min": 0.0, "max": 10.0, "step": 0.01},
+		{"term": "Kd", "label": "Kd (Kd_roll_m2)", "min": 0.0, "max": 10.0, "step": 0.01},
+		{"term": "roll_vs_pitch", "label": "roll_vs_pitch", "min": 0.0, "max": 10.0, "step": 0.05},
 	],
 	Axis.YAW: [
 		{"term": "stick_yaw_motor", "label": "Mode 2 stick_yaw_motor", "min": 0.0, "max": 0.05, "step": 0.0005, "fmt": "%.4f"},
 		{"term": "stick_yaw_tail", "label": "Mode 2 stick_yaw_tail", "min": 0.0, "max": 0.05, "step": 0.0005, "fmt": "%.4f"},
 		{"term": "stick_yaw_motor_m3", "label": "Mode 3 stick_yaw_motor_m3", "min": 0.0, "max": 0.05, "step": 0.00025, "fmt": "%.5f"},
 		{"term": "stick_yaw_tail_m3", "label": "Mode 3 stick_yaw_tail_m3", "min": 0.0, "max": 0.05, "step": 0.00025, "fmt": "%.5f"},
-		{"term": "Kp_yaw_m3", "label": "Mode 3 Kp_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
-		{"term": "Ki_yaw_m3", "label": "Mode 3 Ki_yaw_m3", "min": 0.0, "max": 2.0, "step": 0.01},
+		{"term": "Kp_yaw_m3", "label": "Mode 3 Kp_yaw_m3", "min": 0.0, "max": 10.0, "step": 0.01},
+		{"term": "Ki_yaw_m3", "label": "Mode 3 Ki_yaw_m3", "min": 0.0, "max": 10.0, "step": 0.01},
 		{"term": "Kd_yaw_m3", "label": "Mode 3 Kd_yaw_m3", "min": 0.0, "max": 0.2, "step": 0.002, "fmt": "%.3f"},
 		{"term": "yaw_rate_max", "label": "Horizon Gierrate voll (°/s)", "min": 30.0, "max": 360.0, "step": 5.0},
-		{"term": "yaw_loop_motor_m3", "label": "Mode 3 yaw_loop_motor_m3", "min": 0.0, "max": 2.0, "step": 0.05},
-		{"term": "yaw_loop_tail_m3", "label": "Mode 3 yaw_loop_tail_m3", "min": 0.0, "max": 2.0, "step": 0.05},
+		{"term": "yaw_loop_motor_m3", "label": "Mode 3 yaw_loop_motor_m3", "min": 0.0, "max": 10.0, "step": 0.05},
+		{"term": "yaw_loop_tail_m3", "label": "Mode 3 yaw_loop_tail_m3", "min": 0.0, "max": 10.0, "step": 0.05},
 	],
 }
 
@@ -1121,6 +1126,7 @@ func save_settings() -> void:
 	cfg.set_value("general", "stick_nomenklatur", 5)   # ab 2 = Mode 1–4 nach heli-planet; 5 = nach der Korrektur von 0.28.1
 	cfg.set_value("general", "version", SETTINGS_VERSION)
 	cfg.save(SETTINGS_PATH)
+	settings_saved.emit()
 
 ## Flugmodi laden (fehlen sie: Werkseinstellung Direkt + Angle).
 func _load_modes(cfg: ConfigFile) -> void:

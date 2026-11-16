@@ -1,3 +1,4 @@
+# 2026-11-16 16:10 – Prüfstand läuft weiter (weitere Sprünge in die laufende Antwort), jede Änderung startet den Sprung nach 0,4 s von vorn, Menü zu beendet ihn; Plot 8 s
 # 2026-11-16 12:50 – Sprungantwort über den Prüfstand (StepBench): Kopie des Schiffs fliegt 2 s geradeaus, dann der Sprung – vorher blieb die blaue Ist-Linie flach, weil das Schiff im Menü ohne Fahrt stand
 # 2026-11-13 01:20 – Neu aufgebaut nach freigegebenem Entwurf: links die Flugmodi (Anzahl 1–5 als Zahl, Name, Art Direkt / PID teilweise / PID alle Achsen bzw. Vorlage Angle/Horizon, Achsen mit Lage oder Drehrate, Rollausgleich je Modus), Mitte nur die Werte des gewählten Modus (Direkt: Mischtabelle), rechts Sprungantwort mit Auslöser, Zeitachse und Kennwerten; Knopf „Signalfluss“
 # 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
@@ -39,6 +40,10 @@ var _step_field: NumberField
 var _flow_win: Control
 ## Prüfstand: Kopie des Schiffs fliegt unsichtbar geradeaus, dann der Sprung
 var _bench: StepBench
+## Sprung schon einmal ausgelöst? Dann startet jede Änderung ihn neu (bis Menü zu)
+var _bench_active := false
+## Verzögerung für den Neustart (beim Ziehen eines Reglers nicht bei jedem Schritt)
+var _restart_t := -1.0
 
 
 func setup(controller: FlightController) -> void:
@@ -97,15 +102,18 @@ func _ready() -> void:
 			_step_amount = 30.0 if ax == FlightController.Axis.YAW else 15.0
 			_step_field.set_format("%d °/s" if ax == FlightController.Axis.YAW else "%d °")
 			_step_field.set_value_no_signal(_step_amount)
-			_plot.clear())
+			_plot.clear()
+			if _bench_active: _restart_t = 0.4)       # andere Achse: Sprung von vorn
 		axes.add_child(b)
 	rcol.add_child(axes)
-	_step_field = UITheme.make_number_row("Sprung", 1.0, 180.0, 1.0, _step_amount, func(v): _step_amount = v, "%d °")
+	_step_field = UITheme.make_number_row("Sprung", 1.0, 180.0, 1.0, _step_amount, func(v):
+		_step_amount = v
+		if _bench_active: _restart_t = 0.4, "%d °")      # andere Sprunghöhe: von vorn
 	rcol.add_child(_step_field)
 	var trig := UITheme.make_primary_button("▶  " + tr("Sprung auslösen"))
 	trig.pressed.connect(_on_trigger)
 	rcol.add_child(trig)
-	rcol.add_child(_note("Geprüft wird eine Kopie deines Luftschiffs: 2 s Geradeausflug mit 60 % Gas, dann der Sprung für 3 s."))
+	rcol.add_child(_note("Geprüft wird eine Kopie deines Luftschiffs im Geradeausflug mit 60 % Gas. Sie fliegt weiter, bis das Menü zu ist; jede Änderung startet den Sprung von vorn."))
 	_plot = StepPlot.new()
 	_plot.custom_minimum_size = Vector2(260, 170)
 	rcol.add_child(_plot)
@@ -131,8 +139,32 @@ func _ready() -> void:
 		_metrics.text = I18n.dec(I18n.t("Sprung bei %.1f km/h …") % (sp * 3.6)))
 	fc.mode_index_changed.connect(func(_i): _sync())
 	fc.modes_changed.connect(_sync)
-	visibility_changed.connect(_sync)
+	# jede gespeicherte Änderung → Sprung von vorn (wenn schon einmal ausgelöst)
+	fc.settings_saved.connect(func(): if _bench_active: _restart_t = 0.4)
+	visibility_changed.connect(_on_visibility)
 	_sync()
+
+
+## Menü zu → Prüfstand beenden; Menü auf → neu aufbauen.
+func _on_visibility() -> void:
+	if not visible:
+		_bench_active = false
+		_restart_t = -1.0
+		if _bench:
+			_bench.stop()
+		return
+	_sync()
+
+
+## Verzögerter Neustart nach Änderungen (0,4 s nach der letzten Änderung).
+func _process(dt: float) -> void:
+	if _restart_t < 0.0:
+		return
+	_restart_t -= dt
+	if _restart_t < 0.0 and _bench_active and visible:
+		_plot.clear()
+		_metrics.text = I18n.t("Geändert – Sprung startet neu …")
+		_bench.run(fc, _step_axis, _step_amount)
 
 
 ## Beim Öffnen und bei Moduswechsel: alles neu anzeigen.
@@ -143,8 +175,9 @@ func _sync() -> void:
 	_fill_left()
 	_clear(_mid_box)
 	_fill_mid()
-	if _bench:
-		_bench.stop()                  # Moduswechsel/Schließen: laufenden Test abbrechen
+	if _bench_active:
+		_restart_t = 0.4               # Modus/Art geändert: Sprung von vorn
+		return
 	_plot.clear()
 	_metrics.text = ""
 
@@ -474,7 +507,13 @@ func _fill_teensy(art: String) -> void:
 # =============================================================================
 ## Sprung auslösen: nicht mehr am echten Schiff (das steht im Menü ohne Fahrt
 ## still), sondern am Prüfstand mit einer fliegenden Kopie.
+## Erster Tipp: Prüfstand startet (Anlauf, Sprung, dann fliegt er weiter).
+## Weitere Tipps: Sprung in die laufende Antwort setzen (kein Neustart).
 func _on_trigger() -> void:
+	if _bench.busy():
+		_bench.step_now(_step_axis, _step_amount)
+		return
+	_bench_active = true
 	_plot.clear()
 	_metrics.text = I18n.t("Anlauf: Geradeausflug …")
 	_bench.run(fc, _step_axis, _step_amount)
@@ -516,7 +555,7 @@ func _show_flow() -> void:
 # =============================================================================
 class StepPlot:
 	extends Control
-	const N := 300                       ## 5 s bei 60 Messungen je Sekunde
+	const N := 480                       ## 8 s bei 60 Messungen je Sekunde (1 s davor + Sprung + Nachlauf)
 	const HZ := 60.0
 	var _sp: PackedFloat32Array = PackedFloat32Array()
 	var _pv: PackedFloat32Array = PackedFloat32Array()
@@ -570,7 +609,7 @@ class StepPlot:
 		var bottom := size.y - 16.0
 		var mid := bottom * 0.5
 		# Zeitachse: Linien je Sekunde, rechts = jetzt
-		for sec in 6:
+		for sec in 9:
 			var x := size.x - sec * HZ * size.x / float(N - 1)
 			draw_line(Vector2(x, 0), Vector2(x, bottom), Color(1, 1, 1, 0.06), 1.0)
 			draw_string(font, Vector2(x - 14, size.y - 3), "-%d s" % sec if sec > 0 else "0 s", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UITheme.color("text_muted"))
