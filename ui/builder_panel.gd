@@ -1,3 +1,4 @@
+# 2026-11-16 14:50 – Antrieb: Stator und kV statt „Schub vor“/„Drehzahl max“; Drehzahl und Schub werden aus kV, Zellen und Propeller berechnet und angezeigt (kV 0 = wie bisher von Hand)
 # 2026-11-16 14:10 – Mischer mit Flugmodi ohne Regler (Anzahl, Name, eigene Tabelle je Direkt-Modus); Seiten dichter; Felder in Menühöhe
 # 2026-11-16 13:00 – Rechte Spalte nach Skizze: Name (antippen = ändern) und Kurzbeschreibung oben, Strich, Volumen mit Maßen, Rennfaktor F7B, Kasten „Massen“ (Hülle, LTW n × g, Antrieb n × g, … Strich, Trimm statt Ballast); Modellauswahl, Wort „Kennwerte“ und Name/Beschreibung im Reiter Hülle entfernt; schmalere Rahmen
 # 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
@@ -108,6 +109,8 @@ var _factor_lbl: Label                ## „Rennfaktor F7B ×0,72“ unter den K
 var _name_edit: LineEdit              ## Name des Modells (oben rechts)
 var _desc_edit: TextEdit              ## Kurzbeschreibung (bis 100 Zeichen)
 var _desc_count: Label                ## „62 / 100“
+var _drive_lbl: Label                 ## Antrieb: berechnete Drehzahl und Schub
+var _drive_motor: VectorMotor         ## Motor, zu dem _drive_lbl gehört
 var _mass_grid: GridContainer         ## Kasten „Massen“: Hülle, LTW, Antrieb, …
 var _trim_grid: GridContainer         ## Kasten „Massen“ unter dem Strich: Trimm
 var _total_lbl: Label                 ## Gesamtmasse unter dem Kasten
@@ -1292,8 +1295,41 @@ func _on_part_selected(i: int) -> void:
 				for m in pair:
 					if m != mo: m.set_user_dir(Vector3(u.x, -u.y, u.z))
 				_changed(), "%.2f"))
-	_editor_box.add_child(UITheme.make_number_row("Schub vor", 0.01, 1000.0, 0.1, mo.max_thrust_n,
-		func(v): set_all.call("max_thrust_n", v, true), "%.1f N"))
+	# --- Motor: Stator und kV (Datenblatt) – daraus Drehzahl und Schub ---
+	var mi_sel := i
+	var srow := UITheme.make_hbox("sm")
+	var sl := UITheme.make_label("Stator (z. B. 1804)", "MutedLabel")
+	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	srow.add_child(sl)
+	var se := LineEdit.new()
+	se.max_length = 8
+	se.text = mo.stator
+	se.placeholder_text = "1804"
+	se.custom_minimum_size = Vector2(96, UITheme.menu_height())
+	se.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var smass := UITheme.make_label("", "MutedLabel")
+	smass.custom_minimum_size.x = 90
+	var show_smass := func():
+		var g := VectorMotor.stator_mass_g(mo.stator)
+		smass.text = (I18n.t("Motor ≈ %d g") % roundi(g)) if g > 0.0 else ""
+	show_smass.call()
+	var commit_st := func():
+		if se.text.strip_edges() != mo.stator:
+			set_all.call("stator", se.text.strip_edges(), false)
+			show_smass.call()
+	se.text_submitted.connect(func(_t): commit_st.call(); se.release_focus())
+	se.focus_exited.connect(commit_st)
+	srow.add_child(se)
+	srow.add_child(smass)
+	_editor_box.add_child(srow)
+	_editor_box.add_child(UITheme.make_number_row("kV (0 = Schub von Hand)", 0.0, 10000.0, 10.0, mo.kv,
+		func(v):
+			var was := mo.kv > 0.0
+			set_all.call("kv", v, true)
+			if was != (v > 0.0): _on_part_selected.call_deferred(mi_sel), "%d kV"))
+	if mo.kv <= 0.0:
+		_editor_box.add_child(UITheme.make_number_row("Schub vor", 0.01, 1000.0, 0.1, mo.max_thrust_n,
+			func(v): set_all.call("max_thrust_n", v, true), "%.1f N"))
 	var rev := CheckBox.new()
 	rev.text = "Rückwärtsschub erlaubt"
 	rev.button_pressed = mo.reverse_allowed
@@ -1324,14 +1360,25 @@ func _on_part_selected(i: int) -> void:
 	var f: float = PROP_FACTOR[prop_unit]
 	var pfmt: String = ["%.1f\"", "%.1f cm", "%d mm"][prop_unit]
 	var pstep: float = [0.1, 0.1, 1.0][prop_unit]
+	# mit kV-Angabe ändert der Propeller den Schub → neu rechnen (relayout)
+	var calc := mo.kv > 0.0
 	_editor_box.add_child(UITheme.make_number_row("Durchmesser", 2.0 / 2.54 * f, 40.0 / 2.54 * f, pstep, mo.prop_diameter_in * f,
-		func(v): set_all.call("prop_diameter_in", v / f, false), pfmt))
+		func(v): set_all.call("prop_diameter_in", v / f, calc), pfmt))
 	_editor_box.add_child(UITheme.make_number_row("Steigung", 0.2 * f, 20.0 * f, pstep, mo.prop_pitch_in * f,
-		func(v): set_all.call("prop_pitch_in", v / f, false), pfmt))
+		func(v): set_all.call("prop_pitch_in", v / f, calc), pfmt))
 	_editor_box.add_child(UITheme.make_stepper("Blätter", 2, 6, mo.prop_blades,
-		func(v): set_all.call("prop_blades", v, false), LABEL_W))
-	_editor_box.add_child(UITheme.make_number_row("Drehzahl max", 500.0, 200000.0, 500.0, mo.max_rpm,
-		func(v): set_all.call("max_rpm", v, false), "%d U/min"))
+		func(v): set_all.call("prop_blades", v, calc), LABEL_W))
+	if calc:
+		# Ergebnis der Rechnung (aktualisiert sich in _refresh)
+		_drive_motor = mo
+		_drive_lbl = _note("")
+		_editor_box.add_child(_drive_lbl)
+		_update_drive_lbl()
+	else:
+		_drive_motor = null
+		_drive_lbl = null
+		_editor_box.add_child(UITheme.make_number_row("Drehzahl max", 500.0, 200000.0, 500.0, mo.max_rpm,
+			func(v): set_all.call("max_rpm", v, false), "%d U/min"))
 	_editor_box.add_child(UITheme.make_label("Drehrichtung (nur dieser Motor)", "MutedLabel"))
 	_editor_box.add_child(UITheme.make_choice_row(["CW", "CCW"], 0 if mo.spin_dir > 0 else 1,
 		func(k): mo.spin_dir = 1 if k == 0 else -1))
@@ -1551,7 +1598,7 @@ func _refresh() -> void:
 	var sel := _parts_list.get_selected_items()
 	_parts_list.clear()
 	for mo in ship.motors:
-		_parts_list.add_item("%s  ·  %.1f N%s" % [mo.display_name, mo.max_thrust_n, "  ⇄" if mo.reverse_allowed else ""])
+		_parts_list.add_item("%s  ·  %s%.1f N%s" % [mo.display_name, ("%d kV · " % roundi(mo.kv)) if mo.kv > 0.0 else "", mo.max_thrust_n, "  ⇄" if mo.reverse_allowed else ""])
 	if sel.size() > 0 and sel[0] < _parts_list.item_count:
 		_parts_list.select(sel[0])
 	var csel := _canard_list.get_selected_items()
@@ -1567,6 +1614,7 @@ func _refresh() -> void:
 	_stats.text = I18n.dec(I18n.t("Volumen %.2f m³ ; %.2f × %.2f × %.2f m") % [
 		h.volume_m3, h.length_m, h.diameter_m, h.diameter_m])
 	_fill_mass_box()
+	_update_drive_lbl()
 	_update_mass_info()
 	_update_fin_mass_info()
 	_update_factor.call_deferred()      # erst nach dem Neuaufbau des 3D-Modells messen
@@ -1666,6 +1714,19 @@ func _build_reset_dlg() -> void:
 	btns.add_child(b_no)
 	btns.add_child(b_yes)
 	v.add_child(btns)
+
+
+## Berechnete Werte des gewählten Motors anzeigen (kV · Zellen · Propeller).
+func _update_drive_lbl() -> void:
+	if _drive_lbl == null or not is_instance_valid(_drive_lbl) or _drive_motor == null:
+		return
+	var mo := _drive_motor
+	var e := VectorMotor.estimate(mo.kv, ship.battery_cells, mo.prop_diameter_in, mo.prop_pitch_in, mo.prop_blades)
+	# Zahlen einzeln mit dem Dezimalzeichen der Sprache (sonst würden auch die
+	# Satzpunkte zu Kommas)
+	_drive_lbl.text = I18n.t("Berechnet für %dS voll (%s V): Leerlauf %d U/min · unter Last ≈ %d U/min · Standschub ≈ %s N (%d g) je Motor. Näherung, etwa ±20 %%.") % [
+		ship.battery_cells, I18n.dec("%.1f" % e.u), roundi(e.n0 / 100.0) * 100, roundi(e.rpm / 100.0) * 100,
+		I18n.dec("%.1f" % e.thrust), roundi(e.thrust / 9.81 * 1000.0)]
 
 
 ## Kasten „Massen“ füllen: Hülle, LTW (Anzahl × Masse), Canards, Antrieb,

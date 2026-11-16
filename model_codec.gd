@@ -1,3 +1,4 @@
+# 2026-11-16 14:40 – Motoren: kV und Stator im Modell-String (nur wenn kV gesetzt)
 # 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
 # 2026-11-14 17:20 – Canard-Paare (pair_id als "p", nur wenn gesetzt)
 # 2026-11-13 02:00 – Leitwerk: Flossen einzeln (ind, sym, fcfg)
@@ -60,7 +61,7 @@ const LIMITS := {
 	"defl": [0.0, 80.0], "flap": [0.1, 0.6],
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
 	"reff": [0.1, 1.0], "d": [0.7, 30.0], "pit": [0.2, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
-	"v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
+	"kv": [0.0, 10000.0], "v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
 	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 1.5], "lpos": [0.05, 0.9],
 }
 
@@ -160,6 +161,10 @@ static func _data(ship: AirshipPhysics, with_fc: bool) -> Dictionary:
 			"swv": m.max_swivel_deg, "swe": m.swivel_enabled, "rev": m.reverse_allowed, "reff": m.reverse_efficiency,
 			"d": m.prop_diameter_in, "pit": m.prop_pitch_in, "bl": m.prop_blades, "rpm": m.max_rpm, "dir": m.spin_dir,
 			"mk": m.mass_kg, "td": [snappedf(m.user_dir().x, 0.001), snappedf(m.user_dir().y, 0.001), snappedf(m.user_dir().z, 0.001)]})
+		if m.kv > 0.0:
+			# nur mit kV-Angabe – Modelle ohne behalten ihren Fingerabdruck
+			data.motors[-1]["kv"] = m.kv
+			data.motors[-1]["st"] = m.stator
 	# Regler: die AKTUELLEN Werte des Flugcontrollers (alle Achsen, Mischer,
 	# Vorsteuerung), ohne Stick-Mode (der gehört zum Piloten, nicht zum Modell).
 	var fc := _find_fc(ship) if with_fc else null
@@ -286,6 +291,8 @@ static func apply(ship: AirshipPhysics, name: String, d: Dictionary) -> void:
 		mo.prop_diameter_in = m.d; mo.prop_pitch_in = m.pit; mo.prop_blades = int(m.bl); mo.max_rpm = m.rpm
 		mo.spin_dir = int(m.dir)
 		mo.mass_kg = m.mk
+		mo.kv = clampf(float(m.get("kv", 0.0)), 0.0, 10000.0)
+		mo.stator = str(m.get("st", "")).left(8)
 		mo.set_user_dir(Vector3(m.td[0], m.td[1], m.td[2]))
 		mots.append(mo)
 	ship.motors = mots
@@ -461,6 +468,9 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				"rev": _flag(m, "rev", true), "reff": _num(m, "reff", 0.55), "d": _num(m, "d", 5.0),
 				"pit": _num(m, "pit", 3.0), "bl": _num(m, "bl", 2), "rpm": _num(m, "rpm", 18000.0),
 				"dir": -1 if _num(m, "dir", 1) < 0 else 1, "mk": _num(m, "mk", 0.030), "td": _vec3(m, "td", [1.0, 0.0, 0.0])})
+			if m.has("kv"):
+				out.motors[-1]["kv"] = _num(m, "kv", 0.0)
+				out.motors[-1]["st"] = _txt(m, "st", "", 8)
 	var lk: Dictionary = d.get("look", {}) if d.get("look") is Dictionary else {}
 	var logo := _txt(lk, "logo", "", 40)
 	# Logo-Verweis darf nur ein schlichter Dateiname sein (kein Pfad!)

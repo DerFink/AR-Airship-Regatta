@@ -1,3 +1,4 @@
+# 2026-11-16 14:40 – Motor aus Datenblatt-Angaben: Stator, kV, Propeller, Zellen → Drehzahl und Schub (estimate/apply_drive), Motormasse aus Statorgröße
 # 2026-11-12 22:00 – swivel_enabled: Motor nur mit Haken „schwenkbar“ schwenkbar
 # 2026-11-12 11:55 – Propeller ab 0,7" (≈ 2 cm) Durchmesser
 # 2026-11-11 11:00 – Schubrichtung als Vektor im Nutzer-System (x vorn, y rechts, z unten) lesen/setzen: user_dir() / set_user_dir()
@@ -72,6 +73,20 @@ extends Resource
 ## Drehrichtung vorwärts: +1 = rechtsdrehend (CW), −1 = linksdrehend (CCW).
 @export_range(-1, 1, 2) var spin_dir: int = 1
 
+# --- Motor aus Datenblatt-Angaben (Wunsch 16.11.2026) -------------------------
+# Statt Schub und Drehzahl zu raten, reichen die Angaben, die man kennt:
+# Stator (z. B. „1804“), kV-Zahl, Propeller (Durchmesser, Steigung, Blätter)
+# und die Akkuzellen des Modells. Ist kv > 0, rechnet apply_drive() daraus
+# max_rpm und max_thrust_n; kv = 0 heißt: beides von Hand (ältere Modelle).
+## Statorgröße als Zahl wie auf dem Motor: 1804 = 18 mm Durchmesser, 4 mm hoch.
+@export var stator: String = ""
+## kV-Zahl (Leerlaufdrehzahl je Volt). 0 = Schub und Drehzahl von Hand.
+@export_range(0.0, 10000.0, 10.0) var kv: float = 0.0
+## Drehzahl unter Last als Anteil der Leerlaufdrehzahl (typisch 0,75–0,85).
+const LOAD_FACTOR := 0.8
+## Luftdichte für die Schubrechnung (kg/m³, Meereshöhe, 15 °C)
+const RHO := 1.225
+
 # --- Daraus berechnet (place_on_hull) ----------------------------------------
 ## Montagepunkt im Körpersystem (m).
 @export var position: Vector3 = Vector3(0.3, -0.1, -0.6)
@@ -136,6 +151,44 @@ func set_user_dir(u: Vector3) -> void:
 	if u.length() < 1e-4:
 		u = Vector3(1, 0, 0)
 	thrust_direction = Vector3(u.y, -u.z, -u.x).normalized()
+
+
+## Schub und Drehzahl aus kV, Zellen und Propeller schätzen (voller Akku,
+## 4,2 V je Zelle – so ist max_thrust_n im Simulator definiert):
+##   Leerlauf     n0 = kV · U
+##   unter Last   n  = LOAD_FACTOR · n0
+##   Standschub   T  = Ct · ρ · (n/60)² · D⁴
+##   Ct (Schubbeiwert) ≈ (0,07 + 0,09 · Steigung/Durchmesser) · (Blätter/2)^0,6
+## (Näherung aus Messreihen kleiner Propeller; 3 Blätter ≈ +27 % gegenüber 2)
+static func estimate(kv_v: float, cells: int, d_in: float, pitch_in: float, blades: int) -> Dictionary:
+	var u := float(cells) * Battery.V_CELL_FULL
+	var n0 := kv_v * u
+	var n := n0 * LOAD_FACTOR
+	var d := d_in * 0.0254
+	var ct := (0.07 + 0.09 * pitch_in / maxf(d_in, 0.1)) * pow(float(blades) / 2.0, 0.6)
+	var t := ct * RHO * pow(n / 60.0, 2.0) * pow(d, 4.0)
+	return {"u": u, "n0": n0, "rpm": n, "ct": ct, "thrust": t}
+
+
+## Mit kV-Angabe: max_rpm und max_thrust_n aus den Datenblatt-Werten setzen.
+func apply_drive(cells: int) -> void:
+	if kv <= 0.0:
+		return
+	var e := estimate(kv, cells, prop_diameter_in, prop_pitch_in, prop_blades)
+	max_rpm = clampf(e.rpm, 1000.0, 60000.0)
+	max_thrust_n = clampf(e.thrust, 0.0, 500.0)
+
+
+## Ungefähre Motormasse aus der Statorgröße (nur als Hinweis): „1804“ → 18 mm
+## Durchmesser, 4 mm Höhe → ≈ 6 g + 0,008 g/mm³ · d² · h (1804 ≈ 16 g, 2207 ≈ 33 g).
+## −1 = Angabe nicht lesbar.
+static func stator_mass_g(st: String) -> float:
+	var digits := st.strip_edges()
+	if digits.length() != 4 or not digits.is_valid_int():
+		return -1.0
+	var dm := float(digits.left(2))
+	var hm := float(digits.right(2))
+	return 6.0 + 0.008 * dm * dm * hm
 
 
 ## Aktuelle Schubrichtung (nach Schwenk) im Körpersystem.

@@ -1,3 +1,4 @@
+# 2026-11-16 14:40 – Motoren mit kV-Angabe bekommen Drehzahl und Schub aus kV, Propeller und Akkuzellen (VectorMotor.apply_drive)
 # 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
 # 2026-11-12 22:55 – Mischer von Hand: mix_manual, mix_table
 # 2026-11-12 22:15 – Akku wahlweise an eigener Stelle (battery_own_x, battery_x); Restmasse/Ballast gleicht weiter aus
@@ -254,6 +255,9 @@ func fin_mass_of(s: ControlSurface) -> float:
 
 
 func rebuild_mass_properties() -> void:
+	# --- 0) Motoren mit kV-Angabe: Drehzahl und Schub aus Datenblatt + Zellen ---
+	for mot in motors:
+		mot.apply_drive(battery_cells)
 	# --- 1) Leitwerk erzeugen und alle Bauteile an die Hülle setzen ---------
 	# (zuerst, weil die Motormassen ihren Einbauort brauchen)
 	# Erzeugte Teile (Leitwerk, Turm) neu anlegen, freie Flächen (Canards) behalten

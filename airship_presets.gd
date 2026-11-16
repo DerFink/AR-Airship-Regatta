@@ -1,3 +1,4 @@
+# 2026-11-16 14:45 – Chewie: Motor 1804 2450 kV mit HQProp T4×2×3, Schub/Drehzahl berechnet statt 7 N
 # 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
 # 2026-11-16 10:30 – Sammlung ohne „(Sammlung)“ im Namen; feste Reihenfolge (ORDER): Picard, Velocita, Schubi, Chewie, Example, Albacore
 # 2026-11-14 11:20 – Testmodell Chewie27 (Chewie mit festen Massen 85 g / 10 g, Flugmodus Horizon), nur sichtbar mit AppSettings.show_test_models, nie in der Bestenliste
@@ -302,6 +303,15 @@ static func chewie(ship: AirshipPhysics) -> void:
 	# ANNAHMEN (bitte bestätigen): 2450 KV an 4S → ca. 27 000 U/min unter Last,
 	# ca. 7 N (≈ 700 g) Standschub je Motor, Steigung 3", 2 Blätter.
 	var mots := chewie_motor_pair()
+	# Antrieb laut Nutzer (16.11.2026): GEPRC SpeedX2 1804 2450 kV, HQProp T4×2×3
+	# (4" Durchmesser, 2" Steigung, 3 Blätter), 4S – Schub und Drehzahl werden
+	# daraus berechnet (vorher fest 7 N / 27 000 U/min)
+	for mo in mots:
+		mo.stator = "1804"
+		mo.kv = 2450.0
+		mo.prop_diameter_in = 4.0
+		mo.prop_pitch_in = 2.0
+		mo.prop_blades = 3
 	ship.motors = mots
 	ship.rebuild_mass_properties()
 
