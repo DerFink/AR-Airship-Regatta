@@ -1,3 +1,4 @@
+# 2026-11-16 15:10 – Wiese: Vorgabe-Pylonabstand 100 m statt 200 m (gewertet wird „wiese_100.0“); alte gespeicherte Vorgabe 200 m wird auf 100 m umgestellt
 # 2026-11-16 09:50 – Pylonabstand zurück auf 18 m in der Halle schaltet wieder auf den Cup (vorher blieb „frei“ gemerkt → keine Wertung)
 # 2026-11-16 01:40 – is_ranked(): nur Standard-Pylonabstand zählt für die Bestenliste (Hinweis vor dem Start); reset_scenario()
 # 2026-11-15 23:10 – Glasdach 18 m statt 15 m; dunkelgrauer Bodenstrich an der Säulenlinie
@@ -59,7 +60,7 @@ const CUP_NAME := "FN Hugo Eckener Cup"
 const CUP_DISTANCE := 18.0
 const MIN_DISTANCE := 5.0
 const MAX_DISTANCE := 500.0
-const MEADOW_DISTANCE := 200.0   ## Vorgabe Pylonabstand auf der Wiese
+const MEADOW_DISTANCE := 100.0   ## Vorgabe Pylonabstand auf der Wiese (bis 0.42: 200 m)
 const LOCATION_NAMES := ["Halle", "Wiese"]
 const PYLON_HEIGHT := 5.0
 const FIELD_MARGIN := 3.5        ## Rechteck reicht so weit vor/hinter die Pylone
@@ -581,14 +582,14 @@ func hint_text() -> String:
 
 
 ## Zählt diese Strecke für die Bestenliste? Nur mit dem Standard-Pylonabstand:
-## Halle = FN Hugo Eckener Cup (18 m), Wiese = 200 m. Geänderter Abstand = keine Wertung.
+## Halle = FN Hugo Eckener Cup (18 m), Wiese = 100 m. Geänderter Abstand = keine Wertung.
 func is_ranked() -> bool:
 	if location == 1:
 		return is_equal_approx(meadow_distance, MEADOW_DISTANCE)
 	return preset == 0
 
 
-## Szenario wie ab Werk: Halle, FN Hugo Eckener Cup, Wiese 200 m.
+## Szenario wie ab Werk: Halle, FN Hugo Eckener Cup, Wiese 100 m.
 func reset_scenario() -> void:
 	location = 0
 	preset = 0
@@ -680,6 +681,7 @@ func save_settings() -> void:
 	cfg.set_value("strecke", "frei_abstand", free_distance)
 	cfg.set_value("strecke", "location", location)
 	cfg.set_value("strecke", "wiese_abstand", meadow_distance)
+	cfg.set_value("strecke", "wiese_vorgabe", MEADOW_DISTANCE)   # damit die alte Vorgabe 200 m erkannt wird
 	cfg.save(SETTINGS_PATH)
 
 
@@ -691,3 +693,7 @@ func load_settings() -> void:
 	free_distance = clampf(float(cfg.get_value("strecke", "frei_abstand", free_distance)), MIN_DISTANCE, MAX_DISTANCE)
 	location = clampi(int(cfg.get_value("strecke", "location", location)), 0, 1)
 	meadow_distance = clampf(float(cfg.get_value("strecke", "wiese_abstand", meadow_distance)), MIN_DISTANCE, MAX_DISTANCE)
+	# Wer noch auf der alten Vorgabe (200 m, bis 0.42) stand, bekommt die neue (100 m);
+	# ein selbst gewählter anderer Abstand bleibt
+	if not cfg.has_section_key("strecke", "wiese_vorgabe") and is_equal_approx(meadow_distance, 200.0):
+		meadow_distance = MEADOW_DISTANCE

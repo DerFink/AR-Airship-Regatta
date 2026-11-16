@@ -1,3 +1,4 @@
+# 2026-11-16 15:10 – Kommentare: Wiese 100 m
 # 2026-11-16 01:40 – Ziel mit geändertem Pylonabstand: Hinweis statt Bestenliste; Zurücksetzen „Strecke“ getrennt von der Knüppelbelegung
 # 2026-11-16 01:00 – ShipRender3D für Vorschaubilder; Startseite bekommt das aktuelle Luftschiff
 # 2026-11-16 00:30 – Nach dem Ziel immer Ergebnis zeigen (Platz kommt vom Server)
@@ -493,7 +494,7 @@ func _on_race_changed() -> void:
 		hud.show_notice("%s · %s (%s)" % [tr("Demo"), Course.format_time(course.time_s), course.lap_text()], "info", 6.0)
 		autopilot.stop()
 		return
-	# Bestenliste nur mit dem Standard-Pylonabstand (Cup bzw. Wiese 200 m)
+	# Bestenliste nur mit dem Standard-Pylonabstand (Cup bzw. Wiese 100 m)
 	if not course.is_ranked():
 		hud.show_notice(I18n.t("Ziel · %s – Pylonabstand geändert, nicht in der Bestenliste") % Course.format_time(course.time_s), "info", 5.0)
 		return
@@ -561,7 +562,7 @@ func _reset_selected(opts: Dictionary) -> void:
 		fc.stick_mode_changed.emit()
 		done.append(tr("Knüppelbelegung"))
 	if opts.get("strecke", false):
-		course.reset_scenario()                       # Halle, Cup 18 m, Wiese 200 m
+		course.reset_scenario()                       # Halle, Cup 18 m, Wiese 100 m
 		done.append(tr("Strecke"))
 	reset_ship()
 	if done.size() > 0:

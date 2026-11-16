@@ -1,3 +1,4 @@
+# 2026-11-16 15:10 – Zurücksetzen-Text: Wiese 100 m
 # 2026-11-16 14:50 – Antrieb: Stator und kV statt „Schub vor“/„Drehzahl max“; Drehzahl und Schub werden aus kV, Zellen und Propeller berechnet und angezeigt (kV 0 = wie bisher von Hand)
 # 2026-11-16 14:10 – Mischer mit Flugmodi ohne Regler (Anzahl, Name, eigene Tabelle je Direkt-Modus); Seiten dichter; Felder in Menühöhe
 # 2026-11-16 13:00 – Rechte Spalte nach Skizze: Name (antippen = ändern) und Kurzbeschreibung oben, Strich, Volumen mit Maßen, Rennfaktor F7B, Kasten „Massen“ (Hülle, LTW n × g, Antrieb n × g, … Strich, Trimm statt Ballast); Modellauswahl, Wort „Kennwerte“ und Name/Beschreibung im Reiter Hülle entfernt; schmalere Rahmen
@@ -1642,7 +1643,7 @@ func _refresh() -> void:
 #   │ [✓] Regler                         PID, Bausteine, Angle  │
 #   │ [ ] Sender                         Kalibrierung, Zuordnung│
 #   │ [ ] Knüppelbelegung                Mode 4 (Gas links)     │
-#   │ [✓] Strecke                        Halle Cup 18 m, Wiese 200 m │
+#   │ [✓] Strecke                        Halle Cup 18 m, Wiese 100 m │
 #   │ Bleibt erhalten: Bestenliste, eigene Modelle, Sprache …   │
 #   │              [Abbrechen]  [Zurücksetzen]                  │
 #   └───────────────────────────────────────────────────────────┘
@@ -1675,7 +1676,7 @@ func _build_reset_dlg() -> void:
 		["fc", "Regler", "PID-Werte des Modells, Bausteine alle an, Flugmodus Angle"],
 		["sender", "Sender", "Kalibrierung, Umkehr und Kanalzuordnung – danach neu kalibrieren"],
 		["sticks", "Knüppelbelegung", "Mode 4 (Gas links)"],
-		["strecke", "Strecke", "Halle mit FN Hugo Eckener Cup (18 m), Wiese 200 m – nur so zählt die Bestenliste"]]
+		["strecke", "Strecke", "Halle mit FN Hugo Eckener Cup (18 m), Wiese 100 m – nur so zählt die Bestenliste"]]
 	for it in items:
 		var row := UITheme.make_hbox("sm")
 		var cb := CheckBox.new()

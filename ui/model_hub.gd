@@ -1,3 +1,4 @@
+# 2026-11-16 15:10 – Wiese 100 m statt 200 m
 # 2026-11-16 09:50 – Knopf „Szenario zurücksetzen“ über dem Pylonabstand
 # 2026-11-16 01:40 – Hinweis unter dem Pylonabstand, wenn er geändert ist (keine Wertung)
 # 2026-11-16 01:00 – Vorschaubilder als echtes 3D-Bild wie auf dem Flugfeld (mit Logos), gezeichnete Ansicht nur bis es fertig ist
@@ -106,7 +107,7 @@ func _ready() -> void:
 	lcol.add_child(UITheme.make_title("Location"))
 	_loc_list = UITheme.make_vbox("sm")
 	lcol.add_child(_scroll(_loc_list))
-	# Szenario zurücksetzen: Halle, FN Hugo Eckener Cup (18 m), Wiese 200 m – zählt dann für die Bestenliste
+	# Szenario zurücksetzen: Halle, FN Hugo Eckener Cup (18 m), Wiese 100 m – zählt dann für die Bestenliste
 	var b_scn := UITheme.make_button("Szenario zurücksetzen")
 	b_scn.pressed.connect(func():
 		course.reset_scenario()
@@ -125,7 +126,7 @@ func _ready() -> void:
 	drow.add_child(UITheme.make_label("m", "MutedLabel"))
 	lcol.add_child(drow)
 	# Hinweis bei geändertem Pylonabstand: zählt nicht für die Bestenliste
-	_dist_warn = UITheme.make_label("Geänderter Pylonabstand – keine Wertung für die Bestenliste (Halle 18 m, Wiese 200 m).")
+	_dist_warn = UITheme.make_label("Geänderter Pylonabstand – keine Wertung für die Bestenliste (Halle 18 m, Wiese 100 m).")
 	_dist_warn.add_theme_color_override("font_color", UITheme.color("warning"))
 	_dist_warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_dist_warn.custom_minimum_size.x = 300

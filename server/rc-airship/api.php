@@ -1,4 +1,5 @@
 <?php
+// 2026-11-16 15:10 – Wiese gewertet nur mit 100 m (wiese_100.0) statt 200 m
 // 2026-11-16 01:45 – Eintragen nur für Standard-Pylonabstand (cup, wiese_200.0)
 // 2026-11-14 21:40 – Eintragen nur mit Einwilligung + Geräte-Kennung; neu: delete_device (eigene Einträge löschen), hit (Besucherzähler)
 // 2026-11-11 19:10 – Erstversion: Schnittstelle der Online-Bestenliste für App und Browser
@@ -82,8 +83,8 @@ try {
     }
 
     if ($action === 'submit') {
-        // nur Standard-Pylonabstand wird gewertet (Halle: Cup 18 m, Wiese 200 m)
-        if ($course !== 'cup' && $course !== 'wiese_200.0') out(['ok' => false, 'error' => 'course'], 400);
+        // nur Standard-Pylonabstand wird gewertet (Halle: Cup 18 m, Wiese 100 m)
+        if ($course !== 'cup' && $course !== 'wiese_100.0') out(['ok' => false, 'error' => 'course'], 400);
         // ohne Einwilligung in der aktuellen Fassung wird nichts gespeichert
         if ((int)($body['consent'] ?? 0) !== CONSENT_VERSION) out(['ok' => false, 'error' => 'consent'], 400);
         $dh = device_hash((string)($body['device'] ?? ''));

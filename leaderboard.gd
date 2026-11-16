@@ -1,3 +1,4 @@
+# 2026-11-16 15:10 – Kommentar: Wiese-Liste „wiese_100.0“
 # 2026-11-16 00:30 – Liste auf dem Gerät wird nicht mehr geführt (nur noch online); remember_name() merkt den Namen
 # 2026-11-11 19:40 – Quartalsweise: 100 Plätze je Strecke und Quartal; zum Quartalsende kommen die 10 Besten in „Best Forever“, der Rest wird gelöscht; Einträge mit Plattform („PC · Sender“ …) und Quartal
 # 2026-11-11 18:30 – Sortierung nach gewerteter Zeit (F7B: Gesamtzeit × Boxfaktor); Feld "score" je Eintrag, alte Einträge zählen mit der Gesamtzeit
@@ -7,7 +8,7 @@
 # Leaderboard.gd  (Bestenliste auf diesem Gerät – die Online-Liste liegt auf
 # flinkfink.de, siehe LeaderboardOnline und server/rc-airship/)
 # -----------------------------------------------------------------------------
-# Eine Liste je Strecke („cup“, „frei_25.0“, „wiese_200.0“) und Quartal:
+# Eine Liste je Strecke („cup“, „frei_25.0“, „wiese_100.0“) und Quartal:
 #   lists[strecke]            – laufendes Quartal, bis 100 Einträge
 #   forever[strecke][quartal] – vergangene Quartale, je die 10 Besten
 # Sortiert wird nach der GEWERTETEN Zeit (F7B) – so haben auch kleine,
