@@ -188,3 +188,4 @@ Velocita
 Schubi
 Example
 Support me
+prompt(%s, %s)

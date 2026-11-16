@@ -1,3 +1,4 @@
+# 2026-11-16 16:45 – WebTextInput: Textfelder im Handy-Browser über das Browser-Eingabefenster (Tastatur öffnete sich nicht)
 # 2026-11-16 15:10 – Kommentare: Wiese 100 m
 # 2026-11-16 01:40 – Ziel mit geändertem Pylonabstand: Hinweis statt Bestenliste; Zurücksetzen „Strecke“ getrennt von der Knüppelbelegung
 # 2026-11-16 01:00 – ShipRender3D für Vorschaubilder; Startseite bekommt das aktuelle Luftschiff
@@ -112,6 +113,8 @@ var _touches := {}               ## aktive Finger: Index → Position
 
 
 func _ready() -> void:
+	# Handy-Browser: Texteingabe über das Eingabefenster des Browsers (sonst keine Tastatur)
+	add_child(WebTextInput.new())
 	_no_joypad_ui()
 	AppSettings.load_all()                   # Lautstärken, Spur (vor dem Aufbau: Audio-Busse)
 	I18n.setup()                             # gespeicherte Sprache laden (vor dem Aufbau der Oberfläche)

@@ -304,6 +304,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 16.11. | 0.42.1 | Wiese (outdoor): Vorgabe-Pylonabstand 100 m statt 200 m; gewertet wird nur noch `wiese_100.0` (App und api.php); wer noch auf der alten Vorgabe 200 m stand, wird einmalig auf 100 m umgestellt. |
 | 16.11. | 0.42.2 | Startseite „Support me“; Browser-Update: Prüfabfrage ohne gzip (lud vorher nie neu); PID-Werte bis 10; Sprungantwort: Prüfstand fliegt weiter bis Menü zu, weitere Sprünge in die laufende Antwort, jede Änderung (Werte, Modus, Achse, Sprunghöhe) startet nach 0,4 s von vorn (`FlightController.settings_saved`), Plot 8 s; „Modell & Bau“: Knopf „Auf Werkseinstellung zurücksetzen“ mit Hinweis bei abweichendem geladenem Modell (z. B. altes Chewie mit 7 N); Picard mit Chewie-Motoren (1804 2450 kV, T4×2×3), models.json neu. |
 | 16.11. | 0.42.3 | Tastatur: Gas läuft ohne W/S langsam auf 0 zurück (0,3 je Sekunde, Vollgas → 0 in gut 3 s; Nick/Gier 4 je Sekunde); X setzt weiter sofort auf 0. |
+| 16.11. | 0.42.4 | Handy-Browser: Textfelder (z. B. Pilotenname nach dem Rennen) öffnen das Eingabefenster des Browsers (`WebTextInput`, window.prompt) – die Bildschirmtastatur von Godot erschien im Browser nicht. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 
