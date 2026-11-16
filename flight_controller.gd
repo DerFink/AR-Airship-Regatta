@@ -1,3 +1,4 @@
+# 2026-11-16 17:30 – Schub je Motor im Mischer: Gas/Nick/Gier/Roll in % je Motor, Motor je Modus abschaltbar (motor_throttle, active_table); Regler ändert den Schub weiterhin nie
 # 2026-11-16 16:05 – Signal settings_saved (Sprungantwort startet bei Änderung neu)
 # 2026-11-16 15:35 – Reglerwerte (Kp/Ki/Kd, roll_vs_pitch, yaw_loop) bis 10 statt 2/3
 # 2026-11-16 11:30 – Neue PID-Modi halten auch die Rolllage (mit dem Wirbelauftrieb kippte das Schiff in engen Kurven sonst weg und schlug auf)
@@ -683,7 +684,7 @@ func _physics_process(dt: float) -> void:
 		dy *= yaw_swivel_scale                                          # Gierschwenk ab yaw_swivel_full_lever zurücknehmen
 		var delta: float = dp + dy
 		mot.swivel_cmd = _servo_to_cmd(c.s * delta, servo_throw_m23, mot.max_swivel_deg)
-		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)   # Gas nur vom Piloten, alle Motoren gleich
+		mot.throttle_cmd = motor_throttle(i)   # Schub nur aus den Knüppeln des Piloten (Mischer), nie vom Regler
 
 
 ## Mode 1 (mixServosDirect): Knüppel direkt auf die Servos, Rolle auf dem linken Knüppel.
@@ -728,7 +729,36 @@ func _mix_direct(pitch_des: float, yaw_des: float, roll_imu := 0.0, roll_extra :
 		var delta: float = mode1_stick_pitch_motor * pitch_des * _sgn(sin(n)) * c.wp \
 				+ (mode1_stick_yaw_motor * yaw_des * _sgn(cos(n)) + motor_roll_sign * mode1_roll_motor * roll_cmd) * c.wy
 		mot.swivel_cmd = _servo_to_cmd(c.s * delta, servo_throw_m1, mot.max_swivel_deg)
-		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)
+		mot.throttle_cmd = motor_throttle(i)
+
+
+# =============================================================================
+# Schub je Motor (Mischer, Wunsch 16.11.2026)
+#   Schub_i = (Gas% · Gas + Nick% · Nick + Gier% · Gier + Roll% · Roll) / 100
+#   mit den Knüppeln des Piloten (−1 … +1), begrenzt auf −1 … +1.
+#   Tabelle: Zeile "t<i>" = [Gas, Nick, Gier, Roll] in %, "x<i>" = true → Motor
+#   in diesem Modus aus. Ohne Zeile: Schub = Gas (wie bisher, alle gleich).
+#   Damit lassen sich z. B. seitwärts steuern (Gier → links +, rechts −) oder
+#   4 Motoren senkrecht nach oben schieben. Der Regler (PID) verändert den
+#   Schub NIE – nur die Knüppel des Piloten gehen über diese Tabelle.
+# =============================================================================
+## Aktive Mischtabelle: eigene Tabelle des Modus, sonst die des Modells.
+func active_table() -> Dictionary:
+	var own = mode_cfg().get("mix") if not _suggesting else null
+	if own is Dictionary:
+		return own
+	return airship.mix_table
+
+
+## Schub-Sollwert für Motor i aus den Knüppeln des Piloten.
+func motor_throttle(i: int) -> float:
+	var t := active_table()
+	if bool(t.get("x%d" % i, false)):
+		return 0.0                                    # Motor in diesem Modus aus
+	var k = t.get("t%d" % i)
+	if not (k is Array) or k.size() < 4:
+		return clampf(cmd_throttle, -1.0, 1.0)
+	return clampf((float(k[0]) * cmd_throttle + float(k[1]) * cmd_pitch + float(k[2]) * cmd_yaw + float(k[3]) * cmd_aux) / 100.0, -1.0, 1.0)
 
 
 # =============================================================================
@@ -736,7 +766,7 @@ func _mix_direct(pitch_des: float, yaw_des: float, roll_imu := 0.0, roll_extra :
 #   Jeder Ausgang (Flosse, Canard, Motorschwenker) bekommt
 #     Stellbefehl = (Nick% · Nick + Gier% · Gier + Roll% · Roll) / 100
 #   mit den Knüppeln −1…+1; ±1 = voller Ausschlag des Bauteils.
-#   Gas bleibt beim Piloten (alle Motoren gleich, kein Differenzschub).
+#   Schub je Motor siehe motor_throttle() (nur Knüppel des Piloten).
 # =============================================================================
 ## Liste der Ausgänge für die Mischtabelle: [{key, name, max_deg}]
 static func mix_outputs(ship: AirshipPhysics) -> Array:
@@ -775,7 +805,7 @@ func _mix_manual(p: float, y: float, r: float, tbl = null) -> void:
 		var mot: VectorMotor = airship.motors[i]
 		var k = t.get("m%d" % i)
 		mot.swivel_cmd = 0.0 if k == null else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
-		mot.throttle_cmd = clampf(cmd_throttle, -1.0, 1.0)
+		mot.throttle_cmd = motor_throttle(i)
 
 
 ## Rollausgleich: Höhen- (p) und Seitenbefehl (y) aus Sicht des Piloten in die

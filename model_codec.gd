@@ -1,3 +1,4 @@
+# 2026-11-16 17:45 – Mischtabelle: Schub je Motor (t<i>, vier Werte) und Motor aus (x<i>) im Modell-String
 # 2026-11-16 16:55 – kV bis 50 000
 # 2026-11-16 14:40 – Motoren: kV und Stator im Modell-String (nur wenn kV gesetzt)
 # 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
@@ -486,13 +487,19 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 		"logo": logo, "lsize": _num(lk, "lsize", 0.45), "lpos": _num(lk, "lpos", 0.25),
 		"both": _flag(lk, "both", true), "tf": _flag(lk, "tf", false), "lf": _flag(lk, "lf", false),
 		"desc": _txt(lk, "desc", "", 100)}
-	# Mischer von Hand: Schlüssel s0…/m0…, je drei Prozentwerte
+	# Mischer von Hand: Schlüssel s0…/m0…, je drei Prozentwerte; t0… Schub je Motor (vier), x0… Motor aus
 	var mx = d.get("mix", {})
 	var mt := {}
 	if mx is Dictionary and mx.get("t") is Dictionary:
 		for k in (mx.t as Dictionary).keys().slice(0, 40):
 			var v = mx.t[k]
-			if str(k).length() <= 4 and (str(k).begins_with("s") or str(k).begins_with("m")) and v is Array and v.size() == 3:
-				mt[str(k)] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0)]
+			var ks := str(k)
+			if ks.length() <= 4 and (ks.begins_with("s") or ks.begins_with("m")) and v is Array and v.size() == 3:
+				mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0)]
+			# Schub je Motor: t<i> = [Gas, Nick, Gier, Roll] in %, x<i> = Motor aus
+			elif ks.length() <= 4 and ks.begins_with("t") and v is Array and v.size() == 4:
+				mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0), clampf(float(v[3]), -200.0, 200.0)]
+			elif ks.length() <= 4 and ks.begins_with("x") and v is bool and v:
+				mt[ks] = true
 	out["mix"] = {"on": _flag(mx, "on", false) if mx is Dictionary else false, "t": mt}
 	return out
