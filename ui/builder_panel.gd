@@ -1,3 +1,4 @@
+# 2026-11-16 17:15 – Stator-Feld ohne grauen Platzhalter (sah gesperrt aus); neue Motoren übernehmen Stator/kV/Propeller/Masse der vorhandenen; neues Paar öffnet gleich im Editor
 # 2026-11-16 16:55 – kV-Eingabe bis 50 000
 # 2026-11-16 15:10 – Zurücksetzen-Text: Wiese 100 m
 # 2026-11-16 14:50 – Antrieb: Stator und kV statt „Schub vor“/„Drehzahl max“; Drehzahl und Schub werden aus kV, Zellen und Propeller berechnet und angezeigt (kV 0 = wie bisher von Hand)
@@ -1184,10 +1185,30 @@ func _add_motor_pair() -> void:
 	l.swivel_enabled = false
 	r.pair_id = pid; l.pair_id = pid
 	r.spin_dir = 1; l.spin_dir = -1                 # gegenläufig
+	_copy_drive(r); _copy_drive(l)                  # gleicher Motor/Propeller wie die vorhandenen
 	ship.motors.append(r)
 	ship.motors.append(l)
 	_changed()
 	ui_action.emit("add")
+	# neues Paar gleich im Editor öffnen
+	var idx := ship.motors.size() - 2
+	if _parts_list and idx < _parts_list.item_count:
+		_parts_list.select(idx)
+	_on_part_selected(idx)
+
+
+## Neuer Motor übernimmt Stator, kV, Propeller und Masse des ersten vorhandenen
+## Motors mit kV-Angabe (meist baut man dieselben Motoren noch einmal ein).
+func _copy_drive(mo: VectorMotor) -> void:
+	for m in ship.motors:
+		if m.kv > 0.0:
+			mo.stator = m.stator
+			mo.kv = m.kv
+			mo.prop_diameter_in = m.prop_diameter_in
+			mo.prop_pitch_in = m.prop_pitch_in
+			mo.prop_blades = m.prop_blades
+			mo.mass_kg = m.mass_kg
+			return
 
 
 ## Einzelmotor: sitzt mittig unten (Winkel 180°) bei Längsposition 0,25, ohne
@@ -1202,6 +1223,7 @@ func _add_single_motor() -> void:
 	mo.swivel_enabled = false                     # fest – Schwenken erst per Haken
 	mo.max_swivel_deg = 60.0                      # Schwenkweg, falls der Haken gesetzt wird
 	mo.spin_dir = 1
+	_copy_drive(mo)
 	ship.motors.append(mo)
 	_changed()
 	ui_action.emit("add")
@@ -1306,7 +1328,7 @@ func _on_part_selected(i: int) -> void:
 	var se := LineEdit.new()
 	se.max_length = 8
 	se.text = mo.stator
-	se.placeholder_text = "1804"
+	# kein grauer Platzhalter – der sah aus wie ein gesperrtes Feld (16.11.)
 	se.custom_minimum_size = Vector2(96, UITheme.menu_height())
 	se.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var smass := UITheme.make_label("", "MutedLabel")
