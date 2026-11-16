@@ -1,3 +1,4 @@
+# 2026-11-16 12:20 – Weniger präsent: kein dunkler, durchsichtiger Kasten mehr, nur weiße Schrift mit weichem Schatten; Titel normal groß
 # 2026-11-11 16:30 – Erstversion: Rennanzeige rechts oben – Rundenzeiten untereinander, Gesamtzeit und gewertete Zeit nach der F7B-Formel
 # =============================================================================
 # RacePanel.gd
@@ -30,11 +31,14 @@ var _rows: Array = []               ## [Name-Label, Zeit-Label] je Runde
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_theme_stylebox_override("panel", UITheme.box(Color(UITheme.color("surface"), 0.85), UITheme.color("border"), -1, UITheme.space("md")))
+	# Kein dunkler Kasten mehr: nur Schrift mit dünnem dunklem Rand (lesbar vor
+	# Himmel und Halle, aber unaufdringlich)
+	var sb := StyleBoxEmpty.new()
+	sb.set_content_margin_all(UITheme.space("sm"))
+	add_theme_stylebox_override("panel", sb)
 	var v := UITheme.make_vbox("xs")
 	add_child(v)
 	_title = UITheme.make_label("")
-	_title.add_theme_font_size_override("font_size", UITheme.font_size("title"))
 	v.add_child(_title)
 	_grid = GridContainer.new()
 	_grid.columns = 2
@@ -66,6 +70,16 @@ func _ready() -> void:
 	_formula = UITheme.make_label("", "MutedLabel")
 	_formula.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
 	v.add_child(_formula)
+	# Alle Schriften: weiß mit weichem Schatten statt Hintergrund (lesbar vor
+	# heller Halle und Himmel); Namen der Zeilen etwas blasser
+	for l in find_children("*", "Label", true, false):
+		var lb := l as Label
+		if lb.theme_type_variation == &"MutedLabel":
+			lb.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
+		lb.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
+		lb.add_theme_constant_override("shadow_offset_x", 1)
+		lb.add_theme_constant_override("shadow_offset_y", 1)
+		lb.add_theme_constant_override("shadow_outline_size", 3)
 
 
 ## Jeden Physikschritt von der Flugansicht aufgerufen.

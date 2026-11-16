@@ -1,3 +1,4 @@
+# 2026-11-16 12:50 – Sprungantwort über den Prüfstand (StepBench): Kopie des Schiffs fliegt 2 s geradeaus, dann der Sprung – vorher blieb die blaue Ist-Linie flach, weil das Schiff im Menü ohne Fahrt stand
 # 2026-11-13 01:20 – Neu aufgebaut nach freigegebenem Entwurf: links die Flugmodi (Anzahl 1–5 als Zahl, Name, Art Direkt / PID teilweise / PID alle Achsen bzw. Vorlage Angle/Horizon, Achsen mit Lage oder Drehrate, Rollausgleich je Modus), Mitte nur die Werte des gewählten Modus (Direkt: Mischtabelle), rechts Sprungantwort mit Auslöser, Zeitachse und Kennwerten; Knopf „Signalfluss“
 # 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 15:20 – Stickmode 1–4 (gleiche Einstellung wie beim Sender-Kalibrieren)
@@ -36,6 +37,8 @@ var _plot: StepPlot
 var _metrics: Label
 var _step_field: NumberField
 var _flow_win: Control
+## Prüfstand: Kopie des Schiffs fliegt unsichtbar geradeaus, dann der Sprung
+var _bench: StepBench
 
 
 func setup(controller: FlightController) -> void:
@@ -102,7 +105,7 @@ func _ready() -> void:
 	var trig := UITheme.make_primary_button("▶  " + tr("Sprung auslösen"))
 	trig.pressed.connect(_on_trigger)
 	rcol.add_child(trig)
-	rcol.add_child(_note("Am besten im Flug auslösen – ohne Fahrt wirken die Ruder kaum. Der Sprung dauert 3 s."))
+	rcol.add_child(_note("Geprüft wird eine Kopie deines Luftschiffs: 2 s Geradeausflug mit 60 % Gas, dann der Sprung für 3 s."))
 	_plot = StepPlot.new()
 	_plot.custom_minimum_size = Vector2(260, 170)
 	rcol.add_child(_plot)
@@ -117,7 +120,15 @@ func _ready() -> void:
 	done.pressed.connect(func(): closed.emit())
 	rcol.add_child(done)
 
-	fc.loop_sample.connect(_on_sample)
+	# Der Plot zeigt nur noch den Prüfstand – das echte Schiff steht im Menü still
+	# (seine flachen Messwerte schoben die Antwort sonst aus dem Bild)
+	# Prüfstand für die Sprungantwort (eigene, unsichtbare Physikwelt)
+	_bench = StepBench.new()
+	add_child(_bench)
+	_bench.sample.connect(_on_bench_sample)
+	_bench.step_started.connect(func(sp: float):
+		_plot.mark_trigger(sp)
+		_metrics.text = I18n.dec(I18n.t("Sprung bei %.1f km/h …") % (sp * 3.6)))
 	fc.mode_index_changed.connect(func(_i): _sync())
 	fc.modes_changed.connect(_sync)
 	visibility_changed.connect(_sync)
@@ -132,6 +143,8 @@ func _sync() -> void:
 	_fill_left()
 	_clear(_mid_box)
 	_fill_mid()
+	if _bench:
+		_bench.stop()                  # Moduswechsel/Schließen: laufenden Test abbrechen
 	_plot.clear()
 	_metrics.text = ""
 
@@ -459,14 +472,16 @@ func _fill_teensy(art: String) -> void:
 # =============================================================================
 # Rechts: Sprung auslösen und Kennwerte
 # =============================================================================
+## Sprung auslösen: nicht mehr am echten Schiff (das steht im Menü ohne Fahrt
+## still), sondern am Prüfstand mit einer fliegenden Kopie.
 func _on_trigger() -> void:
-	var sp := fc.airship.airspeed if fc.airship else 0.0
-	fc.trigger_step(_step_axis, _step_amount, 3.0)
-	_plot.mark_trigger(sp)
-	_metrics.text = I18n.dec(I18n.t("Sprung bei %.1f km/h …") % (sp * 3.6))
+	_plot.clear()
+	_metrics.text = I18n.t("Anlauf: Geradeausflug …")
+	_bench.run(fc, _step_axis, _step_amount)
 
 
-func _on_sample(axis: int, setpoint: float, measurement: float) -> void:
+## Messwert in den Plot, Kennwerte nach dem Sprung neu berechnen.
+func _on_bench_sample(axis: int, setpoint: float, measurement: float) -> void:
 	if visible and axis == _step_axis:
 		_plot.push(setpoint, measurement)
 		var res := _plot.metrics()

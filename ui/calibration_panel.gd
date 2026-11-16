@@ -1,3 +1,4 @@
+# 2026-11-16 12:05 – Gasknüppel „Mitte = Stopp“ oder „Unten = Stopp (ohne Rückwärts)“; Knopf heißt „Nullpunkte übernehmen“ und bestätigt kurz
 # 2026-11-11 19:00 – Hinweis, wenn der Browser nichts dauerhaft speichert (Kalibrierung ginge verloren)
 # 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
 # 2026-11-11 17:00 – Bereits gespeicherte Kanäle zeigen „gespeichert ✓“ statt „noch bewegen“
@@ -16,7 +17,7 @@
 #   │  ┌─────────┐      ┌─────────┐       CH2 Höhe   …             …     │
 #   │  │    +  ● │      │  +      │       …                              │
 #   │  └─────────┘      └─────────┘       SF: oben · scharf  SC: …       │
-#   │      [Werkseinstellung] [Abbrechen] [Mitte übernehmen] [Speichern] │
+#   │  [Werkseinstellung] [Abbrechen] [Nullpunkte übernehmen] [Speichern] │
 #   └────────────────────────────────────────────────────────────────────┘
 # Ablauf: Beim Öffnen beginnt die Erfassung neu (Min/Max = jetzige Stellung).
 # Jede Knüppel-/Schalterbewegung erweitert den Bereich. „Mitte übernehmen“
@@ -29,6 +30,10 @@ class_name CalibrationPanel
 extends Control
 
 signal closed
+
+var _w_thr_bottom := false            ## Arbeitskopie: Gas unten = Stopp
+var _thr_btns := {}                   ## false/true → Knopf
+var _b_mid: Button                    ## „Nullpunkte übernehmen“
 
 ## Ab wann ein Kanal als erfasst gilt. Der erreichte Anschlag wird dann zu
 ## ±100 % – auch wenn der Sender selbst nur z. B. ±60 % ausgibt.
@@ -80,7 +85,7 @@ func _ready() -> void:
 	box.add_child(head)
 
 	# --- Anleitung ------------------------------------------------------------
-	var how := UITheme.make_label("1. Beide Knüppel einmal ganz im Kreis an alle Anschläge, alle Schalter durchschalten.  2. Knüppel loslassen, Gas in die Mitte → „Mitte übernehmen“.  3. Läuft ein Punkt verkehrt herum: Kanal auf „umgekehrt“.  4. „Speichern“.")
+	var how := UITheme.make_label("1. Beide Knüppel einmal ganz im Kreis an alle Anschläge, alle Schalter durchschalten.  2. Knüppel loslassen, Gas in die Mitte → „Nullpunkte übernehmen“.  3. Läuft ein Punkt verkehrt herum: Kanal auf „umgekehrt“.  4. „Speichern“.")
 	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	how.custom_minimum_size.x = 1060
 	box.add_child(how)
@@ -98,6 +103,19 @@ func _ready() -> void:
 		modes.add_child(b)
 		_mode_btns[m] = b
 	box.add_child(modes)
+	# --- Gasknüppel: Mitte = Stopp (mit Rückwärts) oder unten = Stopp (ohne Rückwärts) ---
+	var grow := UITheme.make_hbox("sm")
+	grow.add_child(UITheme.make_label("Gasknüppel", "MutedLabel"))
+	var gg := ButtonGroup.new()
+	for opt in [[false, "Mitte = Stopp (mit Rückwärts)"], [true, "Unten = Stopp (ohne Rückwärts)"]]:
+		var gb := UITheme.make_button(opt[1], true)
+		gb.button_group = gg
+		gb.focus_mode = Control.FOCUS_NONE
+		var bottom: bool = opt[0]
+		gb.pressed.connect(func(): _w_thr_bottom = bottom)
+		grow.add_child(gb)
+		_thr_btns[bottom] = gb
+	box.add_child(grow)
 
 	# --- Mitte: Knüppelfelder links, Kanalliste rechts ------------------------
 	var mid := UITheme.make_hbox("lg")
@@ -166,7 +184,8 @@ func _ready() -> void:
 	b_def.pressed.connect(_on_defaults)
 	var b_cancel := UITheme.make_button("Abbrechen")
 	b_cancel.pressed.connect(func(): hide_panel())
-	var b_mid := UITheme.make_button("Mitte übernehmen")
+	_b_mid = UITheme.make_button("Nullpunkte übernehmen")
+	var b_mid := _b_mid
 	b_mid.pressed.connect(_on_center)
 	var b_save := UITheme.make_button("Speichern")
 	b_save.pressed.connect(_on_save)
@@ -179,6 +198,8 @@ func _ready() -> void:
 
 ## Fenster öffnen: Arbeitskopie anlegen, Erfassung neu beginnen.
 func show_panel() -> void:
+	_w_thr_bottom = joy.thr_bottom
+	for k in _thr_btns: _thr_btns[k].set_pressed_no_signal(k == _w_thr_bottom)
 	_work = joy.cal.duplicate(true)
 	_wmap = JoystickInput.fmap.duplicate()
 	_learn = ""
@@ -315,11 +336,16 @@ func _wax(fn: String) -> int:
 	return int(_wmap.get(fn, JoystickInput.DEFAULT_MAP[fn])) - 1
 
 
-## „Mitte übernehmen“: jetzige Stellung der Knüppel-Kanäle als Mitte merken.
+## „Nullpunkte übernehmen“: jetzige Stellung der Knüppel-Kanäle als Mitte
+## (Nullpunkt) merken. Beim Gas „unten = Stopp“ zählt für das Gas nur der Weg
+## unten…oben, die Mitte ist dort egal. Kurze Bestätigung auf dem Knopf.
 func _on_center() -> void:
 	for i in JoystickInput.CHANNELS:
 		if _is_stick(i):
 			_work[i].center = joy.raw(i)
+	_b_mid.text = I18n.t("Nullpunkte übernommen ✓")
+	get_tree().create_timer(1.5).timeout.connect(func():
+		if is_instance_valid(_b_mid): _b_mid.text = I18n.t("Nullpunkte übernehmen"))
 
 
 ## „Werkseinstellung“: −1 / 0 / +1, nichts umgekehrt; Erfassung neu beginnen.
@@ -334,6 +360,7 @@ func _on_defaults() -> void:
 
 ## „Speichern“: Arbeitskopie (mit erfassten Bereichen) übernehmen und sichern.
 func _on_save() -> void:
+	joy.thr_bottom = _w_thr_bottom
 	for i in JoystickInput.CHANNELS:
 		joy.cal[i] = _effective(i)
 	JoystickInput.fmap = _wmap.duplicate()

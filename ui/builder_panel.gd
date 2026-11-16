@@ -1,3 +1,5 @@
+# 2026-11-16 13:00 – Rechte Spalte nach Skizze: Name (antippen = ändern) und Kurzbeschreibung oben, Strich, Volumen mit Maßen, Rennfaktor F7B, Kasten „Massen“ (Hülle, LTW n × g, Antrieb n × g, … Strich, Trimm statt Ballast); Modellauswahl, Wort „Kennwerte“ und Name/Beschreibung im Reiter Hülle entfernt; schmalere Rahmen
+# 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
 # 2026-11-16 01:40 – Zurücksetzen: „Strecke“ als eigener Punkt (vorausgewählt), Knüppelbelegung getrennt
 # 2026-11-16 00:05 – Knopf „In ‚Eigene‘ speichern“ rechts über Einstellungen (ohne Umweg über Teilen); Kennwerte scrollen, Knöpfe rechts bleiben immer sichtbar
 # 2026-11-14 18:10 – Motoren und Canards: jedes Antippen in der Liste öffnet den Editor (item_clicked), Markierung wird nach Import/Modellwechsel aufgehoben
@@ -102,9 +104,12 @@ const PROP_FACTOR := [1.0, 2.54, 25.4]
 var _last_level := -1
 var _file_dialog: FileDialog
 var _factor_lbl: Label                ## „Rennfaktor F7B ×0,72“ unter den Kennwerten
-var _name_edit: LineEdit              ## Name des Modells (Reiter Hülle)
+var _name_edit: LineEdit              ## Name des Modells (oben rechts)
 var _desc_edit: TextEdit              ## Kurzbeschreibung (bis 100 Zeichen)
 var _desc_count: Label                ## „62 / 100“
+var _mass_grid: GridContainer         ## Kasten „Massen“: Hülle, LTW, Antrieb, …
+var _trim_grid: GridContainer         ## Kasten „Massen“ unter dem Strich: Trimm
+var _total_lbl: Label                 ## Gesamtmasse unter dem Kasten
 var _bat_own: CheckBox                ## „Akku an eigener Stelle“
 var _bat_x: Control                   ## Regler „Lage Akku“
 var _reset_dlg: Control               ## Fenster „Zurücksetzen“ (Auswahl mit Häkchen)
@@ -143,17 +148,31 @@ func _ready() -> void:
 		_banner.visible = tabs.current_tab == TAB_TAIL    # Stabilität nur im Reiter Leitwerk
 		_layout.call_deferred())
 
-	# ===================== rechte Spalte: Kennwerte ==========================
-	_right = UITheme.make_panel(200)
+	# ===================== rechte Spalte (Skizze 16.11.2026) ==================
+	#   ┌──────────────────────────────┐
+	#   │ Chewie                       │  Name – antippen und ändern (schmaler Rahmen)
+	#   │ Kurzbeschreibung …           │  Beschreibung – antippen und ändern
+	#   │ ──────────────────────────── │
+	#   │ Volumen 0,10 m³ ; 1,58 × …   │
+	#   │ Rennfaktor: F7B = 0,50       │
+	#   │ ┌ Massen ──────────────────┐ │
+	#   │ │ Hülle            39 g    │ │
+	#   │ │ LTW          4 × 5 g     │ │
+	#   │ │ Antrieb      2 × 8 g     │ │
+	#   │ │ ──────────────────────── │ │
+	#   │ │ Trimm            10 g    │ │
+	#   │ └──────────────────────────┘ │
+	#   │ [In „Eigene“ speichern] …    │
+	#   └──────────────────────────────┘
+	_right = UITheme.make_panel(250)
+	_right.add_theme_stylebox_override("panel", UITheme.box(UITheme.color("surface"), Color(0, 0, 0, 0), -1, UITheme.space("sm")))
 	add_child(_right)
-	var rcol := UITheme.make_vbox("sm")
+	var rcol := UITheme.make_vbox("xs")
 	_right.add_child(rcol)
-	# Modellauswahl immer sichtbar (nicht in einem Reiter versteckt)
-	rcol.add_child(UITheme.make_title("Luftschiff"))
+	# Modellauswahl gibt es hier nicht mehr (Wunsch 16.11.: steht in „Modell & Bau“);
+	# die Liste bleibt unsichtbar erhalten, weil Zurücksetzen und Tests sie nutzen
 	_preset = OptionButton.new()
-	_preset.custom_minimum_size = Vector2(200, UITheme.size("control_height"))
-	_preset.fit_to_longest_item = false
-	_preset.clip_text = true
+	_preset.visible = false
 	_preset.item_selected.connect(_on_preset)
 	rcol.add_child(_preset)
 	reload_model_list()
@@ -162,38 +181,97 @@ func _ready() -> void:
 	var kscroll := ScrollContainer.new()
 	kscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	kscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var kcol := UITheme.make_vbox("sm")
+	var kcol := UITheme.make_vbox("xs")
 	kcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	kscroll.add_child(kcol)
 	rcol.add_child(kscroll)
-	kcol.add_child(UITheme.make_title("Kennwerte"))
+	# --- Name: groß geschrieben, nur ein dünner Rahmen; antippen = ändern ---
+	_name_edit = LineEdit.new()
+	_name_edit.max_length = 40
+	_name_edit.placeholder_text = I18n.t("Name")
+	_name_edit.add_theme_font_size_override("font_size", UITheme.font_size("title"))
+	_slim_edit_style(_name_edit)
+	_name_edit.text_changed.connect(func(t): ship.model_name = t; _refresh())
+	kcol.add_child(_name_edit)
+	# --- Kurzbeschreibung (bis 100 Zeichen), darunter klein der Zähler ---
+	_desc_edit = TextEdit.new()
+	_desc_edit.placeholder_text = I18n.t("Kurzbeschreibung (bis 100 Zeichen)")
+	_desc_edit.custom_minimum_size = Vector2(220, 52)
+	_desc_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_desc_edit.scroll_fit_content_height = true
+	_desc_edit.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	_slim_edit_style(_desc_edit)
+	_desc_count = UITheme.make_label("0 / 100", "MutedLabel")
+	_desc_count.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	_desc_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_desc_edit.text_changed.connect(func():
+		var t := _desc_edit.text.replace("\n", " ")
+		if t.length() > 100:                       # höchstens 100 Zeichen
+			t = t.left(100)
+			_desc_edit.text = t
+			_desc_edit.set_caret_column(t.length())
+		ship.model_description = t
+		_desc_count.text = "%d / 100" % t.length())
+	kcol.add_child(_desc_edit)
+	kcol.add_child(_desc_count)
+	kcol.add_child(HSeparator.new())
+	# --- Volumen mit Maßen, Rennfaktor ---
 	_stats = UITheme.make_label("")
 	_stats.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	kcol.add_child(_stats)
 	# Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird
 	_factor_lbl = UITheme.make_label("")
 	_factor_lbl.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
 	_factor_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	kcol.add_child(_factor_lbl)
+	# --- Kasten „Massen“: Zeilen Name | Wert, Strich, Trimm ---
+	var mbox := PanelContainer.new()
+	mbox.add_theme_stylebox_override("panel", UITheme.box(Color(0, 0, 0, 0), UITheme.color("border"), UITheme.radius("sm"), UITheme.space("sm")))
+	var mcol := UITheme.make_vbox("xs")
+	mbox.add_child(mcol)
+	var mt := UITheme.make_label("Massen", "MutedLabel")
+	mt.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	mcol.add_child(mt)
+	_mass_grid = GridContainer.new()
+	_mass_grid.columns = 2
+	_mass_grid.add_theme_constant_override("h_separation", UITheme.space("md"))
+	_mass_grid.add_theme_constant_override("v_separation", 0)
+	mcol.add_child(_mass_grid)
+	mcol.add_child(HSeparator.new())
+	_trim_grid = GridContainer.new()
+	_trim_grid.columns = 2
+	_trim_grid.add_theme_constant_override("h_separation", UITheme.space("md"))
+	mcol.add_child(_trim_grid)
+	kcol.add_child(mbox)
+	_total_lbl = UITheme.make_label("", "MutedLabel")
+	_total_lbl.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	kcol.add_child(_total_lbl)
 	# In „Eigene“ speichern: direkt hier, ohne Umweg über „Teilen“
 	var b_save := UITheme.make_primary_button(I18n.t("In „Eigene“ speichern"))
 	b_save.pressed.connect(_save_own)
 	rcol.add_child(b_save)
+	# Die übrigen Knöpfe kleiner, zu zweit nebeneinander (mehr Platz für die Werte)
+	var bgrid := GridContainer.new()
+	bgrid.columns = 2
+	bgrid.add_theme_constant_override("h_separation", UITheme.space("xs"))
+	bgrid.add_theme_constant_override("v_separation", UITheme.space("xs"))
+	rcol.add_child(bgrid)
 	var b_set := UITheme.make_button("Einstellungen")
-	b_set.icon = load("res://textures/zahnrad.svg")
-	b_set.add_theme_constant_override("icon_max_width", 24)
 	b_set.pressed.connect(func(): settings_requested.emit())
-	rcol.add_child(b_set)
 	# Zurücksetzen: Auswahl, was wieder wie ab Werk sein soll (Fenster _reset_dlg)
 	var b_reset := UITheme.make_button("Zurücksetzen")
 	b_reset.pressed.connect(_open_reset)
-	rcol.add_child(b_reset)
 	var share := UITheme.make_button("Teilen")
 	share.pressed.connect(func(): ui_action.emit("select"); share_requested.emit())
-	rcol.add_child(share)
 	var done := UITheme.make_button("Fertig")
 	done.pressed.connect(func(): closed.emit())
-	rcol.add_child(done)
+	for b in [b_set, b_reset, share, done]:
+		b.custom_minimum_size.y = 34
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+		bgrid.add_child(b)
+	b_save.custom_minimum_size.y = 40
 
 	# ===================== Mitte: Hinweis, Ansicht, Heckansicht, Banner =====
 	_hint = UITheme.make_label("1 Finger drehen · 2 Finger zoomen", "MutedLabel")
@@ -301,30 +379,7 @@ func _scroll_page(title: String, builder: Callable) -> ScrollContainer:
 # Reiter „Hülle“
 # =============================================================================
 func _build_hull_page(col: VBoxContainer) -> void:
-	# --- Name und Kurzbeschreibung des Modells ---
-	col.add_child(UITheme.make_title("Luftschiff"))
-	col.add_child(UITheme.make_label("Name", "MutedLabel"))
-	_name_edit = LineEdit.new()
-	_name_edit.max_length = 40
-	_name_edit.custom_minimum_size.y = UITheme.size("control_height")
-	_name_edit.text_changed.connect(func(t): ship.model_name = t; _refresh())
-	col.add_child(_name_edit)
-	col.add_child(UITheme.make_label("Kurzbeschreibung (bis 100 Zeichen)", "MutedLabel"))
-	_desc_edit = TextEdit.new()
-	_desc_edit.custom_minimum_size.y = 72
-	_desc_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_desc_count = UITheme.make_label("0 / 100", "MutedLabel")
-	_desc_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_desc_edit.text_changed.connect(func():
-		var t := _desc_edit.text.replace("\n", " ")
-		if t.length() > 100:                       # höchstens 100 Zeichen
-			t = t.left(100)
-			_desc_edit.text = t
-			_desc_edit.set_caret_column(t.length())
-		ship.model_description = t
-		_desc_count.text = "%d / 100" % t.length())
-	col.add_child(_desc_edit)
-	col.add_child(_desc_count)
+	# Name und Kurzbeschreibung stehen seit 16.11.2026 oben in der rechten Spalte
 	col.add_child(UITheme.make_title("Hülle"))
 	# Zahlenfelder; Schieberegler nur für Lagen (hier: Dickste Stelle)
 	_hull_rows.vol = UITheme.make_number_row("Volumen", 0.01, INF, 0.01, ship.hull.volume_m3,
@@ -1255,7 +1310,7 @@ func _fill_look_page() -> void:
 	lf.button_pressed = l.logo_on_fins
 	lf.toggled.connect(func(on): l.logo_on_fins = on)
 	_look_box.add_child(lf)
-	_look_box.add_child(UITheme.make_slider_row("Logogröße", 0.1, 0.8, 0.01, l.logo_size,
+	_look_box.add_child(UITheme.make_slider_row("Logogröße", 0.1, 1.5, 0.01, l.logo_size,
 		func(v): l.logo_size = v, "%.2f"))
 	_look_box.add_child(UITheme.make_slider_row("Logolage (Nase → Heck)", 0.05, 0.9, 0.01, l.logo_pos,
 		func(v): l.logo_pos = v, "%.2f"))
@@ -1404,17 +1459,10 @@ func _refresh() -> void:
 
 	var r := TailValidator.validate(ship.hull, ship.surfaces, ship.cg_offset)
 	var h := ship.hull
-	# Modellname getrennt, damit Punkte im Namen nicht zu Kommas werden
-	# Kennwerte rechts: nur Maße und Masse (Stabilität steht im Reiter Leitwerk)
-	_stats.text = ship.model_name + "\n" + I18n.dec(I18n.t("%.2f × %.2f m\nMasse %.0f g (ohne Helium)") % [
-		h.length_m, h.diameter_m, ship.structure_mass_kg * 1000.0])
-	# Restmasse (was zum Austrimmen bleibt): Akku + Ballast
-	if ship.battery_own_x:
-		_stats.text += "\n" + I18n.t("Restmasse %d g (Ballast) · Akku %d g eigene Stelle") % [
-			roundi(maxf(ship.ballast_kg, 0.0) * 1000.0), roundi(ship.battery_mass_kg * 1000.0)]
-	else:
-		_stats.text += "\n" + I18n.t("Restmasse %d g = Akku %d g + Ballast %d g") % [
-			roundi(ship.rest_mass_kg * 1000.0), roundi(ship.battery_mass_kg * 1000.0), roundi(maxf(ship.ballast_kg, 0.0) * 1000.0)]
+	# Volumen und Maße der Hülle (Länge × Durchmesser × Durchmesser)
+	_stats.text = I18n.dec(I18n.t("Volumen %.2f m³ ; %.2f × %.2f × %.2f m") % [
+		h.volume_m3, h.length_m, h.diameter_m, h.diameter_m])
+	_fill_mass_box()
 	_update_mass_info()
 	_update_fin_mass_info()
 	_update_factor.call_deferred()      # erst nach dem Neuaufbau des 3D-Modells messen
@@ -1516,13 +1564,81 @@ func _build_reset_dlg() -> void:
 	v.add_child(btns)
 
 
+## Kasten „Massen“ füllen: Hülle, LTW (Anzahl × Masse), Canards, Antrieb,
+## Elektronik/FC, Akku, Nutzlast – Strich – Trimm (frei austrimmbare Masse).
+func _fill_mass_box() -> void:
+	if _mass_grid == null:
+		return
+	for c in _mass_grid.get_children(): c.queue_free()
+	for c in _trim_grid.get_children(): c.queue_free()
+	var fins: Array = []
+	var canards: Array = []
+	for srf in ship.surfaces:
+		if srf.tail_member:
+			fins.append(ship.fin_mass_of(srf))
+		elif not srf.sail_member and ship.fin_mass_of(srf) > 0.0:
+			canards.append(ship.fin_mass_of(srf))
+	var mots: Array = []
+	for mo in ship.motors:
+		mots.append(mo.mass_kg)
+	_mass_row(_mass_grid, "Hülle", "%d g" % roundi(ship.hull_mass_kg * 1000.0))
+	if fins.size() > 0: _mass_row(_mass_grid, "LTW", _count_text(fins))
+	if canards.size() > 0: _mass_row(_mass_grid, "Canards", _count_text(canards))
+	if mots.size() > 0: _mass_row(_mass_grid, "Antrieb", _count_text(mots))
+	var el := ship.electronics_mass_kg + (ship.teensy_mass_kg if ship.fc_teensy else 0.0)
+	if el > 0.0005: _mass_row(_mass_grid, "Elektronik", "%d g" % roundi(el * 1000.0))
+	if ship.battery_mass_kg > 0.0005: _mass_row(_mass_grid, "Akku", "%d g" % roundi(ship.battery_mass_kg * 1000.0))
+	if ship.payload_mass_kg > 0.0005: _mass_row(_mass_grid, "Nutzlast", "%d g" % roundi(ship.payload_mass_kg * 1000.0))
+	# Trimm = Ballast, der zum Austrimmen bleibt (negativ: Akku zu schwer → rot)
+	var tr_g := roundi(ship.ballast_kg * 1000.0)
+	var tl := _mass_row(_trim_grid, "Trimm", "%d g" % tr_g)
+	if ship.ballast_kg < 0.0 or ship.overweight:
+		tl.add_theme_color_override("font_color", UITheme.color("danger"))
+	_total_lbl.text = I18n.dec(I18n.t("Gesamt %d g") % roundi(ship.structure_mass_kg * 1000.0))
+
+
+## „4 × 5 g“, wenn alle gleich schwer sind, sonst die Summe.
+static func _count_text(masses: Array) -> String:
+	var same := true
+	for m in masses:
+		same = same and absf(float(m) - float(masses[0])) < 0.0005
+	if same and masses.size() > 1:
+		return "%d × %d g" % [masses.size(), roundi(float(masses[0]) * 1000.0)]
+	var sum := 0.0
+	for m in masses: sum += float(m)
+	return "%d g" % roundi(sum * 1000.0)
+
+
+## Eine Zeile im Massen-Kasten: Name links (grau), Wert rechts. Gibt das Wert-Label zurück.
+func _mass_row(grid: GridContainer, title: String, value: String) -> Label:
+	var n := UITheme.make_label(title, "MutedLabel")
+	n.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(n)
+	var v := UITheme.make_label(value)
+	v.add_theme_font_size_override("font_size", UITheme.font_size("caption"))
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	grid.add_child(v)
+	return v
+
+
+## Eingabefeld mit schmalem Rahmen: in Ruhe nur ein feiner Strich, beim
+## Bearbeiten ein dünner farbiger Rahmen (Wunsch: Rahmen kleiner, mehr Übersicht).
+static func _slim_edit_style(c: Control) -> void:
+	var normal := UITheme.box(Color(0, 0, 0, 0), UITheme.color("border"), UITheme.radius("sm"), 4)
+	var focus := UITheme.box(Color(0, 0, 0, 0.15), UITheme.color("accent"), UITheme.radius("sm"), 4)
+	c.add_theme_stylebox_override("normal", normal)
+	c.add_theme_stylebox_override("focus", focus)
+	c.add_theme_stylebox_override("read_only", normal)
+
+
 ## Rennfaktor aus dem Boxmaß des sichtbaren Modells (wie vor dem Rennen gemessen).
 func _update_factor() -> void:
 	if visual == null or _factor_lbl == null:
 		return
 	var a := visual.local_aabb()
 	var f := Course.race_factor(Vector3(a.size.z, a.size.x, a.size.y))
-	_factor_lbl.text = I18n.dec(I18n.t("Rennfaktor F7B ×%.2f\ngewertet = gemessen × %.2f") % [f, f])
+	_factor_lbl.text = I18n.dec(I18n.t("Rennfaktor: F7B = %.2f") % f)
 
 
 func _changed() -> void:

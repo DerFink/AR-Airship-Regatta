@@ -1,3 +1,4 @@
+# 2026-11-16 12:15 – Spur 5 cm über dem Boden statt 1,2 cm (war im Hallenboden versunken/flimmerte)
 # 2026-11-11 16:00 – Erstversion (Entwurf): Flugspur als Acht auf dem Hallenboden – gestrichelte Linie um beide Pylone mit Richtungspfeilen, Punkt unter dem Luftschiff (Lot auf den Boden) und hell hervorgehobenes Stück der Acht direkt vor dem Schiff
 # =============================================================================
 # CourseTrack.gd  (Kind der Strecke)
@@ -13,7 +14,7 @@
 class_name CourseTrack
 extends Node3D
 
-const Y := 0.012                       ## Höhe über dem Boden (gegen Flimmern)
+const Y := 0.05                        ## Höhe über dem Boden: 5 cm, damit die Spur nicht mit dem Hallenboden flimmert
 const WIDTH := 0.07                    ## Linienbreite (m)
 const AHEAD_M := 4.0                   ## Länge des hervorgehobenen Stücks
 const COLOR := Color(1.0, 0.48, 0.24, 0.55)

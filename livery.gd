@@ -1,3 +1,4 @@
+# 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
 # 2026-11-12 12:35 – import_logo_bytes(): Logo aus Dateiinhalt (Browser-Dateiauswahl)
 # 2026-11-12 12:20 – Schriftzug und Logo wahlweise auch auf dem Leitwerk (text_on_fins, logo_on_fins)
 # 2026-11-11 00:50 – Material für Hülle (Silberfolie, Weiß matt, Goldfolie, Farbe) und Leitwerk (Weiß/Depron, Carbon, Silberfolie, Farbe) mit eigener Leitwerksfarbe
@@ -48,7 +49,7 @@ const FIN_MATERIAL_NAMES := ["Weiß / Depron", "Carbon", "Silberfolie", "Farbe"]
 ## Dateiname des Logos (z. B. "a3f29c10e2.png"), leer = kein Logo.
 @export var logo_ref := "":
 	set(v): logo_ref = v; changed_look.emit()
-@export_range(0.1, 0.8, 0.01) var logo_size := 0.45:
+@export_range(0.1, 1.5, 0.01) var logo_size := 0.45:
 	set(v): logo_size = v; changed_look.emit()
 @export_range(0.05, 0.9, 0.01) var logo_pos := 0.25:
 	set(v): logo_pos = v; changed_look.emit()

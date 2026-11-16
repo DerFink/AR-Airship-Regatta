@@ -1,3 +1,4 @@
+# 2026-11-16 12:25 – Ohne eingebauten FC werden Regler-Modi (Angle, Horizon, PID) ausgeblendet statt nur ausgegraut
 # 2026-11-15 20:50 – Vollbild-Knopf oben rechts (Browser/PC); obere Knopfreihe wird verkleinert, wenn sie nicht passt (Menü/⚙ rutschten bei 5 Modi aus dem Bild)
 # 2026-11-15 20:10 – Fehler Sender wirkungslos: Tastatur übernahm dauerhaft, sobald irgendwo „w“/„s“/Pfeil gedrückt wurde (auch beim Tippen von Namen) → Tasten nur in der Flugansicht ohne Textfeld-Fokus; Bewegung am Sender gibt die Steuerung zurück
 # 2026-11-13 00:50 – Modusknöpfe aus den Flugmodi des Piloten (1–5, frei benannt), Tasten 1–5, Modus-Kanal in N Bereiche
@@ -526,9 +527,13 @@ func _process(dt: float) -> void:
 		if _joy: _joy.mode_count = fc.modes.size()
 		for mm in _mode_btns:                         # Stellung nachziehen (auch nach PID-Menü)
 			if mm >= fc.modes.size(): continue
-			# ohne FC (Baukasten) nur Modi der Art „Direkt“
+			# ohne FC (Baukasten) nur Modi der Art „Direkt“ – die anderen (Angle,
+			# Horizon, PID) werden gar nicht erst angezeigt
 			var is_direct: bool = str(fc.modes[mm].get("art", "")) == "direkt"
-			_mode_btns[mm].disabled = not teensy and not is_direct
+			var show: bool = teensy or is_direct
+			_mode_btns[mm].disabled = not show
+			if _mode_btns[mm].visible != show:
+				_mode_btns[mm].visible = show
 			var on: bool = fc.mode_index == mm
 			if _mode_btns[mm].button_pressed != on:
 				_mode_btns[mm].set_pressed_no_signal(on)

@@ -1,3 +1,4 @@
+# 2026-11-16 12:00 – Gas „unten = Stopp“ (Modelle/Sender ohne Rückwärts): Knüppel unten 0, oben Vollgas; gespeichert mit der Kalibrierung
 # 2026-11-13 00:50 – Modus-Kanal je nach Anzahl der Flugmodi (1–5) in gleich große Bereiche geteilt
 # 2026-11-11 15:20 – Senderfunktionen f_thr/f_pitch/f_yaw/f_roll für den Stickmode
 # 2026-11-11 14:00 – Kanalzuordnung einstellbar (Funktion → Kanal 1…8, wird mit der Kalibrierung gespeichert) und Anlernen per Bewegung; Belegung geht auf Wunsch in den .ino-Export
@@ -97,6 +98,8 @@ var right := Vector2.ZERO           ## wie der rechte Bildschirmknüppel (x = Gi
 ## Senderfunktionen −1…+1 (Gas, Nick, Gier, Rolle) – daraus baut der Flugcontroller
 ## je nach Stickmode die Knüppel
 var f_thr := 0.0
+## Gasknüppel ohne Rückwärts: unten = Stopp (sonst Mitte = Stopp, unten = rückwärts)
+var thr_bottom := false
 var f_pitch := 0.0
 var f_yaw := 0.0
 var f_roll := 0.0
@@ -174,6 +177,14 @@ func _process(dt: float) -> void:
 	right = Vector2(_dz(yaw), _dz(pitch))
 	# Funktionen (unabhängig vom Stickmode – der Sender liefert sie je Kanal)
 	f_thr = _dz(thr); f_pitch = _dz(pitch); f_yaw = _dz(yaw); f_roll = _dz(roll)
+	# Gas ohne Rückwärts: Knüppel ganz unten = Stopp, ganz oben = Vollgas (Mitte egal)
+	if thr_bottom:
+		var c: Dictionary = cal[axis("thr")]
+		var t := clampf((raw(axis("thr")) - float(c.min)) / maxf(float(c.max) - float(c.min), 0.05), 0.0, 1.0)
+		if bool(c.inv) != INVERT_THROTTLE:
+			t = 1.0 - t
+		f_thr = 0.0 if t < 0.03 else t
+		left.y = f_thr
 
 	if calibrating:
 		return                                       # Kalibrierung: Schalter lösen nichts aus
@@ -270,6 +281,7 @@ static func apply_cal(v: float, c: Dictionary) -> float:
 
 func save_cal() -> void:
 	var f := ConfigFile.new()
+	f.set_value("gas", "unten_stopp", thr_bottom)
 	for fn in FUNCS:
 		f.set_value("zuordnung", fn, int(fmap[fn]))
 	for i in CHANNELS:
@@ -282,6 +294,7 @@ func load_cal() -> void:
 	var f := ConfigFile.new()
 	if f.load(CAL_PATH) != OK:
 		return
+	thr_bottom = bool(f.get_value("gas", "unten_stopp", false))
 	for fn in FUNCS:
 		fmap[fn] = clampi(int(f.get_value("zuordnung", fn, DEFAULT_MAP[fn])), 1, CHANNELS)
 	for i in CHANNELS:

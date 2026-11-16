@@ -1,3 +1,4 @@
+# 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
 # 2026-11-14 17:20 – Canard-Paare (pair_id als "p", nur wenn gesetzt)
 # 2026-11-13 02:00 – Leitwerk: Flossen einzeln (ind, sym, fcfg)
 # 2026-11-12 22:55 – Mischer von Hand im Modell-String (mix)
@@ -60,7 +61,7 @@ const LIMITS := {
 	"so": [0.0, 2.0], "tilt": [-90.0, 90.0], "thrust": [0.0, 500.0], "swv": [0.0, 180.0],
 	"reff": [0.1, 1.0], "d": [0.7, 30.0], "pit": [0.2, 20.0], "bl": [2, 6], "rpm": [1000.0, 60000.0],
 	"v": [0.0, 85.0], "rot": [0.0, 359.0], "tp": [0.2, 1.0], "tx": [0.5, 1.0],
-	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 0.8], "lpos": [0.05, 0.9],
+	"tsize": [0.1, 0.6], "tpos": [0.1, 0.9], "lsize": [0.1, 1.5], "lpos": [0.05, 0.9],
 }
 
 
