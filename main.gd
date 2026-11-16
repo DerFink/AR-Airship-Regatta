@@ -1,3 +1,4 @@
+# 2026-11-16 23:50 – Physik „genau“ vorerst ohne Wertung
 # 2026-11-16 19:10 – Flugmodi je Luftschiff (fc.adopt_ship_modes beim Start und bei jeder Modellwahl)
 # 2026-11-16 16:45 – WebTextInput: Textfelder im Handy-Browser über das Browser-Eingabefenster (Tastatur öffnete sich nicht)
 # 2026-11-16 15:10 – Kommentare: Wiese 100 m
@@ -507,6 +508,10 @@ func _on_race_changed() -> void:
 	# Bestenliste nur mit dem Standard-Pylonabstand (Cup bzw. Wiese 100 m)
 	if not course.is_ranked():
 		hud.show_notice(I18n.t("Ziel · %s – Pylonabstand geändert, nicht in der Bestenliste") % Course.format_time(course.time_s), "info", 5.0)
+		return
+	# Bestenliste vorerst nur mit Physik „einfach“ (gleiche Bedingungen für alle)
+	if AppSettings.physics_full:
+		hud.show_notice(I18n.t("Ziel · %s – Physik „genau“ zählt noch nicht für die Bestenliste") % Course.format_time(course.time_s), "info", 5.0)
 		return
 	# Bestenliste nur mit unveränderten Modellen aus der Auswahl (Aussehen/Regler egal)
 	if AirshipPresets.standard_model_of(ship) == "":

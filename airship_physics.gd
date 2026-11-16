@@ -1,3 +1,5 @@
+# 2026-11-16 23:50 – Einstellung AppSettings.physics_full schaltet die volle Massenmatrix
+# 2026-11-16 23:30 – Volle 6×6-Massenmatrix (mass_matrix_full): Schwerpunkt-Kopplung, Deviationsmomente, virtuelle Masse der Flossen; Kirchhoff mit Cholesky; Watchdog/vereinfacht → Diagonale wie bisher
 # 2026-11-16 19:10 – flight_modes: Flugmodi je Luftschiff (Name, Mischer/FC-Art, eigene Tabelle)
 # 2026-11-16 14:40 – Motoren mit kV-Angabe bekommen Drehzahl und Schub aus kV, Propeller und Akkuzellen (VectorMotor.apply_drive)
 # 2026-11-16 10:45 – „Albacore Standard“ heißt jetzt nur „Albacore“
@@ -197,6 +199,15 @@ var added_mass: Vector3 = Vector3.ZERO      ## Ma (diagonal, Körperachsen)
 var inertia_rb: Vector3 = Vector3.ZERO      ## I  (diagonal)
 var added_inertia: Vector3 = Vector3.ZERO   ## Ia (diagonal)
 var simplified: bool = false                ## vom Watchdog gesetzt
+## Volle 6×6-Massenmatrix statt der Diagonale (Einstellung „Physik: genau“).
+## Nimmt mit: Schwerpunkt unter dem Auftriebszentrum (Kopplung Translation ↔
+## Rotation), Deviationsmomente der Anbauten und die virtuelle Masse der Flossen.
+## Im vereinfachten Modus (Watchdog) wird immer die Diagonale gerechnet.
+var mass_matrix_full: bool = false
+var _m6 := PackedFloat64Array()             ## M = M_RB + M_A (6×6, zeilenweise)
+var _ma6 := PackedFloat64Array()            ## nur M_A (für das Munk-Moment mit munk_factor)
+var _l6 := PackedFloat64Array()             ## Cholesky-Faktor L von M (M = L·L^T)
+var _m6_ok := false
 var _full_slices: int = 16
 
 # --- Telemetrie (öffentlich lesbar) ------------------------------------------
@@ -389,6 +400,7 @@ func rebuild_mass_properties() -> void:
 	added_mass = Vector3(hull.k2 * m_air, hull.k2 * m_air, hull.k1 * m_air)
 	var i_air := m_air * (a * a + b * b) / 5.0
 	added_inertia = Vector3(hull.k_rot * i_air, hull.k_rot * i_air, 0.0)
+	_build_mass_matrix(Vector3(i_lat, i_lat, i_ax), pts, fins)
 	config_changed.emit()
 
 
@@ -519,22 +531,29 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# --- 6) Kleine Rolldämpfung ----------------------------------------------
 	T.z += -roll_damping * w_b.z
 
-	# --- 7) Virtuelle Massen & Munk-Moment (Kirchhoff) -----------------------
-	var Ma_v := added_mass * v_rel                      # komponentenweise = diag(Ma)·v
-	munk_moment = -v_rel.cross(Ma_v) * munk_factor      # destabilisierend!
-	T += munk_moment
-	F += added_mass * w_b.cross(v_rel) - w_b.cross(Ma_v)
+	if (mass_matrix_full or AppSettings.physics_full) and _m6_ok and not simplified:
+		# --- 7+8) Volle 6×6-Massenmatrix (Kirchhoff, siehe _solve_full) --------
+		var acc := _solve_full(F, T, v_rel, w_b)
+		# Körperableitungen → Welt: d(v)/dt = R·(v̇_b + ω×v_b), d(ω)/dt = R·ω̇_b
+		state.linear_velocity += body_basis * (acc[0] + w_b.cross(v_rel)) * dt
+		state.angular_velocity += body_basis * acc[1] * dt
+	else:
+		# --- 7) Virtuelle Massen & Munk-Moment (Kirchhoff) -----------------------
+		var Ma_v := added_mass * v_rel                      # komponentenweise = diag(Ma)·v
+		munk_moment = -v_rel.cross(Ma_v) * munk_factor      # destabilisierend!
+		T += munk_moment
+		F += added_mass * w_b.cross(v_rel) - w_b.cross(Ma_v)
 
-	# --- 8) Beschleunigungen lösen (Diagonal-Massenmatrix) -------------------
-	var m_eff := Vector3.ONE * total_mass + added_mass
-	var a_b := F / m_eff
-	var I_eff := inertia_rb + added_inertia
-	var gyro := w_b.cross(I_eff * w_b)
-	var wdot_b := (T - gyro) / I_eff
+		# --- 8) Beschleunigungen lösen (Diagonal-Massenmatrix) -------------------
+		var m_eff := Vector3.ONE * total_mass + added_mass
+		var a_b := F / m_eff
+		var I_eff := inertia_rb + added_inertia
+		var gyro := w_b.cross(I_eff * w_b)
+		var wdot_b := (T - gyro) / I_eff
 
-	# --- 9) Geschwindigkeiten integrieren (semi-implizit) --------------------
-	state.linear_velocity += body_basis * a_b * dt
-	state.angular_velocity += body_basis * wdot_b * dt
+		# --- 9) Geschwindigkeiten integrieren (semi-implizit) --------------------
+		state.linear_velocity += body_basis * a_b * dt
+		state.angular_velocity += body_basis * wdot_b * dt
 	_v_prev = state.linear_velocity
 	_w_prev = state.angular_velocity
 
@@ -620,6 +639,142 @@ func _update_telemetry(v_rel: Vector3) -> void:
 		"hull_viscous_moment": hull_viscous_moment,
 		"vector_moment": vector_moment,
 	})
+
+
+# =============================================================================
+# Volle 6×6-Massenmatrix (Einstellung „Physik: genau“)
+# -----------------------------------------------------------------------------
+# Bezugspunkt O = Auftriebszentrum, Körperachsen, Zustand ν = [v; ω].
+#   M_RB = [ m·E        −m·S(r_G) ]     S(r)·x = r × x
+#          [ m·S(r_G)    I_O      ]     I_O voller Trägheitstensor um O
+#   M_A  = diag(Hülle: k2, k2, k1, k'·I, k'·I, 0)
+#        + Σ Flossen  m_f · u·u^T,  u = [n; p × n],  m_f = ρ·π/4·c²·b
+#          (Plattenmasse quer zur Fläche: Streifentheorie, c Tiefe, b Spannweite)
+#   M = M_RB + M_A  (symmetrisch, positiv definit → Cholesky, nur bei Umbau)
+# Bewegungsgleichung (Kirchhoff, für beliebiges symmetrisches M):
+#   p = M·ν = [p₁; p₂]
+#   M·ν̇ = [ F − ω×p₁ ;  T − ω×p₂ − v×p₁ ]
+# Im Term v×p₁ steckt das Munk-Moment (Anteil von M_A); er wird wie bisher mit
+# munk_factor abgemindert. Bei symmetrischem Schiff (r_G = 0, keine Flossen)
+# ergibt das genau die bisherige Diagonal-Rechnung.
+# =============================================================================
+static func _skew_into(M: PackedFloat64Array, r0: int, c0: int, r: Vector3, k: float) -> void:
+	# addiert k·S(r) in den 3×3-Block ab Zeile r0, Spalte c0
+	M[r0 * 6 + c0 + 1] += -k * r.z; M[r0 * 6 + c0 + 2] += k * r.y
+	M[(r0 + 1) * 6 + c0] += k * r.z; M[(r0 + 1) * 6 + c0 + 2] += -k * r.x
+	M[(r0 + 2) * 6 + c0] += -k * r.y; M[(r0 + 2) * 6 + c0 + 1] += k * r.x
+
+
+func _build_mass_matrix(i_dist: Vector3, pts: Array, fins: Array) -> void:
+	var M := PackedFloat64Array()
+	M.resize(36)
+	M.fill(0.0)
+	var MA := PackedFloat64Array()
+	MA.resize(36)
+	MA.fill(0.0)
+	# --- Starrkörper ---
+	var m := total_mass
+	for i in 3:
+		M[i * 6 + i] = m
+	_skew_into(M, 0, 3, cg_offset, -m)        # oben rechts: −m·S(r_G)
+	_skew_into(M, 3, 0, cg_offset, m)         # unten links:  m·S(r_G)
+	# Trägheit um O: verteilte Teile (Gas, Hülle) diagonal + Punktmassen voll
+	M[21] += i_dist.x; M[28] += i_dist.y; M[35] += i_dist.z
+	for pm in pts:
+		var mk: float = pm[0]
+		var r: Vector3 = pm[1]
+		if mk <= 0.0: continue
+		var rr := r.dot(r)
+		var rv := [r.x, r.y, r.z]
+		for i in 3:
+			for j in 3:
+				M[(3 + i) * 6 + 3 + j] += mk * ((rr if i == j else 0.0) - rv[i] * rv[j])
+	# --- Virtuelle Massen: Hülle (diagonal) ---
+	var ha := [added_mass.x, added_mass.y, added_mass.z, added_inertia.x, added_inertia.y, added_inertia.z]
+	for i in 6:
+		MA[i * 6 + i] += ha[i]
+	# --- Virtuelle Massen: Flossen als ebene Platten quer zur Fläche ---
+	for f in fins:
+		var sf := f as ControlSurface
+		var span := sqrt(maxf(sf.area_m2 * sf.aspect_ratio, 1e-8))
+		var chord := sf.area_m2 / span
+		var mf := air_density * PI / 4.0 * chord * chord * span
+		var n := sf.normal.normalized()
+		var pxn := sf.position.cross(n)
+		var u := [n.x, n.y, n.z, pxn.x, pxn.y, pxn.z]
+		for i in 6:
+			for j in 6:
+				MA[i * 6 + j] += mf * u[i] * u[j]
+	for i in 36:
+		M[i] += MA[i]
+	_m6 = M
+	_ma6 = MA
+	_l6 = _cholesky(M)
+	_m6_ok = not _l6.is_empty()
+
+
+## Cholesky-Zerlegung M = L·L^T (L unten links). Leer, falls M nicht positiv definit.
+static func _cholesky(M: PackedFloat64Array) -> PackedFloat64Array:
+	var L := PackedFloat64Array()
+	L.resize(36)
+	L.fill(0.0)
+	for i in 6:
+		for j in i + 1:
+			var sum := M[i * 6 + j]
+			for k in j:
+				sum -= L[i * 6 + k] * L[j * 6 + k]
+			if i == j:
+				if sum <= 1e-12:
+					return PackedFloat64Array()
+				L[i * 6 + i] = sqrt(sum)
+			else:
+				L[i * 6 + j] = sum / L[j * 6 + j]
+	return L
+
+
+## M·x = b mit dem gespeicherten Cholesky-Faktor lösen (vorwärts, rückwärts).
+func _chol_solve(b: Array) -> Array:
+	var y := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	for i in 6:
+		var sum: float = b[i]
+		for k in i:
+			sum -= _l6[i * 6 + k] * y[k]
+		y[i] = sum / _l6[i * 6 + i]
+	var x := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	for ii in 6:
+		var i := 5 - ii
+		var sum: float = y[i]
+		for k in range(i + 1, 6):
+			sum -= _l6[k * 6 + i] * x[k]
+		x[i] = sum / _l6[i * 6 + i]
+	return x
+
+
+## 6×6-Matrix mal Vektor.
+static func _mul6(M: PackedFloat64Array, nu: Array) -> Array:
+	var out := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	for i in 6:
+		var sum := 0.0
+		for j in 6:
+			sum += M[i * 6 + j] * float(nu[j])
+		out[i] = sum
+	return out
+
+
+## Beschleunigungen im Körpersystem [v̇_b, ω̇_b] mit voller Massenmatrix.
+func _solve_full(F: Vector3, T: Vector3, v: Vector3, w: Vector3) -> Array:
+	var nu := [v.x, v.y, v.z, w.x, w.y, w.z]
+	var p := _mul6(_m6, nu)
+	var pa := _mul6(_ma6, nu)
+	var p1 := Vector3(p[0], p[1], p[2])
+	var p2 := Vector3(p[3], p[4], p[5])
+	var pa1 := Vector3(pa[0], pa[1], pa[2])
+	# Munk-Moment = Anteil der virtuellen Massen an −v×p₁, abgemindert wie bisher
+	munk_moment = -v.cross(pa1) * munk_factor
+	var rhs_l := F - w.cross(p1)
+	var rhs_a := T - w.cross(p2) - v.cross(p1 - pa1) + munk_moment
+	var x := _chol_solve([rhs_l.x, rhs_l.y, rhs_l.z, rhs_a.x, rhs_a.y, rhs_a.z])
+	return [Vector3(x[0], x[1], x[2]), Vector3(x[3], x[4], x[5])]
 
 
 # =============================================================================

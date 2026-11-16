@@ -1,3 +1,4 @@
+# 2026-11-16 23:50 – Schalter „Physik genau (6×6)“
 # 2026-11-15 22:05 – Browser: Schalter „Motorklang fein“ (Standard aus = Säuseln)
 # 2026-11-14 22:50 – Inhalt scrollt unter fester Kopfzeile (passt auch auf kleine Bildschirme)
 # 2026-11-14 22:10 – Abschnitt „Online-Bestenliste“ (Zeiten online eintragen = Einwilligung, eigene Einträge löschen) und Knöpfe Impressum / Datenschutz
@@ -110,6 +111,9 @@ func _ready() -> void:
 	_del_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drow.add_child(_del_status)
 	box.add_child(drow)
+	# --- Physik: einfach (Diagonale, bisher) oder genau (volle 6×6-Massenmatrix) ---
+	box.add_child(_toggle("Physik genau (volle 6×6-Massenmatrix: Schwerpunkt-Kopplung, Deviationsmomente, Flossen) – vorerst ohne Wertung",
+		AppSettings.physics_full, func(on): AppSettings.physics_full = on; AppSettings.save()))
 	# --- Rechtliches: Impressum und Datenschutz (öffnen den Browser) ---
 	var lrow := UITheme.make_hbox("sm")
 	var b_imp := UITheme.make_button("Impressum ↗")
