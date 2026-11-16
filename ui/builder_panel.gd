@@ -1,3 +1,4 @@
+# 2026-11-16 18:45 – Mischer: Modusname wird beim Tippen übernommen; Tabelle immer bearbeitbar (erste Änderung legt die eigene Tabelle des Modus an); ohne FC kein Umstellen der Modusart
 # 2026-11-16 18:20 – Mischer: Spalte Grundstellung und Geber S1…S4 je Ausgang (Ruder, Schwenker, Schub), Hinweis zur Desaturierung
 # 2026-11-16 17:40 – Mischer: Spalte Gas, Schub je Motor (Gas/Nick/Gier/Roll in %, Motor je Modus an/aus), alle Modi wählbar (Regler-Modus ohne FC wird manuell, mit FC per Knopf), Tabelle waagrecht scrollbar, lange Texte umbrechen
 # 2026-11-16 17:15 – Stator-Feld ohne grauen Platzhalter (sah gesperrt aus); neue Motoren übernehmen Stator/kV/Propeller/Masse der vorhandenen; neues Paar öffnet gleich im Editor
@@ -984,10 +985,13 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 	mrow.add_theme_constant_override("h_separation", UITheme.space("xs"))
 	mrow.add_theme_constant_override("v_separation", UITheme.space("xs"))
 	var g := UITheme.make_toggle_group()
+	var mbtns := []
 	for i in fc.modes.size():
 		var md: Dictionary = fc.modes[i]
-		var direct := str(md.get("art", "")) == "direkt"
+		# ohne FC fliegt jeder Modus manuell – dann kein Hinweis „(Regler)“
+		var direct := str(md.get("art", "")) == "direkt" or not ship.fc_teensy
 		var b := UITheme.make_button("%d · %s%s" % [i + 1, md.get("name", ""), "" if direct else "  " + I18n.t("(Regler)")], true)
+		mbtns.append(b)
 		b.button_group = g
 		b.button_pressed = i == _mix_mode
 		var idx := i
@@ -995,26 +999,20 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 		mrow.add_child(b)
 	body.add_child(mrow)
 	var m: Dictionary = fc.modes[_mix_mode]
-	# Regler-Modus gewählt: ohne FC wird er gleich manuell (fliegt ohnehin ohne
-	# Regler), mit FC auf Knopfdruck
-	if str(m.get("art", "")) != "direkt":
-		if not ship.fc_teensy:
+	# Regler-Modus mit eingebautem FC: Ruder kommen vom Regler, umstellen per Knopf.
+	# Ohne FC fliegt jeder Modus manuell mit seiner Tabelle – die Modusart bleibt
+	# (die Modi gelten für alle Luftschiffe; ein Modell mit FC braucht sie weiter).
+	if str(m.get("art", "")) != "direkt" and ship.fc_teensy:
+		body.add_child(_note(I18n.t("Dieser Modus nutzt den Regler (Reglermenü). Hier gilt nur der Schub je Motor.")))
+		var conv := UITheme.make_button("Auf manuell umstellen (ohne Regler)")
+		conv.pressed.connect(func():
 			m["art"] = "direkt"
 			fc.mode_index = fc.mode_index
 			fc.modes_changed.emit()
 			fc.save_settings()
-			body.add_child(_note(I18n.t("Ohne Flugcontroller fliegt dieser Modus manuell – er ist jetzt auf „Direkt“ gestellt.")))
-		else:
-			body.add_child(_note(I18n.t("Dieser Modus nutzt den Regler (Reglermenü). Hier gilt nur der Schub je Motor.")))
-			var conv := UITheme.make_button("Auf manuell umstellen (ohne Regler)")
-			conv.pressed.connect(func():
-				m["art"] = "direkt"
-				fc.mode_index = fc.mode_index
-				fc.modes_changed.emit()
-				fc.save_settings()
-				refill.call_deferred())
-			body.add_child(conv)
-	var direct_now := str(m.get("art", "")) == "direkt"
+			refill.call_deferred())
+		body.add_child(conv)
+	var direct_now := str(m.get("art", "")) == "direkt" or not ship.fc_teensy
 	var is_base := _mix_mode == _first_direct(fc)       # erster Direkt-Modus = Grund-Tabelle
 	# --- Name und eigene Tabelle des gewählten Modus ---
 	var nrow := HFlowContainer.new()
@@ -1024,13 +1022,17 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 	ne.max_length = 20
 	ne.text = str(m.get("name", ""))
 	ne.custom_minimum_size = Vector2(180, UITheme.menu_height())
-	var save_name := func():
-		if ne.text != str(m.get("name", "")):
-			m["name"] = ne.text
-			fc.modes_changed.emit()
-			fc.save_settings()
-	ne.text_submitted.connect(func(_t): save_name.call(); ne.release_focus())
-	ne.focus_exited.connect(save_name)
+	# Name wird schon beim Tippen übernommen (vorher erst bei Enter/Fokuswechsel –
+	# beim direkten Schließen ging er verloren); Modusknopf zeigt ihn sofort
+	var mi := _mix_mode
+	ne.text_changed.connect(func(t: String):
+		m["name"] = t
+		var dir := str(m.get("art", "")) == "direkt" or not ship.fc_teensy
+		mbtns[mi].text = "%d · %s%s" % [mi + 1, t, "" if dir else "  " + I18n.t("(Regler)")]
+		fc.save_settings())
+	var announce := func(): fc.modes_changed.emit()      # Flugansicht/Reglermenü nachziehen
+	ne.text_submitted.connect(func(_t): announce.call(); ne.release_focus())
+	ne.focus_exited.connect(announce)
 	nrow.add_child(ne)
 	var own := m.get("mix") is Dictionary
 	if not is_base:
@@ -1048,7 +1050,17 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 	body.add_child(nrow)
 	# Welche Tabelle wird bearbeitet?
 	var table: Dictionary = m["mix"] if (own and not is_base) else ship.mix_table
-	var editable := is_base or own
+	# Immer bearbeitbar: Ändert man in einem Modus ohne eigene Tabelle etwas,
+	# bekommt er automatisch eine eigene (Kopie der Grundtabelle) – so
+	# unterscheiden sich die Modi, ohne dass man erst den Haken setzen muss.
+	var editable := true
+	var shared := not is_base and not own
+	var own_table := func() -> Dictionary:
+		if shared and not (m.get("mix") is Dictionary):
+			m["mix"] = ship.mix_table.duplicate(true)
+			fc.save_settings()
+			refill.call_deferred()                  # Haken „Eigene Tabelle“ zeigen
+		return m["mix"] if not is_base else ship.mix_table
 	var surf_edit := editable and direct_now           # Ruder: nur in manuellen Modi aus der Tabelle
 	if is_base:
 		var use := CheckBox.new()
@@ -1058,7 +1070,7 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 		use.toggled.connect(func(on): ship.mix_manual = on; ui_action.emit("select"))
 		body.add_child(use)
 	elif not own:
-		body.add_child(_note(I18n.t("Dieser Modus nutzt die Tabelle von Modus %d.") % (_first_direct(fc) + 1)))
+		body.add_child(_note(I18n.t("Dieser Modus nutzt die Tabelle von Modus %d. Sobald du hier einen Wert änderst, bekommt er eine eigene Tabelle.") % (_first_direct(fc) + 1)))
 	body.add_child(_note("Ruder und Schwenker: Prozent des Vollausschlags je Knüppel. Motoren: Prozent des Vollschubs je Knüppel (z. B. Gier: links +100, rechts −100 = Drehen mit Schub). Der Regler verändert den Schub nie."))
 	# --- Tabelle: Ausgang × Grundstellung/Gas/Nick/Gier/Roll/Geber (waagrecht scrollbar) ---
 	# Geber-Spalten: S1 und S2 immer, S3/S4 nur, wenn am Sender zugeordnet
@@ -1095,15 +1107,18 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 		le.text = "%d %%" % roundi(float(row[col]) if col < row.size() else 0.0)
 		var commit := func():
 			var t := le.text.replace("%", "").replace(",", ".").strip_edges()
-			if t.is_valid_float():
-				var arr: Array = table.get(key, def).duplicate()
+			var cur0: Array = table.get(key, def)
+			if t.is_valid_float() and absf(clampf(float(t), -200.0, 200.0) - (float(cur0[col]) if col < cur0.size() else 0.0)) > 0.001:
+				var tb: Dictionary = own_table.call()     # ggf. eigene Tabelle anlegen
+				var arr: Array = tb.get(key, def).duplicate()
 				while arr.size() < def.size(): arr.append(0.0)
 				arr[col] = clampf(float(t), -200.0, 200.0)
 				# Erweiterung ganz auf 0 → Eintrag weglassen (Tabelle bleibt schlank)
 				if key.begins_with("e") and arr.all(func(x): return absf(float(x)) < 0.001):
-					table.erase(key)
+					tb.erase(key)
 				else:
-					table[key] = arr
+					tb[key] = arr
+				table = tb
 				if not is_base:
 					fc.save_settings()         # eigene Tabelle gehört zu den Flugmodi
 				else:
@@ -1142,8 +1157,9 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 		cb.disabled = not editable
 		var key_x := "x%d" % i
 		cb.toggled.connect(func(on):
-			if on: table.erase(key_x)
-			else: table[key_x] = true
+			var tb: Dictionary = own_table.call()
+			if on: tb.erase(key_x)
+			else: tb[key_x] = true
 			if not is_base: fc.save_settings()
 			else: _refresh())
 		grid.add_child(cb)
@@ -1161,7 +1177,8 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 	sugg.disabled = not surf_edit
 	sugg.pressed.connect(func():
 		var sg := fc.suggest_mix()
-		for k in sg: table[k] = sg[k]
+		var tb: Dictionary = own_table.call()
+		for k in sg: tb[k] = sg[k]
 		if not is_base: fc.save_settings()
 		for k in edits:
 			var parts: PackedStringArray = k.split("/")

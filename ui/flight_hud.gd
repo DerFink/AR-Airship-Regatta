@@ -1,3 +1,4 @@
+# 2026-11-16 18:50 – Ohne FC wieder alle Flugmodi wählbar (jeder fliegt manuell mit seiner Mischtabelle)
 # 2026-11-16 18:15 – Geber S1–S4: vom Sender (Kalibrierung), Tastatur Q/E und Z/C, Touch-Schieber am rechten Rand (nur wenn der Modus sie nutzt)
 # 2026-11-16 16:30 – Tastatur: Gas läuft ohne W/S langsam auf 0 zurück (0,3 je Sekunde) statt stehen zu bleiben
 # 2026-11-16 12:25 – Ohne eingebauten FC werden Regler-Modi (Angle, Horizon, PID) ausgeblendet statt nur ausgegraut
@@ -611,14 +612,12 @@ func _process(dt: float) -> void:
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
 			_btn_arm.text = tr("Armed") if fc.armed else tr("Disarmed")
-		var teensy: bool = ship == null or ship.fc_teensy
 		if _joy: _joy.mode_count = fc.modes.size()
 		for mm in _mode_btns:                         # Stellung nachziehen (auch nach PID-Menü)
 			if mm >= fc.modes.size(): continue
-			# ohne FC (Baukasten) nur Modi der Art „Direkt“ – die anderen (Angle,
-			# Horizon, PID) werden gar nicht erst angezeigt
-			var is_direct: bool = str(fc.modes[mm].get("art", "")) == "direkt"
-			var show: bool = teensy or is_direct
+			# Alle Modi zeigen: ohne FC fliegt jeder Modus manuell mit seiner
+			# Mischtabelle (Wunsch 16.11.: Modus 2 muss auch ohne Regler wählbar sein)
+			var show := true
 			_mode_btns[mm].disabled = not show
 			if _mode_btns[mm].visible != show:
 				_mode_btns[mm].visible = show
