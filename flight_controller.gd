@@ -1,3 +1,4 @@
+# 2026-11-16 11:30 – Neue PID-Modi halten auch die Rolllage (mit dem Wirbelauftrieb kippte das Schiff in engen Kurven sonst weg und schlug auf)
 # 2026-11-14 11:00 – Neue PID-Modi: Gier-Sollrate bei vollem Knüppel 150 °/s (mit 110 schaffte die Demo die enge Acht nicht)
 # 2026-11-13 00:30 – Flugmodi des Piloten (1–5, Name + Art: Direkt/Angle/Horizon/PID je Achse Lage oder Drehrate), Rollausgleich je Modus (Höhe und Seite mit dem Rollwinkel umgerechnet), eigene Mischtabelle je Direkt-Modus, Sprung fürs Reglermenü (trigger_step), probe_outputs() für den Signalfluss
 # 2026-11-12 22:55 – Mischer von Hand (mix_table) im Modus Direkt und ohne FC; suggest_mix() = Vorschlag aus der Einbaulage
@@ -160,10 +161,10 @@ static func default_modes() -> Array:
 ## Achsen eines PID-Modus (Werte wie die Chewie-Regler als Startpunkt).
 ## kind "angle" = Lage geregelt (Sollwinkel = Knüppel · max in Grad),
 ## kind "rate" = Drehrate geregelt (Sollrate = Knüppel · max in °/s).
-static func default_axes(all_on := false) -> Dictionary:
+static func default_axes(_all_on := false) -> Dictionary:   # _all_on: alt, Rolllage ist jetzt immer an
 	return {
 		"pitch": {"on": true, "kind": "angle", "Kp": 0.6, "Ki": 0.4, "Kd": 0.15, "max": 30.0},
-		"roll": {"on": all_on, "kind": "angle", "Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "max": 30.0},
+		"roll": {"on": true, "kind": "angle", "Kp": 0.6, "Ki": 0.1, "Kd": 0.45, "max": 30.0},   # an: mit Wirbelauftrieb rollt das Schiff in engen Kurven sonst weg
 		"yaw": {"on": true, "kind": "rate", "Kp": 1.0, "Ki": 0.4, "Kd": 0.0, "max": 150.0},   # 150 °/s: enge Acht (Demo) noch flugbar
 	}
 

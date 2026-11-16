@@ -297,6 +297,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 16.11. | 0.38.5 | Fehler „8/200“ im Browser: Strato packt JSON mit gzip, der Browser entpackt, Godot versuchte es nochmal (BODY_DECOMPRESS_FAILED) – Zeiten waren gespeichert, die App meldete „nicht eingetragen“ und die Liste kam nie. `accept_gzip = false` in `leaderboard_online.gd` (Updater im Browser ebenso), `.htaccess` packt JSON nicht mehr. |
 | 16.11. | 0.39.0 | Sammlung: „Velocita“ (eingesandt als „Velocita - Nachempfunden von Erich“; Name gekürzt, Rest als Beschreibung). Auswahl ohne „(Sammlung)“ im Namen, feste Reihenfolge `AirshipPresets.ORDER`: Picard, Velocita, Schubi, Chewie, Example, Albacore; eigene Modelle danach. |
 | 16.11. | 0.39.1 | „Albacore“ heißt jetzt „Albacore“ (Auswahl, Standardname, Über-Texte, models.json). |
+| 16.11. | 0.40.0 | Physik: Wirbelauftrieb bei kleiner Streckung (Polhamus, `ControlSurface.vortex_weight()`: voll bei wirksamer Streckung ≤ 1, aus ab 4) und späterer Abriss (+25° bei kleiner Streckung). Beispiel Depron-Flosse Streckung 0,8: bei 20° ≈ +40 %, bei 30° ≈ +50 % Kraft, Höchstauftrieb ≈ 1,4 bei 35°. Neue PID-Modi halten jetzt auch die Rolllage (sonst kippte Chewie in der Demo in der engen Kurve weg). Demo-Zeiten Chewie: Direkt 14,3 s, Angle 15,4 s, Horizon 16,0 s, PID 18,6 s; Albacore Direkt 22,4 s. Wertung vorher/nachher nicht ganz vergleichbar. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

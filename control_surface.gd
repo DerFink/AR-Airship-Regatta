@@ -1,3 +1,4 @@
+# 2026-11-16 11:05 – Wirbelauftrieb bei kleiner Streckung (Polhamus) und späterer Abriss (bis ≈ 39°) – vorher nur Gerade bis zum festen Abrisswinkel
 # 2026-11-14 17:20 – pair_id: symmetrische Canard-Paare
 # 2026-11-13 02:00 – fixed: feste Flosse ohne Ruder (Finne)
 # 2026-11-12 11:45 – Vorgeschlagenes Gewicht: Depron 120 g/m² (profiliert 2 Lagen) + Pauschale 2–5 g je nach Fläche; mass_auto (von Hand eingetragenes Gewicht nur, wenn aus)
@@ -215,13 +216,32 @@ func lift_slope() -> float:
 ## Auftriebsbeiwert mit weichem Übergang in den Strömungsabriss.
 ## Bis zum Abrisswinkel des Profils linear, darüber Flachplatten-Verhalten
 ## (sin·cos); wie weich der Übergang ist, hängt ebenfalls vom Profil ab.
+##
+## Kleine Streckung (deltaflügelähnlich): An Vorder- und Seitenkanten rollen
+## sich Wirbel auf. Sie liefern zusätzlichen Auftrieb (Polhamus-Analogie,
+##   c_A = K_p·sin α·cos² α + K_v·sin² α·cos α ,   K_p = Auftriebsanstieg, K_v ≈ π)
+## und verschieben den Abriss weit nach hinten (bis ≈ 39°). Der Anteil ist bei
+## wirksamer Streckung ≤ 1 voll und läuft bis 4 aus (vortex_weight). Für Flossen
+## mit großer Streckung bleibt alles wie vorher (Gerade bis zum Abriss).
 func lift_coefficient(alpha: float, pr: Dictionary = {}) -> float:
 	if pr.is_empty():
 		pr = profile_params(RE_REF)
-	var cl_lin: float = lift_slope() * float(pr.slope) * alpha
-	var cl_plate := 2.0 * sin(alpha) * cos(alpha)
-	var blend := clampf((absf(alpha) - deg_to_rad(float(pr.stall_deg))) / deg_to_rad(float(pr.width_deg)), 0.0, 1.0)
+	var w := vortex_weight()
+	var kp: float = lift_slope() * float(pr.slope)
+	var sa := sin(alpha)
+	var ca := cos(alpha)
+	# Potentialanteil (für kleine α = Gerade kp·α) plus Wirbelanteil (gleiches Vorzeichen wie α)
+	var cl_lin := kp * sa * ca * ca + PI * w * sa * absf(sa) * ca
+	var cl_plate := 2.0 * sa * ca
+	var stall := deg_to_rad(float(pr.stall_deg) + 25.0 * w)          # Abriss später bei kleiner Streckung
+	var width := deg_to_rad(float(pr.width_deg) + 6.0 * w)
+	var blend := clampf((absf(alpha) - stall) / width, 0.0, 1.0)
 	return lerpf(cl_lin, cl_plate, blend)
+
+
+## Gewicht des Wirbelauftriebs: 1 bei wirksamer Streckung ≤ 1, 0 ab 4.
+func vortex_weight() -> float:
+	return clampf((4.0 - effective_aspect_ratio()) / 3.0, 0.0, 1.0)
 
 
 # -----------------------------------------------------------------------------
