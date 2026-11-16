@@ -47,7 +47,7 @@ func setup(label: String, min_value: float, max_value: float, step_value: float,
 	add_child(l)
 	add_child(UITheme._step_button("−", func(): _apply((empty_base if empty else value) - step, true)))
 	_edit = LineEdit.new()
-	_edit.custom_minimum_size = Vector2(96, UITheme.size("control_height"))
+	_edit.custom_minimum_size = Vector2(96, UITheme.menu_height())
 	_edit.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER_DECIMAL
 	_edit.select_all_on_focus = true

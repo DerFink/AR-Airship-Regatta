@@ -161,7 +161,7 @@ func _ready() -> void:
 	_lang_btn = MenuButton.new()
 	_lang_btn.flat = false
 	_lang_btn.focus_mode = Control.FOCUS_NONE
-	_lang_btn.custom_minimum_size.y = UITheme.size("control_height")
+	_lang_btn.custom_minimum_size.y = UITheme.menu_height()
 	_lang_btn.expand_icon = false
 	var pm := _lang_btn.get_popup()
 	for i in I18n.LANGS.size():

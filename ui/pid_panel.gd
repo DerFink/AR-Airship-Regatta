@@ -202,7 +202,7 @@ func _fill_left() -> void:
 	var name_edit := LineEdit.new()
 	name_edit.max_length = 20
 	name_edit.text = str(m.get("name", ""))
-	name_edit.custom_minimum_size.y = UITheme.size("control_height")
+	name_edit.custom_minimum_size.y = UITheme.menu_height()
 	name_edit.text_submitted.connect(func(t): m["name"] = t; _changed())
 	name_edit.focus_exited.connect(func():
 		if name_edit.text != str(m.get("name", "")):
@@ -271,7 +271,7 @@ func _fill_left() -> void:
 	# --- Stick-Belegung und Zurücksetzen ---
 	_left_box.add_child(UITheme.make_label("Stick-Belegung", "MutedLabel"))
 	var sm := OptionButton.new()
-	sm.custom_minimum_size.y = UITheme.size("control_height")
+	sm.custom_minimum_size.y = UITheme.menu_height()
 	for k in [1, 2, 3, 4]:
 		sm.add_item(FlightController.stick_mode_text(k), k)
 	sm.select(sm.get_item_index(fc.stick_mode))
@@ -384,7 +384,7 @@ func _fill_direct(m: Dictionary) -> void:
 		var row: Array = tbl.get(o.key, [0.0, 0.0, 0.0])
 		for axn in 3:
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(84, UITheme.size("control_height"))
+			le.custom_minimum_size = Vector2(84, UITheme.menu_height())
 			le.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER_DECIMAL
 			le.text = "%d %%" % roundi(row[axn])

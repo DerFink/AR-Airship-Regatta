@@ -363,7 +363,7 @@ func show_result() -> void:
 	_name_edit = LineEdit.new()
 	_name_edit.text = Leaderboard.last_name()
 	_name_edit.max_length = Leaderboard.MAX_NAME
-	_name_edit.custom_minimum_size = Vector2(420, UITheme.size("control_height"))
+	_name_edit.custom_minimum_size = Vector2(420, UITheme.menu_height())
 	_name_edit.placeholder_text = "Dein Name"
 	_box.add_child(_name_edit)
 	var row := UITheme.make_hbox("sm")

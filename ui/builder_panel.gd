@@ -1,3 +1,4 @@
+# 2026-11-16 14:10 – Mischer mit Flugmodi ohne Regler (Anzahl, Name, eigene Tabelle je Direkt-Modus); Seiten dichter; Felder in Menühöhe
 # 2026-11-16 13:00 – Rechte Spalte nach Skizze: Name (antippen = ändern) und Kurzbeschreibung oben, Strich, Volumen mit Maßen, Rennfaktor F7B, Kasten „Massen“ (Hülle, LTW n × g, Antrieb n × g, … Strich, Trimm statt Ballast); Modellauswahl, Wort „Kennwerte“ und Name/Beschreibung im Reiter Hülle entfernt; schmalere Rahmen
 # 2026-11-16 12:10 – Logogröße bis 1,5 × Durchmesser (vorher 0,8)
 # 2026-11-16 01:40 – Zurücksetzen: „Strecke“ als eigener Punkt (vorausgewählt), Knüppelbelegung getrennt
@@ -368,7 +369,7 @@ func _scroll_page(title: String, builder: Callable) -> ScrollContainer:
 	var sc := ScrollContainer.new()
 	sc.name = title
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	var col := UITheme.make_vbox("md")
+	var col := UITheme.make_vbox("xs")   # dicht untereinander (Wunsch 16.11.: flacher)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(col)
 	builder.call(col)
@@ -815,7 +816,7 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	#   Admin: Teensy-Sketch (.ino)
 	# --- ① Mischer ---
 	col.add_child(UITheme.make_title("Mischer"))
-	col.add_child(_note("Legt fest, welche Ruder und Schwenker bei Nick, Gier und Roll ausschlagen – ohne Regler, direkt vom Knüppel. So fliegen die meisten Luftschiffe, ein Flugcontroller ist dafür nicht nötig."))
+	col.add_child(_note("Analoge Festlegung ohne Regler: Legt fest: Anzahl Flugmodi, welche Ruder bei Nick, Gier und Roll ausschlagen sollen."))
 	var bm := UITheme.make_button("Mischer einstellen")
 	bm.pressed.connect(func(): ui_action.emit("select"); _show_mixer())
 	col.add_child(bm)
@@ -899,21 +900,28 @@ func _window(title: String, close_text := "Fertig") -> Dictionary:
 
 
 # =============================================================================
-# Mischer einstellen
+# Mischer einstellen (mit Flugmodi ohne Regler, Wunsch 16.11.2026)
 #   ┌ Mischer · Chewie ─────────── [Vorschlag aus Einbaulage] [Fertig] ┐
+#   │ Analoge Festlegung ohne Regler: Legt fest: Anzahl Flugmodi, …     │
+#   │ Anzahl Flugmodi [−][2][+]                                         │
+#   │ [1 · Direkt] [2 · Langsam] [3 · Angle (Regler)]                    │
+#   │ Name [Langsam]      [✓] eigene Tabelle (aus = wie Modus 1)        │
 #   │ [✓] Mischer von Hand verwenden                                    │
 #   │ Ausgang                    Nick     Gier     Roll                 │
 #   │ Leitwerk oben (±25°)      [  0 %]  [100 %]  [  0 %]               │
-#   │ …                                                                 │
 #   └───────────────────────────────────────────────────────────────────┘
-# Werte −200 … +200 % (über 100 % = früher am Anschlag). Gilt im Modus Direkt
-# und ohne Flugcontroller; Gas bleibt beim Piloten.
+# Der erste Direkt-Modus nutzt die Grund-Tabelle des Modells (ship.mix_table),
+# jeder weitere Direkt-Modus kann eine eigene Tabelle haben (modes[i].mix).
+# Modi der Art Angle/Horizon/PID brauchen den eingebauten FC und werden im
+# Reglermenü eingestellt. Werte −200 … +200 %. Das Gas bleibt beim Piloten.
 # =============================================================================
+var _mix_mode := -1                    ## im Mischer gewählter Flugmodus (Index in fc.modes)
+
+
 func _show_mixer() -> void:
 	var fc := ModelCodec._find_fc(ship)
 	if fc == null:
 		return
-	var outs := FlightController.mix_outputs(ship)
 	if not fc.manual_mix_valid():
 		ship.mix_table = fc.suggest_mix()               # Bauteile geändert: Vorschlag als Start
 	var w := _window(I18n.t("Mischer · %s") % ship.model_name)
@@ -921,53 +929,149 @@ func _show_mixer() -> void:
 	var sugg := UITheme.make_button("Vorschlag aus Einbaulage")
 	w.head.add_child(sugg)
 	w.head.move_child(sugg, 1)
-	var use := CheckBox.new()
-	use.text = "Mischer von Hand verwenden (aus = Mischer nach Einbaulage)"
-	use.button_pressed = ship.mix_manual
-	use.toggled.connect(func(on): ship.mix_manual = on; ui_action.emit("select"))
-	body.add_child(use)
-	body.add_child(_note("Prozent des Vollausschlags je Knüppel. Gilt im Modus Direkt und ohne Flugcontroller. Das Gas bleibt immer beim Piloten, kein Differenzschub."))
+	# Gewählter Modus: der aktive, wenn er „Direkt“ ist, sonst der erste Direkt-Modus
+	_mix_mode = fc.mode_index if str(fc.modes[fc.mode_index].get("art", "")) == "direkt" else _first_direct(fc)
+	var fill := func(): pass
+	fill = func():
+		for c in body.get_children(): c.queue_free()
+		_fill_mixer(body, fc, sugg, fill)
+	fill.call()
+
+
+## Index des ersten Modus der Art „Direkt“ (0, falls keiner).
+static func _first_direct(fc: FlightController) -> int:
+	for i in fc.modes.size():
+		if str(fc.modes[i].get("art", "")) == "direkt":
+			return i
+	return 0
+
+
+## Inhalt des Mischer-Fensters (wird bei Moduswechsel neu aufgebaut).
+func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill: Callable) -> void:
+	var outs := FlightController.mix_outputs(ship)
+	body.add_child(_note("Analoge Festlegung ohne Regler: Legt fest: Anzahl Flugmodi, welche Ruder bei Nick, Gier und Roll ausschlagen sollen."))
+	# --- Anzahl Flugmodi: neue Modi sind „Direkt“ (gehen ohne FC) ---
+	body.add_child(UITheme.make_number_row("Anzahl Flugmodi", 1.0, float(FlightController.MAX_MODES), 1.0, fc.modes.size(),
+		func(v):
+			var n := int(v)
+			while fc.modes.size() < n:
+				fc.modes.append({"name": "Modus %d" % (fc.modes.size() + 1), "art": "direkt", "roll_comp": false})
+			while fc.modes.size() > n:
+				fc.modes.pop_back()
+			fc.mode_index = mini(fc.mode_index, n - 1)
+			_mix_mode = mini(_mix_mode, n - 1)
+			fc.modes_changed.emit()
+			fc.save_settings()
+			refill.call_deferred(), "%d"))
+	# --- Modusknöpfe: Regler-Modi nur anzeigen (ausgegraut), einstellbar im Reglermenü ---
+	var mrow := HFlowContainer.new()
+	mrow.add_theme_constant_override("h_separation", UITheme.space("xs"))
+	mrow.add_theme_constant_override("v_separation", UITheme.space("xs"))
+	var g := UITheme.make_toggle_group()
+	for i in fc.modes.size():
+		var md: Dictionary = fc.modes[i]
+		var direct := str(md.get("art", "")) == "direkt"
+		var b := UITheme.make_button("%d · %s%s" % [i + 1, md.get("name", ""), "" if direct else "  " + I18n.t("(Regler)")], true)
+		b.button_group = g
+		b.button_pressed = i == _mix_mode
+		b.disabled = not direct
+		var idx := i
+		b.pressed.connect(func(): _mix_mode = idx; ui_action.emit("select"); refill.call_deferred())
+		mrow.add_child(b)
+	body.add_child(mrow)
+	var m: Dictionary = fc.modes[_mix_mode]
+	var is_base := _mix_mode == _first_direct(fc)       # erster Direkt-Modus = Grund-Tabelle
+	# --- Name und eigene Tabelle des gewählten Modus ---
+	var nrow := UITheme.make_hbox("sm")
+	nrow.add_child(UITheme.make_label("Name", "MutedLabel"))
+	var ne := LineEdit.new()
+	ne.max_length = 20
+	ne.text = str(m.get("name", ""))
+	ne.custom_minimum_size = Vector2(180, UITheme.menu_height())
+	var save_name := func():
+		if ne.text != str(m.get("name", "")):
+			m["name"] = ne.text
+			fc.modes_changed.emit()
+			fc.save_settings()
+	ne.text_submitted.connect(func(_t): save_name.call(); ne.release_focus())
+	ne.focus_exited.connect(save_name)
+	nrow.add_child(ne)
+	var own := m.get("mix") is Dictionary
+	if not is_base:
+		var oc := CheckBox.new()
+		oc.text = I18n.t("Eigene Tabelle (aus = wie Modus %d)") % (_first_direct(fc) + 1)
+		oc.button_pressed = own
+		oc.toggled.connect(func(on):
+			if on:
+				m["mix"] = ship.mix_table.duplicate(true)
+			else:
+				m.erase("mix")
+			fc.save_settings()
+			refill.call_deferred())
+		nrow.add_child(oc)
+	body.add_child(nrow)
+	# Welche Tabelle wird bearbeitet?
+	var table: Dictionary = m["mix"] if (own and not is_base) else ship.mix_table
+	var editable := is_base or own
+	if is_base:
+		var use := CheckBox.new()
+		use.text = "Mischer von Hand verwenden (aus = Mischer nach Einbaulage)"
+		use.button_pressed = ship.mix_manual
+		use.toggled.connect(func(on): ship.mix_manual = on; ui_action.emit("select"))
+		body.add_child(use)
+	elif not own:
+		body.add_child(_note(I18n.t("Dieser Modus nutzt die Tabelle von Modus %d.") % (_first_direct(fc) + 1)))
+	body.add_child(_note("Prozent des Vollausschlags je Knüppel. Das Gas bleibt immer beim Piloten, kein Differenzschub."))
+	# --- Tabelle: Ausgang × Nick/Gier/Roll ---
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", UITheme.space("md"))
 	grid.add_theme_constant_override("v_separation", UITheme.space("xs"))
 	body.add_child(grid)
 	for h in ["Ausgang", "Nick", "Gier", "Roll"]:
-		var hl := UITheme.make_label(h, "MutedLabel")
-		grid.add_child(hl)
+		grid.add_child(UITheme.make_label(h, "MutedLabel"))
 	var edits := {}
 	for o in outs:
 		var name_l := UITheme.make_label("%s (±%d°)" % [I18n.t(o.name), roundi(o.max_deg)])
 		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		grid.add_child(name_l)
-		var row: Array = ship.mix_table.get(o.key, [0.0, 0.0, 0.0])
+		var row: Array = table.get(o.key, [0.0, 0.0, 0.0])
 		for ax in 3:
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(96, UITheme.size("control_height"))
+			le.custom_minimum_size = Vector2(80, UITheme.menu_height())
 			le.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			le.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER_DECIMAL
 			le.select_all_on_focus = true
+			le.editable = editable
 			le.text = "%d %%" % roundi(row[ax])
 			var key: String = o.key
 			var axis := ax
 			var commit := func():
 				var t := le.text.replace("%", "").replace(",", ".").strip_edges()
 				if t.is_valid_float():
-					var arr: Array = ship.mix_table.get(key, [0.0, 0.0, 0.0]).duplicate()
+					var arr: Array = table.get(key, [0.0, 0.0, 0.0]).duplicate()
 					arr[axis] = clampf(float(t), -200.0, 200.0)
-					ship.mix_table[key] = arr
-				le.text = "%d %%" % roundi(ship.mix_table.get(key, [0, 0, 0])[axis])
+					table[key] = arr
+					if not is_base:
+						fc.save_settings()         # eigene Tabelle gehört zu den Flugmodi
+				le.text = "%d %%" % roundi(table.get(key, [0, 0, 0])[axis])
 			le.text_submitted.connect(func(_t): commit.call(); le.release_focus())
 			le.focus_exited.connect(commit)
 			grid.add_child(le)
 			edits["%s/%d" % [key, ax]] = le
 	if outs.is_empty():
 		body.add_child(_note("Keine Ruder oder schwenkbaren Motoren vorhanden."))
+	# „Vorschlag aus Einbaulage“ füllt die gerade bearbeitete Tabelle
+	for c in sugg.pressed.get_connections():
+		sugg.pressed.disconnect(c.callable)
+	sugg.disabled = not editable
 	sugg.pressed.connect(func():
-		ship.mix_table = fc.suggest_mix()
+		var sg := fc.suggest_mix()
+		for k in sg: table[k] = sg[k]
+		if not is_base: fc.save_settings()
 		for k in edits:
 			var parts: PackedStringArray = k.split("/")
-			edits[k].text = "%d %%" % roundi(ship.mix_table[parts[0]][int(parts[1])])
+			edits[k].text = "%d %%" % roundi(table[parts[0]][int(parts[1])])
 		ui_action.emit("ok"))
 
 
@@ -1272,7 +1376,7 @@ func _fill_look_page() -> void:
 	te.placeholder_text = "CHEWIE"
 	te.text = l.text
 	te.max_length = 24
-	te.custom_minimum_size.y = UITheme.size("control_height")
+	te.custom_minimum_size.y = UITheme.menu_height()
 	te.text_changed.connect(func(t): l.text = t)
 	_look_box.add_child(te)
 	var tf := CheckBox.new()
@@ -1374,7 +1478,7 @@ func _choice_grid(labels: Array, selected: int, on_pick: Callable) -> GridContai
 
 func _swatch_row(hexes: Array, current: Color, on_pick: Callable) -> HBoxContainer:
 	var row := UITheme.make_hbox("xs")
-	var d := float(UITheme.size("control_height"))
+	var d := float(UITheme.menu_height())
 	for hx in hexes:
 		var c := Color(hx)
 		var b := Button.new()

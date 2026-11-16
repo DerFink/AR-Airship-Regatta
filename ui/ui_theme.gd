@@ -1,3 +1,4 @@
+# 2026-11-16 14:00 – Menüs deutlich flacher: Knöpfe/Felder 32 px statt 52, wenig Innenabstand oben/unten (MENU_HEIGHT, menu_height()), Schieberegler-Zeile einzeilig (Beschriftung, −, Regler, +, Wert), kleinerer Griff
 # 2026-11-15 20:40 – Vollbild-Knopf (make_fullscreen_button): Browser (nicht iPhone) und PC
 # 2026-11-12 22:30 – compact_theme(): kleinere Schrift für den Baukasten
 # 2026-11-12 11:30 – Neu: make_number_row() (Zahlenfeld mit −/+), set_row_value()
@@ -206,8 +207,8 @@ static func build_theme() -> Theme:
 	t.set_stylebox("slider", "HSlider", track)
 	t.set_stylebox("grabber_area", "HSlider", fill)
 	t.set_stylebox("grabber_area_highlight", "HSlider", fill)
-	t.set_icon("grabber", "HSlider", _circle_icon(34, color("accent")))
-	t.set_icon("grabber_highlight", "HSlider", _circle_icon(38, color("accent").lightened(0.15)))
+	t.set_icon("grabber", "HSlider", _circle_icon(24, color("accent")))           # kleiner Griff (flache Zeilen)
+	t.set_icon("grabber_highlight", "HSlider", _circle_icon(28, color("accent").lightened(0.15)))
 
 	# Listen / Auswahl
 	t.set_stylebox("panel", "ItemList", box(color("surface_alt"), color("border"), radius("md"), space("sm")))
@@ -233,11 +234,27 @@ static func build_theme() -> Theme:
 
 	# Mindesthöhe für Touch-Ziele
 	t.set_constant("minimum_character_width", "LineEdit", 4)
+	# Flache Bedienelemente: oben/unten nur wenig Innenabstand
+	for type in ["Button", "LineEdit", "OptionButton", "CheckBox"]:
+		for st in t.get_stylebox_list(type):
+			var sb := t.get_stylebox(st, type)
+			if sb:
+				sb.content_margin_top = 2
+				sb.content_margin_bottom = 2
 	_theme = t
-	_min_height = h
+	_min_height = MENU_HEIGHT
 	return t
 
-static var _min_height := 48
+## Höhe von Knöpfen, Feldern und Reglern in den Menüs (Wunsch 16.11.2026:
+## deutlich flacher, damit mehr auf den Bildschirm passt). Die Schalter in der
+## Flugansicht (Pills) behalten control_height – dort zählt das Treffen im Flug.
+const MENU_HEIGHT := 32
+static var _min_height := MENU_HEIGHT
+
+
+## Höhe für Menü-Bedienelemente (Felder, Auswahllisten) – wie Knöpfe.
+static func menu_height() -> int:
+	return _min_height
 
 
 ## Runder Schieberegler-Knopf, zur Laufzeit gezeichnet (keine Bilddatei nötig).
@@ -366,22 +383,17 @@ static func make_toggle_group() -> ButtonGroup:
 # Wertanzeige (z. B. "%.2f m³").
 # -----------------------------------------------------------------------------
 static func make_slider_row(label: String, min_v: float, max_v: float, step: float,
-		value: float, on_change: Callable, fmt := "%.2f", _label_width := 110) -> VBoxContainer:
-	# Zwei Zeilen, damit der Regler am Handy die ganze Breite bekommt:
-	#   Beschriftung ………………… Wert
-	#   [−] ─────────●───────── [+]
-	# −/+ ändern um einen Schritt (feine Werte), der Griff ist groß.
-	var box := make_vbox("xs")
-	var top := make_hbox("sm")
+		value: float, on_change: Callable, fmt := "%.2f", _label_width := 110) -> HBoxContainer:
+	# Eine Zeile (Wunsch 16.11.2026: flacher, mehr Übersicht):
+	#   Beschriftung   [−] ───●─── [+]  Wert
+	# −/+ ändern um einen Schritt (feine Werte).
+	var box := make_hbox("xs")
 	var l := make_label(label, "MutedLabel")
+	l.custom_minimum_size.x = 120
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(l)
-	# Einheit übersetzen (z. B. „U/min“) und Dezimalzeichen der Sprache verwenden
-	var out := make_label(I18n.dec(I18n.t(fmt) % value))
-	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	top.add_child(out)
-	box.add_child(top)
-	var row := make_hbox("sm")
+	l.size_flags_stretch_ratio = 0.8
+	box.add_child(l)
 	var s := HSlider.new()
 	s.min_value = min_v
 	s.max_value = max_v
@@ -389,12 +401,18 @@ static func make_slider_row(label: String, min_v: float, max_v: float, step: flo
 	s.value = value
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	s.custom_minimum_size = Vector2(120, _min_height)
+	s.custom_minimum_size = Vector2(90, _min_height)
 	s.focus_mode = Control.FOCUS_NONE
-	row.add_child(_step_button("−", func(): s.value = s.value - step))
-	row.add_child(s)
-	row.add_child(_step_button("+", func(): s.value = s.value + step))
-	box.add_child(row)
+	# Einheit übersetzen (z. B. „U/min“) und Dezimalzeichen der Sprache verwenden
+	var out := make_label(I18n.dec(I18n.t(fmt) % value))
+	out.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	out.custom_minimum_size.x = 64
+	box.add_child(_step_button("−", func(): s.value = s.value - step))
+	box.add_child(s)
+	box.add_child(_step_button("+", func(): s.value = s.value + step))
+	box.add_child(out)
+	for c in box.get_children():
+		if c != l: (c as Control).size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	s.value_changed.connect(func(v: float):
 		out.text = I18n.dec(I18n.t(fmt) % v)
 		on_change.call(v))

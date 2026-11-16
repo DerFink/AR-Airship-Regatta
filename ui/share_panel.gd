@@ -61,7 +61,7 @@ func _ready() -> void:
 	_name = LineEdit.new()
 	_name.max_length = 40
 	_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_name.custom_minimum_size.y = UITheme.size("control_height")
+	_name.custom_minimum_size.y = UITheme.menu_height()
 	_name.text_changed.connect(func(t): ship.model_name = t; _export())
 	nrow.add_child(_name)
 	col.add_child(nrow)
