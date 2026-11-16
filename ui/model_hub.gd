@@ -1,3 +1,4 @@
+# 2026-11-16 09:50 – Knopf „Szenario zurücksetzen“ über dem Pylonabstand
 # 2026-11-16 01:40 – Hinweis unter dem Pylonabstand, wenn er geändert ist (keine Wertung)
 # 2026-11-16 01:00 – Vorschaubilder als echtes 3D-Bild wie auf dem Flugfeld (mit Logos), gezeichnete Ansicht nur bis es fertig ist
 # 2026-11-15 23:40 – Knopf „Aus ‚Eigene‘ löschen“ (nur bei eigenen Modellen, zweimal tippen)
@@ -105,6 +106,13 @@ func _ready() -> void:
 	lcol.add_child(UITheme.make_title("Location"))
 	_loc_list = UITheme.make_vbox("sm")
 	lcol.add_child(_scroll(_loc_list))
+	# Szenario zurücksetzen: Halle, FN Hugo Eckener Cup (18 m), Wiese 200 m – zählt dann für die Bestenliste
+	var b_scn := UITheme.make_button("Szenario zurücksetzen")
+	b_scn.pressed.connect(func():
+		course.reset_scenario()
+		location_changed.emit()
+		_fill())
+	lcol.add_child(b_scn)
 	var drow := UITheme.make_hbox("sm")
 	drow.add_child(UITheme.make_label("Pylonabstand"))
 	_dist_edit = LineEdit.new()

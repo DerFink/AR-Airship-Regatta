@@ -1,3 +1,4 @@
+# 2026-11-16 09:50 – Pylonabstand zurück auf 18 m in der Halle schaltet wieder auf den Cup (vorher blieb „frei“ gemerkt → keine Wertung)
 # 2026-11-16 01:40 – is_ranked(): nur Standard-Pylonabstand zählt für die Bestenliste (Hinweis vor dem Start); reset_scenario()
 # 2026-11-15 23:10 – Glasdach 18 m statt 15 m; dunkelgrauer Bodenstrich an der Säulenlinie
 # 2026-11-15 22:50 – Halle neu nach Foto: Glasdach 15 m; Säulenreihe (fest) mit 5 m tiefen Laufgängen rundum auf zwei Ebenen (0–5, 5–10 m, hineinfliegen möglich, Zwischendecke und Geländer fest); 10–15 m an der Säulenlinie geschlossen mit Wandbildern und großen Plakaten
@@ -666,7 +667,11 @@ func set_distance(d: float) -> void:
 		save_settings()
 		rebuild()
 	else:
-		set_course(1, d)
+		# zurück auf 18 m = wieder der Cup (zählt für die Bestenliste)
+		if is_equal_approx(roundf(d * 10.0) / 10.0, CUP_DISTANCE):
+			set_course(0, free_distance)
+		else:
+			set_course(1, d)
 
 
 func save_settings() -> void:
