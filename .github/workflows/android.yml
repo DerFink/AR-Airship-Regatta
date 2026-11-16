@@ -1,3 +1,4 @@
+# 2026-11-17 00:50 – Aufnahme-Helfer ar-recorder.js in die Browser-Version einbinden
 # 2026-11-14 23:10 – Upload: Zielordner per Variable STRATO_ZIEL einstellbar (Standard rc-airship)
 # 2026-11-14 22:40 – einrichtung.php kommt mit ins Paket für flinkfink.de
 # 2026-11-14 21:10 – Impressum/Datenschutz (server/rc-airship/*.html) kommen mit ins Paket für flinkfink.de
@@ -111,6 +112,10 @@ jobs:
           # kann keine alten Dateien aus dem Zwischenspeicher nehmen
           N=${{ github.run_number }}
           godot --headless --export-release "Web" build/web/ar-$N.html
+          # Aufnahme-Helfer (Film mitschneiden + schneiden) vor Godot laden
+          cp web/ar-recorder.js build/web/ar-recorder-$N.js
+          sed -i "s#</head>#<script src=\"ar-recorder-$N.js\"></script></head>#" build/web/ar-$N.html
+          grep -q "ar-recorder-$N.js" build/web/ar-$N.html
           # Einstiegsseite leitet immer auf den neuesten Build weiter
           printf '<!doctype html><meta charset="utf-8"><meta http-equiv="cache-control" content="no-cache"><title>AR Airship Regatta</title><script>location.replace("ar-%s.html")</script><a href="ar-%s.html">Simulator starten</a>\n' "$N" "$N" > build/web/index.html
           ls -la build/web

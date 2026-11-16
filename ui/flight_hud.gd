@@ -1,3 +1,4 @@
+# 2026-11-17 00:45 – Aufnahmeknopf „●“ oben rechts (RaceRecorder, nur Browser)
 # 2026-11-16 18:50 – Ohne FC wieder alle Flugmodi wählbar (jeder fliegt manuell mit seiner Mischtabelle)
 # 2026-11-16 18:15 – Geber S1–S4: vom Sender (Kalibrierung), Tastatur Q/E und Z/C, Touch-Schieber am rechten Rand (nur wenn der Modus sie nutzt)
 # 2026-11-16 16:30 – Tastatur: Gas läuft ohne W/S langsam auf 0 zurück (0,3 je Sekunde) statt stehen zu bleiben
@@ -86,6 +87,8 @@ var _btn_persp: Button                    ## Perspektive (ein Knopf, wechselt re
 var _kb_throttle := 0.0
 ## Geber S1…S4 ohne Sender: Stellung aus Tastatur (Q/E, Z/C) oder Bildschirm-Schieber
 var _geber_local: Array = [0.0, 0.0, 0.0, 0.0]
+## Aufnahme im Browser (Knopf „●“ oben rechts), sonst null/unsichtbar
+var recorder: RaceRecorder
 ## Bildschirm-Schieber je Geber (nur sichtbar, wenn der aktive Modus den Geber nutzt)
 var _geber_sliders: Array = []
 var _geber_labels: Array = []
@@ -209,7 +212,12 @@ func _ready() -> void:
 	b_set.add_theme_constant_override("icon_max_width", 26)
 	b_set.pressed.connect(func(): settings_requested.emit())
 	var b_full := UITheme.make_fullscreen_button()      # Vollbild (Browser/PC)
+	# Aufnahme (nur Browser): Rennen als Film mitschneiden
+	recorder = RaceRecorder.new(course, ship) if course and ship else null
 	for b in [b_reset, _btn_arm, b_full, b_set, b_menu]: tr_box.add_child(b)
+	if recorder:
+		tr_box.add_child(recorder.button)
+		tr_box.move_child(recorder.button, 0)
 
 	# --- Knüppel ------------------------------------------------------------
 	stick_left = TouchStick.new()
@@ -608,6 +616,7 @@ func _process(dt: float) -> void:
 				input_frames.Touch += 1
 			fc.set_sticks(stick_left.value, stick_right.value)
 		_update_geber(dt)
+		if recorder: recorder.update(dt)
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)

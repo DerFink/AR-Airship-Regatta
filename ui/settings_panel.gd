@@ -1,3 +1,4 @@
+# 2026-11-17 00:45 – Aufnahme-Schalter (Browser)
 # 2026-11-16 23:50 – Schalter „Physik genau (6×6)“
 # 2026-11-15 22:05 – Browser: Schalter „Motorklang fein“ (Standard aus = Säuseln)
 # 2026-11-14 22:50 – Inhalt scrollt unter fester Kopfzeile (passt auch auf kleine Bildschirme)
@@ -111,6 +112,12 @@ func _ready() -> void:
 	_del_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	drow.add_child(_del_status)
 	box.add_child(drow)
+	# --- Aufnahme (nur Browser): automatisch beim Rennstart, Ton mit aufnehmen ---
+	if OS.has_feature("web"):
+		box.add_child(_toggle("Aufnahme beim Rennstart automatisch starten", AppSettings.rec_auto,
+			func(on): AppSettings.rec_auto = on; AppSettings.save()))
+		box.add_child(_toggle("Ton mit aufnehmen", AppSettings.rec_audio,
+			func(on): AppSettings.rec_audio = on; AppSettings.save()))
 	# --- Physik: einfach (Diagonale, bisher) oder genau (volle 6×6-Massenmatrix) ---
 	box.add_child(_toggle("Physik genau (volle 6×6-Massenmatrix: Schwerpunkt-Kopplung, Deviationsmomente, Flossen) – vorerst ohne Wertung",
 		AppSettings.physics_full, func(on): AppSettings.physics_full = on; AppSettings.save()))

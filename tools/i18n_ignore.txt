@@ -190,3 +190,13 @@ Example
 Support me
 prompt(%s, %s)
 name%d
+!!(window.arRec && arRec.supported())
+arRec.setTexts(%s)
+arRec.start(%s)
+arRec.stop(%s, %s)
+Cup
+Wiese%dm
+Frei%dm
+arRec.mark(%s)
+arRec.elapsed()
+● REC %d:%02d
