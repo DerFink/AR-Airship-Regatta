@@ -1,3 +1,4 @@
+# 2026-11-16 10:05 – Fehler 8/200 im Browser behoben: accept_gzip aus (doppeltes Entpacken)
 # 2026-11-16 01:45 – Bei Fehlern Ursache mitgeben ("net": z. B. TLS/0, HTTP/503) für die Anzeige
 # 2026-11-14 22:00 – Einwilligung (Fassung + Text), Geräte-Kennung beim Eintragen, eigene Einträge löschen, Besucherzähler, Links zu Impressum/Datenschutz
 # 2026-11-11 19:45 – Erstversion: Online-Bestenliste auf flinkfink.de (Liste, Best Forever, Eintragen) – ohne Verbindung arbeitet die App mit der Liste auf dem Gerät weiter
@@ -98,6 +99,11 @@ func _get_api(query: String, cb: Callable) -> void:
 func _request(url: String, method: int, body: String, cb: Callable) -> void:
 	var rq := HTTPRequest.new()
 	rq.timeout = TIMEOUT_S
+	# Nicht selbst entpacken: Im Browser entpackt schon der Browser die gzip-
+	# Antwort von Strato, Godot versuchte es ein zweites Mal → Fehler 8
+	# (BODY_DECOMPRESS_FAILED) trotz HTTP 200 – die Zeit war gespeichert, die App
+	# meldete aber „nicht eingetragen“.
+	rq.accept_gzip = false
 	add_child(rq)
 	rq.request_completed.connect(func(result: int, code: int, _h: PackedStringArray, data: PackedByteArray):
 		rq.queue_free()

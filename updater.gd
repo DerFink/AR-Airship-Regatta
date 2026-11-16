@@ -1,3 +1,4 @@
+# 2026-11-16 10:05 – Update-Suche im Browser: nicht doppelt entpacken
 # 2026-11-11 17:45 – Update-Meldungen übersetzt
 # 2026-11-08 18:15 – Browser-Version: „Nach Update suchen“ lädt die neue Seite (ar-<Build>.html, jeder Build mit eigenen Dateinamen – kein Zwischenspeicher-Problem)
 # 2026-11-07 21:10 – Erstversion: Update-Suche über die GitHub-Releases (neuester „Android-Build N“ gegen BuildInfo.BUILD); neuere APK wird im Browser heruntergeladen
@@ -31,6 +32,7 @@ var _http: HTTPRequest
 func _ready() -> void:
 	_http = HTTPRequest.new()
 	_http.timeout = 15.0
+	_http.accept_gzip = not OS.has_feature("web")     # im Browser entpackt schon der Browser (sonst Fehler 8)
 	add_child(_http)
 	_http.request_completed.connect(_on_done)
 

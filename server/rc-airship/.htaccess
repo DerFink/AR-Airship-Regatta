@@ -1,3 +1,4 @@
+# 2026-11-16 10:05 – Antworten der api.php nicht mehr komprimieren (Fehler 8 im Browser)
 # 2026-11-14 22:45 – Ordnerinhalt nie auflisten (HTTPS-Weiterleitung bleibt bei Strato)
 # 2026-11-11 19:20 – Erstversion: Browser-Version richtig ausliefern, Zugangsdaten schützen
 # WebAssembly mit dem richtigen Typ ausliefern (sonst lädt der Simulator nicht)
@@ -15,7 +16,8 @@ AddType application/octet-stream .pck
 </IfModule>
 # komprimiert ausliefern (schnellerer Start)
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE application/wasm application/javascript text/html application/json
+  # JSON (api.php) bewusst nicht: die App im Browser stolperte über die gepackte Antwort
+  AddOutputFilterByType DEFLATE application/wasm application/javascript text/html
 </IfModule>
 
 # Ordnerinhalt nie als Liste anzeigen

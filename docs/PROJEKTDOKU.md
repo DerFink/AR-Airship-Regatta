@@ -294,6 +294,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 16.11. | 0.38.2 | Bestenliste nur mit Standard-Pylonabstand (Halle Cup 18 m, Wiese 200 m; `Course.is_ranked()`, Server nimmt nur `cup`/`wiese_200.0`): Hinweis vor dem Start, unter dem Pylonabstand und im Ziel. Zurücksetzen: „Strecke“ eigener Punkt (vorausgewählt), Knüppelbelegung getrennt. „Keine Verbindung“ zeigt die Ursache in Klammern (Fehlersuche). |
 | 16.11. | 0.38.3 | Sammlung: Modell „Picard“ (eingesandt als „Chewie“, umbenannt, damit es nicht mit dem Standard-Chewie verwechselt wird; 0,25 m³, L/D 6, Kreuzleitwerk 4 × 361 cm², 2 feste Motoren, Teensy-FC). |
 | 16.11. | 0.38.4 | Fehler: Pylonabstand zurück auf 18 m blieb „frei“ (keine Wertung) → 18 m in der Halle schaltet wieder auf den Cup. Knopf „Szenario zurücksetzen“ in Modell & Bau über dem Pylonabstand. |
+| 16.11. | 0.38.5 | Fehler „8/200“ im Browser: Strato packt JSON mit gzip, der Browser entpackt, Godot versuchte es nochmal (BODY_DECOMPRESS_FAILED) – Zeiten waren gespeichert, die App meldete „nicht eingetragen“ und die Liste kam nie. `accept_gzip = false` in `leaderboard_online.gd` (Updater im Browser ebenso), `.htaccess` packt JSON nicht mehr. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 
