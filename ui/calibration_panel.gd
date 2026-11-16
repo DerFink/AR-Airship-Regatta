@@ -1,3 +1,4 @@
+# 2026-11-16 18:05 – Kanalzuordnung: Geber S1–S4 mit eigenem Namen, „–“ = nicht belegt (auch für Zurücksetzen)
 # 2026-11-16 12:05 – Gasknüppel „Mitte = Stopp“ oder „Unten = Stopp (ohne Rückwärts)“; Knopf heißt „Nullpunkte übernehmen“ und bestätigt kurz
 # 2026-11-11 19:00 – Hinweis, wenn der Browser nichts dauerhaft speichert (Kalibrierung ginge verloren)
 # 2026-11-11 18:45 – Flugmodi heißen jetzt Direkt · Angle · Horizon (wie bei Drohnen; im Teensy weiter Mode 1/2/3)
@@ -40,7 +41,8 @@ var _b_mid: Button                    ## „Nullpunkte übernehmen“
 const STICK_SIDE_OK := 0.3          ## Knüppel: je Seite mindestens 30 % über die Mitte hinaus
 const SWITCH_RANGE_OK := 0.5        ## Schalter: mindestens zwei Stellungen (max − min)
 ## Kurzname je Funktion (Kanalliste)
-const SHORT := {"yaw": "Seite", "pitch": "Höhe", "thr": "Gas", "roll": "Rolle", "arm": "Armed", "mode": "Modus", "reset": "Zurücks."}
+const SHORT := {"yaw": "Seite", "pitch": "Höhe", "thr": "Gas", "roll": "Rolle", "arm": "Armed", "mode": "Modus", "reset": "Zurücks.",
+	"s1": "S1", "s2": "S2", "s3": "S3", "s4": "S4"}
 const STICKS := ["yaw", "pitch", "thr", "roll"]
 
 var joy: JoystickInput
@@ -57,6 +59,8 @@ var _work: Array = []                ## Arbeitskopie der Kalibrierung (wird erst
 var _cap: Array = []                 ## erfasster Rohbereich je Kanal {min, max}
 var _wmap := {}                      ## Arbeitskopie der Zuordnung Funktion → Kanal
 var _map_opts := {}                  ## Funktion → OptionButton
+var _name_edits := {}                ## Geber-Index → LineEdit (Name)
+var _wnames: Array = []              ## Arbeitskopie der Gebernamen
 var _learn := ""                     ## Funktion, die gerade angelernt wird ("" = keine)
 var _learn_base: Array = []          ## Rohwerte beim Start des Anlernens
 var _learn_btns := {}
@@ -163,13 +167,28 @@ func _ready() -> void:
 	mgrid.add_theme_constant_override("v_separation", 2)
 	box.add_child(mgrid)
 	for fn in JoystickInput.FUNCS:
-		var l := UITheme.make_label(JoystickInput.FUNC_NAMES[fn])
-		l.custom_minimum_size.x = 230
+		var f: String = fn
+		var l: Control
+		if f.begins_with("s"):
+			# Geber S1…S4: Name frei wählbar (erscheint im Mischer als Spaltenkopf)
+			var k := int(f.substr(1)) - 1
+			var ne := LineEdit.new()
+			ne.max_length = 20
+			ne.text = str(JoystickInput.aux_names[k])
+			ne.custom_minimum_size = Vector2(230, UITheme.menu_height())
+			ne.tooltip_text = I18n.t("Name des Gebers, z. B. Drehknopf S1")
+			ne.text_changed.connect(func(t): _wnames[k] = t.strip_edges() if t.strip_edges() != "" else "S%d" % (k + 1))
+			_name_edits[k] = ne
+			l = ne
+		else:
+			l = UITheme.make_label(JoystickInput.FUNC_NAMES[fn])
+			l.custom_minimum_size.x = 230
 		var ob := OptionButton.new()
+		if f in JoystickInput.OPTIONAL:
+			ob.add_item("–", 0)                       # nicht belegt
 		for c in JoystickInput.CHANNELS:
 			ob.add_item("CH%d" % (c + 1), c + 1)
-		var f: String = fn
-		ob.item_selected.connect(func(idx: int): _wmap[f] = idx + 1)
+		ob.item_selected.connect(func(idx: int): _wmap[f] = ob.get_item_id(idx))
 		var lb := UITheme.make_button("Anlernen")
 		lb.pressed.connect(func(): _start_learn(f))
 		_map_opts[fn] = ob
@@ -206,8 +225,12 @@ func show_panel() -> void:
 	_no_focus(self)
 	_sync_stick_mode()
 	for fn in _map_opts:
-		_map_opts[fn].select(int(_wmap[fn]) - 1)
+		var ob: OptionButton = _map_opts[fn]
+		ob.select(maxi(ob.get_item_index(int(_wmap[fn])), 0))
 		_learn_btns[fn].text = "Anlernen"
+	_wnames = JoystickInput.aux_names.duplicate()
+	for k in _name_edits:
+		_name_edits[k].text = str(_wnames[k])
 	_cap = []
 	for i in JoystickInput.CHANNELS:
 		var r := joy.raw(i)
@@ -279,7 +302,7 @@ func _process(_dt: float) -> void:
 		for i in JoystickInput.CHANNELS:
 			if absf(joy.raw(i) - _learn_base[i]) > 0.6:
 				_wmap[_learn] = i + 1
-				_map_opts[_learn].select(i)
+				_map_opts[_learn].select(_map_opts[_learn].get_item_index(i + 1))
 				_learn_btns[_learn].text = "Anlernen"
 				_learn = ""
 				break
@@ -364,6 +387,8 @@ func _on_save() -> void:
 	for i in JoystickInput.CHANNELS:
 		joy.cal[i] = _effective(i)
 	JoystickInput.fmap = _wmap.duplicate()
+	if not _wnames.is_empty():
+		JoystickInput.aux_names = _wnames.duplicate()
 	joy.save_cal()
 	hide_panel()
 

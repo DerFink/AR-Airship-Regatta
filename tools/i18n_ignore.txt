@@ -189,3 +189,4 @@ Schubi
 Example
 Support me
 prompt(%s, %s)
+name%d

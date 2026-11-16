@@ -1,3 +1,4 @@
+# 2026-11-16 18:10 – Mischtabelle: Grundstellung/Geber je Ausgang (e<Ausgang>, fünf Werte)
 # 2026-11-16 17:45 – Mischtabelle: Schub je Motor (t<i>, vier Werte) und Motor aus (x<i>) im Modell-String
 # 2026-11-16 16:55 – kV bis 50 000
 # 2026-11-16 14:40 – Motoren: kV und Stator im Modell-String (nur wenn kV gesetzt)
@@ -491,7 +492,7 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 	var mx = d.get("mix", {})
 	var mt := {}
 	if mx is Dictionary and mx.get("t") is Dictionary:
-		for k in (mx.t as Dictionary).keys().slice(0, 40):
+		for k in (mx.t as Dictionary).keys().slice(0, 120):
 			var v = mx.t[k]
 			var ks := str(k)
 			if ks.length() <= 4 and (ks.begins_with("s") or ks.begins_with("m")) and v is Array and v.size() == 3:
@@ -501,5 +502,10 @@ static func _sanitize(d: Dictionary) -> Dictionary:
 				mt[ks] = [clampf(float(v[0]), -200.0, 200.0), clampf(float(v[1]), -200.0, 200.0), clampf(float(v[2]), -200.0, 200.0), clampf(float(v[3]), -200.0, 200.0)]
 			elif ks.length() <= 4 and ks.begins_with("x") and v is bool and v:
 				mt[ks] = true
+			# Erweiterung je Ausgang: e<s|m|t><i> = [Grundstellung, S1, S2, S3, S4] in %
+			elif ks.length() <= 5 and ks.begins_with("e") and v is Array and v.size() == 5:
+				var arr := []
+				for x in v: arr.append(clampf(float(x), -200.0, 200.0))
+				mt[ks] = arr
 	out["mix"] = {"on": _flag(mx, "on", false) if mx is Dictionary else false, "t": mt}
 	return out

@@ -1,3 +1,4 @@
+# 2026-11-16 18:20 – Mischer: Spalte Grundstellung und Geber S1…S4 je Ausgang (Ruder, Schwenker, Schub), Hinweis zur Desaturierung
 # 2026-11-16 17:40 – Mischer: Spalte Gas, Schub je Motor (Gas/Nick/Gier/Roll in %, Motor je Modus an/aus), alle Modi wählbar (Regler-Modus ohne FC wird manuell, mit FC per Knopf), Tabelle waagrecht scrollbar, lange Texte umbrechen
 # 2026-11-16 17:15 – Stator-Feld ohne grauen Platzhalter (sah gesperrt aus); neue Motoren übernehmen Stator/kV/Propeller/Masse der vorhandenen; neues Paar öffnet gleich im Editor
 # 2026-11-16 16:55 – kV-Eingabe bis 50 000
@@ -933,7 +934,7 @@ func _show_mixer() -> void:
 		# Bauteile geändert: Ruder-Vorschlag als Start, Schub je Motor (t…/x…) bleibt
 		var keep := {}
 		for k in ship.mix_table:
-			if str(k).begins_with("t") or str(k).begins_with("x"): keep[k] = ship.mix_table[k]
+			if str(k).begins_with("t") or str(k).begins_with("x") or str(k).begins_with("e"): keep[k] = ship.mix_table[k]
 		ship.mix_table = fc.suggest_mix()
 		ship.mix_table.merge(keep)
 	var w := _window(I18n.t("Mischer · %s") % ship.model_name)
@@ -1059,19 +1060,27 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 	elif not own:
 		body.add_child(_note(I18n.t("Dieser Modus nutzt die Tabelle von Modus %d.") % (_first_direct(fc) + 1)))
 	body.add_child(_note("Ruder und Schwenker: Prozent des Vollausschlags je Knüppel. Motoren: Prozent des Vollschubs je Knüppel (z. B. Gier: links +100, rechts −100 = Drehen mit Schub). Der Regler verändert den Schub nie."))
-	# --- Tabelle: Ausgang × Gas/Nick/Gier/Roll (waagrecht scrollbar auf dem Handy) ---
+	# --- Tabelle: Ausgang × Grundstellung/Gas/Nick/Gier/Roll/Geber (waagrecht scrollbar) ---
+	# Geber-Spalten: S1 und S2 immer, S3/S4 nur, wenn am Sender zugeordnet
+	var ng := 2
+	for k in range(2, JoystickInput.AUX_COUNT):
+		if JoystickInput.assigned("s%d" % (k + 1)): ng = k + 1
 	var gs := ScrollContainer.new()
 	gs.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	gs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	gs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var grid := GridContainer.new()
-	grid.columns = 5
+	grid.columns = 6 + ng
 	grid.add_theme_constant_override("h_separation", UITheme.space("sm"))
 	grid.add_theme_constant_override("v_separation", UITheme.space("xs"))
 	gs.add_child(grid)
 	body.add_child(gs)
-	for h in ["Ausgang", "Gas", "Nick", "Gier", "Roll"]:
-		grid.add_child(UITheme.make_label(h, "MutedLabel"))
+	var heads := ["Ausgang", I18n.t("Grundstellung"), "Gas", "Nick", "Gier", "Roll"]
+	for k in ng: heads.append(str(JoystickInput.aux_names[k]))
+	for h in heads:
+		var hl := UITheme.make_label(h, "MutedLabel")
+		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		grid.add_child(hl)
 	var edits := {}
 	# Hilfsfunktion: ein Prozentfeld, das in table[key][col] schreibt
 	var make_cell := func(key: String, col: int, def: Array, can_edit: bool) -> LineEdit:
@@ -1090,7 +1099,11 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 				var arr: Array = table.get(key, def).duplicate()
 				while arr.size() < def.size(): arr.append(0.0)
 				arr[col] = clampf(float(t), -200.0, 200.0)
-				table[key] = arr
+				# Erweiterung ganz auf 0 → Eintrag weglassen (Tabelle bleibt schlank)
+				if key.begins_with("e") and arr.all(func(x): return absf(float(x)) < 0.001):
+					table.erase(key)
+				else:
+					table[key] = arr
 				if not is_base:
 					fc.save_settings()         # eigene Tabelle gehört zu den Flugmodi
 				else:
@@ -1100,12 +1113,14 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 		le.text_submitted.connect(func(_t): commit.call(); le.release_focus())
 		le.focus_exited.connect(commit)
 		return le
-	# Ruder und Schwenker: Spalten Nick/Gier/Roll (Gas wirkt nicht auf Ruder)
+	var ext_def := [0.0, 0.0, 0.0, 0.0, 0.0]              # [Grundstellung, S1…S4]
+	# Ruder und Schwenker: Grundstellung, Nick/Gier/Roll, Geber (Gas wirkt nicht auf Ruder)
 	for o in outs:
 		var name_l := UITheme.make_label("%s (±%d°)" % [I18n.t(o.name), roundi(o.max_deg)])
 		name_l.custom_minimum_size.x = 240
 		name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		grid.add_child(name_l)
+		grid.add_child(make_cell.call("e" + o.key, 0, ext_def, surf_edit))
 		var dash := UITheme.make_label("–", "MutedLabel")
 		dash.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		grid.add_child(dash)
@@ -1113,7 +1128,9 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 			var le: LineEdit = make_cell.call(o.key, ax, [0.0, 0.0, 0.0], surf_edit)
 			grid.add_child(le)
 			edits["%s/%d" % [o.key, ax]] = le
-	# Schub je Motor: Haken an/aus + Gas/Nick/Gier/Roll
+		for k in ng:
+			grid.add_child(make_cell.call("e" + o.key, k + 1, ext_def, surf_edit))
+	# Schub je Motor: Haken an/aus + Grundstellung + Gas/Nick/Gier/Roll + Geber
 	for i in ship.motors.size():
 		var mo: VectorMotor = ship.motors[i]
 		var cb := CheckBox.new()
@@ -1130,8 +1147,12 @@ func _fill_mixer(body: VBoxContainer, fc: FlightController, sugg: Button, refill
 			if not is_base: fc.save_settings()
 			else: _refresh())
 		grid.add_child(cb)
+		grid.add_child(make_cell.call("et%d" % i, 0, ext_def, editable))
 		for col in 4:
 			grid.add_child(make_cell.call("t%d" % i, col, [100.0, 0.0, 0.0, 0.0], editable))
+		for k in ng:
+			grid.add_child(make_cell.call("et%d" % i, k + 1, ext_def, editable))
+	body.add_child(_note("Ausgang = Grundstellung + Σ (Gewicht × Knüppel bzw. Geber). Reicht der Weg nicht, werden die Ausschläge anteilig verkleinert (die Grundstellung bleibt). Geber S1–S4 werden in der Senderkalibrierung einem Kanal zugeordnet; ohne Sender: Tasten Q/E und Z/C oder Schieber am rechten Rand."))
 	if outs.is_empty() and ship.motors.is_empty():
 		body.add_child(_note("Keine Ruder oder schwenkbaren Motoren vorhanden."))
 	# „Vorschlag aus Einbaulage“ füllt die Ruder der gerade bearbeiteten Tabelle

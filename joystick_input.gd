@@ -1,3 +1,4 @@
+# 2026-11-16 18:00 – Geber S1–S4: freie Senderkanäle (Drehknopf, Schalter) mit Namen für den Mischer; Zurücksetzen und Geber dürfen „nicht belegt“ sein
 # 2026-11-16 12:00 – Gas „unten = Stopp“ (Modelle/Sender ohne Rückwärts): Knüppel unten 0, oben Vollgas; gespeichert mit der Kalibrierung
 # 2026-11-13 00:50 – Modus-Kanal je nach Anzahl der Flugmodi (1–5) in gleich große Bereiche geteilt
 # 2026-11-11 15:20 – Senderfunktionen f_thr/f_pitch/f_yaw/f_roll für den Stickmode
@@ -64,17 +65,32 @@ const INVERT_THROTTLE := false
 ## Anzahl ausgewerteter Kanäle (CH1…CH8, klassischer EdgeTX-Joystick)
 const CHANNELS := 8
 ## Funktionen und ihre Standard-Kanäle (1-basiert) – Belegung des Simulator-Modells
-const FUNCS := ["yaw", "pitch", "thr", "roll", "arm", "mode", "reset"]
+const FUNCS := ["yaw", "pitch", "thr", "roll", "arm", "mode", "reset", "s1", "s2", "s3", "s4"]
 const FUNC_NAMES := {"yaw": "Gier (Seite)", "pitch": "Nick (Höhe)", "thr": "Gas", "roll": "Rolle",
-	"arm": "Armed / Motorfreigabe", "mode": "Modus-Schalter", "reset": "Zurücksetzen (nur Simulator)"}
-const DEFAULT_MAP := {"yaw": 1, "pitch": 2, "thr": 3, "roll": 4, "arm": 5, "mode": 6, "reset": 7}
+	"arm": "Armed / Motorfreigabe", "mode": "Modus-Schalter", "reset": "Zurücksetzen (nur Simulator)",
+	"s1": "Geber S1", "s2": "Geber S2", "s3": "Geber S3", "s4": "Geber S4"}
+## Kanal 0 = nicht belegt (nur für Zurücksetzen und die Geber S1–S4 wählbar).
+## Geber S1–S4: freie Senderkanäle (Drehknopf, Schalter …) für den Mischer.
+const DEFAULT_MAP := {"yaw": 1, "pitch": 2, "thr": 3, "roll": 4, "arm": 5, "mode": 6, "reset": 7,
+	"s1": 8, "s2": 0, "s3": 0, "s4": 0}
+## Funktionen, die „nicht belegt“ sein dürfen
+const OPTIONAL := ["reset", "s1", "s2", "s3", "s4"]
+## Anzahl der Geber S1…S4
+const AUX_COUNT := 4
+## Namen der Geber (frei wählbar, z. B. „Drehknopf S1“) – mit der Kalibrierung gespeichert
+static var aux_names: Array = ["S1", "S2", "S3", "S4"]
 ## Aktuelle Zuordnung Funktion → Kanal (1-basiert)
 static var fmap := DEFAULT_MAP.duplicate()
 
 
-## Achse (0-basiert) einer Funktion
+## Achse (0-basiert) einer Funktion; −1 = nicht belegt
 static func axis(fn: String) -> int:
 	return int(fmap.get(fn, DEFAULT_MAP[fn])) - 1
+
+
+## Ist die Funktion einem Kanal zugeordnet?
+static func assigned(fn: String) -> bool:
+	return axis(fn) >= 0
 const CAL_PATH := "user://sender_kalibrierung.cfg"
 ## Kalibrierung je Kanal (Index = Kanal − 1), Rohwerte wie vom Sender gemeldet:
 ##   min / center / max  → werden auf −1 / 0 / +1 umgerechnet
@@ -103,6 +119,8 @@ var thr_bottom := false
 var f_pitch := 0.0
 var f_yaw := 0.0
 var f_roll := 0.0
+## Geber S1…S4 (−1…+1, 0 = nicht belegt)
+var f_aux: Array = [0.0, 0.0, 0.0, 0.0]
 var _arm_state := -1                ## −1 = unbekannt, 0 = oben, 1 = unten
 var _arm_seen_off := false          ## SF war seit dem Einstecken mindestens einmal oben
 var _mode_state := -1
@@ -177,6 +195,10 @@ func _process(dt: float) -> void:
 	right = Vector2(_dz(yaw), _dz(pitch))
 	# Funktionen (unabhängig vom Stickmode – der Sender liefert sie je Kanal)
 	f_thr = _dz(thr); f_pitch = _dz(pitch); f_yaw = _dz(yaw); f_roll = _dz(roll)
+	# Geber S1…S4: Drehknopf/Schalter, ohne Totzone (Knopfstellung zählt genau)
+	for k in AUX_COUNT:
+		var ch := axis("s%d" % (k + 1))
+		f_aux[k] = value(ch) if ch >= 0 else 0.0
 	# Gas ohne Rückwärts: Knüppel ganz unten = Stopp, ganz oben = Vollgas (Mitte egal)
 	if thr_bottom:
 		var c: Dictionary = cal[axis("thr")]
@@ -209,7 +231,7 @@ func _process(dt: float) -> void:
 		mode_switched.emit(m)
 	# Schalter SH: Zurücksetzen nur beim Umlegen nach oben (Kanal < −50 %), nicht
 	# dauernd und nicht beim Einstecken, wenn SH schon oben steht
-	var rs := 1 if value(axis("reset")) < -0.5 else 0
+	var rs := 1 if assigned("reset") and value(axis("reset")) < -0.5 else 0
 	if rs != _reset_state:
 		if _reset_state == 0 and rs == 1:
 			reset_switched.emit()
@@ -249,7 +271,7 @@ static func channels_for_ino(cal_list: Array = []) -> Dictionary:
 			for i in CHANNELS:
 				cal_list[i].inv = bool(f.get_value("ch%d" % (i + 1), "inv", false))
 			for fn in FUNCS:
-				fmap[fn] = clampi(int(f.get_value("zuordnung", fn, fmap[fn])), 1, CHANNELS)
+				fmap[fn] = clampi(int(f.get_value("zuordnung", fn, fmap[fn])), 0 if fn in OPTIONAL else 1, CHANNELS)
 	var out := {}
 	for fn in ["thr", "pitch", "yaw", "roll", "arm", "mode"]:
 		var ch: int = int(fmap[fn])
@@ -284,6 +306,8 @@ func save_cal() -> void:
 	f.set_value("gas", "unten_stopp", thr_bottom)
 	for fn in FUNCS:
 		f.set_value("zuordnung", fn, int(fmap[fn]))
+	for k in AUX_COUNT:
+		f.set_value("geber", "name%d" % (k + 1), str(aux_names[k]))
 	for i in CHANNELS:
 		for k in ["min", "center", "max", "inv"]:
 			f.set_value("ch%d" % (i + 1), k, cal[i][k])
@@ -296,7 +320,9 @@ func load_cal() -> void:
 		return
 	thr_bottom = bool(f.get_value("gas", "unten_stopp", false))
 	for fn in FUNCS:
-		fmap[fn] = clampi(int(f.get_value("zuordnung", fn, DEFAULT_MAP[fn])), 1, CHANNELS)
+		fmap[fn] = clampi(int(f.get_value("zuordnung", fn, DEFAULT_MAP[fn])), 0 if fn in OPTIONAL else 1, CHANNELS)
+	for k in AUX_COUNT:
+		aux_names[k] = str(f.get_value("geber", "name%d" % (k + 1), aux_names[k])).left(20)
 	for i in CHANNELS:
 		var sec := "ch%d" % (i + 1)
 		if not f.has_section(sec):

@@ -1,3 +1,4 @@
+# 2026-11-16 18:10 – Mischer: Grundstellung je Ausgang und Geber S1–S4 (Tabellenschlüssel e<Ausgang> = [Grundstellung, S1…S4]), Desaturierung je Gruppe (alle Motoren bzw. alle Schwenker mit gemeinsamem Faktor)
 # 2026-11-16 17:30 – Schub je Motor im Mischer: Gas/Nick/Gier/Roll in % je Motor, Motor je Modus abschaltbar (motor_throttle, active_table); Regler ändert den Schub weiterhin nie
 # 2026-11-16 16:05 – Signal settings_saved (Sprungantwort startet bei Änderung neu)
 # 2026-11-16 15:35 – Reglerwerte (Kp/Ki/Kd, roll_vs_pitch, yaw_loop) bis 10 statt 2/3
@@ -273,6 +274,8 @@ var cmd_throttle := 0.0
 var cmd_pitch := 0.0
 var cmd_yaw := 0.0
 var cmd_aux := 0.0       ## linker Knüppel links/rechts: Rolle in Mode 1 (Teensy: Kanal 7)
+## Geber S1…S4 (Drehknopf, Schalter … −1…+1) – nur für den Mischer
+var cmd_geber: Array = [0.0, 0.0, 0.0, 0.0]
 
 # Reglerzustand (wie im Teensy-Code)
 var _int_roll := 0.0
@@ -751,14 +754,88 @@ func active_table() -> Dictionary:
 
 
 ## Schub-Sollwert für Motor i aus den Knüppeln des Piloten.
+## Alle Motoren werden gemeinsam desaturiert (siehe _group_desat): reicht der
+## Schub nicht, werden die veränderlichen Anteile aller Motoren mit demselben
+## Faktor verkleinert – die Unterschiede (z. B. Gier über Schub) bleiben erhalten.
+var _thr_cache: Array = []
+var _thr_frame := -1
+
 func motor_throttle(i: int) -> float:
+	var fr := Engine.get_physics_frames()
+	if fr != _thr_frame or _thr_cache.size() != airship.motors.size():
+		_thr_frame = fr
+		var items := []
+		for j in airship.motors.size():
+			items.append(_motor_raw(j))
+		_thr_cache = _group_desat(items)
+	return _thr_cache[i] if i < _thr_cache.size() else 0.0
+
+
+## [Grundstellung, veränderlicher Teil] für Motor j (ohne Begrenzung).
+func _motor_raw(j: int) -> Array:
 	var t := active_table()
-	if bool(t.get("x%d" % i, false)):
-		return 0.0                                    # Motor in diesem Modus aus
-	var k = t.get("t%d" % i)
+	if bool(t.get("x%d" % j, false)):
+		return [0.0, 0.0]                             # Motor in diesem Modus aus
+	var k = t.get("t%d" % j)
+	var e = t.get("et%d" % j)
 	if not (k is Array) or k.size() < 4:
-		return clampf(cmd_throttle, -1.0, 1.0)
-	return clampf((float(k[0]) * cmd_throttle + float(k[1]) * cmd_pitch + float(k[2]) * cmd_yaw + float(k[3]) * cmd_aux) / 100.0, -1.0, 1.0)
+		if not (e is Array):
+			return [0.0, cmd_throttle]
+		k = [100.0, 0.0, 0.0, 0.0]
+	var v := (float(k[0]) * cmd_throttle + float(k[1]) * cmd_pitch + float(k[2]) * cmd_yaw + float(k[3]) * cmd_aux) / 100.0
+	return _ext(v, e)
+
+
+## Erweiterung e = [Grundstellung, S1, S2, S3, S4] (%) auf den Knüppelanteil v
+## anwenden → [Grundstellung, veränderlicher Teil].
+func _ext(v: float, e) -> Array:
+	var off := 0.0
+	if e is Array and e.size() >= 5:
+		off = clampf(float(e[0]) / 100.0, -1.0, 1.0)
+		for g in 4:
+			v += float(e[g + 1]) / 100.0 * float(cmd_geber[g])
+	return [off, v]
+
+
+## Ein Ausgang allein: Grundstellung + veränderlicher Teil, begrenzt.
+func mix_out(v: float, e) -> float:
+	var a := _ext(v, e)
+	return desaturate(a[0], a[1])
+
+
+## Gruppe von Ausgängen [[Grundstellung, Teil], …] gemeinsam begrenzen:
+## Faktor f = kleinster (Restweg / |Teil|) aller Ausgänge, die anschlagen
+## würden; jeder Ausgang = Grundstellung + f · Teil. So bleibt das Verhältnis
+## der Befehle zueinander erhalten (Desaturierung statt hartem Abschneiden).
+static func _group_desat(items: Array) -> Array:
+	var f := 1.0
+	for it in items:
+		var off: float = it[0]
+		var v: float = it[1]
+		if absf(v) < 1e-6: continue
+		var room := (1.0 - off) if v > 0.0 else (1.0 + off)
+		if absf(v) > room:
+			f = minf(f, maxf(room, 0.0) / absf(v))
+	var out := []
+	for it in items:
+		out.append(clampf(float(it[0]) + float(it[1]) * f, -1.0, 1.0))
+	return out
+
+
+## Grundstellung off + veränderlicher Teil v auf −1…+1 bringen (v anteilig kürzen).
+static func desaturate(off: float, v: float) -> float:
+	return _group_desat([[off, v]])[0]
+
+
+## Wird Geber k (0 = S1) im aktiven Modus verwendet? (Gewicht ≠ 0 in irgendeinem Ausgang)
+func geber_used(k: int) -> bool:
+	var t := active_table()
+	for key in t:
+		if str(key).begins_with("e"):
+			var e = t[key]
+			if e is Array and e.size() > k + 1 and absf(float(e[k + 1])) > 0.01:
+				return true
+	return false
 
 
 # =============================================================================
@@ -800,11 +877,16 @@ func _mix_manual(p: float, y: float, r: float, tbl = null) -> void:
 	for i in airship.surfaces.size():
 		var srf: ControlSurface = airship.surfaces[i]
 		var k = t.get("s%d" % i)
-		srf.command = 0.0 if k == null or srf.sail_member else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
+		srf.command = 0.0 if k == null or srf.sail_member else mix_out((k[0] * p + k[1] * y + k[2] * r) / 100.0, t.get("es%d" % i))
+	# Schwenker gemeinsam begrenzen (gleiches Verhältnis der Ausschläge)
+	var sw := []
+	for i in airship.motors.size():
+		var k = t.get("m%d" % i)
+		sw.append([0.0, 0.0] if k == null else _ext((k[0] * p + k[1] * y + k[2] * r) / 100.0, t.get("em%d" % i)))
+	var swo := _group_desat(sw)
 	for i in airship.motors.size():
 		var mot: VectorMotor = airship.motors[i]
-		var k = t.get("m%d" % i)
-		mot.swivel_cmd = 0.0 if k == null else clampf((k[0] * p + k[1] * y + k[2] * r) / 100.0, -1.0, 1.0)
+		mot.swivel_cmd = swo[i]
 		mot.throttle_cmd = motor_throttle(i)
 
 

@@ -85,7 +85,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test modes_test step_bench_test; do
+          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test modes_test step_bench_test geber_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
             rc=0; timeout 120 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?

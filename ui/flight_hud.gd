@@ -1,3 +1,4 @@
+# 2026-11-16 18:15 – Geber S1–S4: vom Sender (Kalibrierung), Tastatur Q/E und Z/C, Touch-Schieber am rechten Rand (nur wenn der Modus sie nutzt)
 # 2026-11-16 16:30 – Tastatur: Gas läuft ohne W/S langsam auf 0 zurück (0,3 je Sekunde) statt stehen zu bleiben
 # 2026-11-16 12:25 – Ohne eingebauten FC werden Regler-Modi (Angle, Horizon, PID) ausgeblendet statt nur ausgegraut
 # 2026-11-15 20:50 – Vollbild-Knopf oben rechts (Browser/PC); obere Knopfreihe wird verkleinert, wenn sie nicht passt (Menü/⚙ rutschten bei 5 Modi aus dem Bild)
@@ -82,6 +83,12 @@ var _btn_persp: Button                    ## Perspektive (ein Knopf, wechselt re
 ## zurück), Leertaste Armed, R Zurücksetzen, 1/2/3 Modus, A Autopilot,
 ## P Perspektive, M Menü
 var _kb_throttle := 0.0
+## Geber S1…S4 ohne Sender: Stellung aus Tastatur (Q/E, Z/C) oder Bildschirm-Schieber
+var _geber_local: Array = [0.0, 0.0, 0.0, 0.0]
+## Bildschirm-Schieber je Geber (nur sichtbar, wenn der aktive Modus den Geber nutzt)
+var _geber_sliders: Array = []
+var _geber_labels: Array = []
+var _geber_check_t := 0.0
 ## Tastatur: Gas läuft ohne W/S mit dieser Rate (je Sekunde) auf 0 zurück
 ## (Vollgas → 0 in gut 3 s; Nick/Gier federn mit 4 je Sekunde)
 const KB_THR_RETURN := 0.3
@@ -275,7 +282,79 @@ func _rebuild_mode_buttons() -> void:
 # statt sich auf Godot-Anker zu verlassen, deren Mindestgrößen beim Aufbau
 # noch nicht feststehen.
 # =============================================================================
+# =============================================================================
+# Geber S1…S4 (Drehknopf, Schalter) für den Mischer
+#   Sender: Kanal laut Kalibrierung (Geber zugeordnet) · Tastatur: Q/E = S1,
+#   Z/C = S2 (Stellung bleibt wie ein Drehknopf) · Touch: senkrechte Schieber
+#   am rechten Rand – nur sichtbar, wenn der aktive Flugmodus den Geber nutzt.
+# =============================================================================
+func _update_geber(dt: float) -> void:
+	if _geber_sliders.is_empty():
+		_make_geber_sliders()
+	# Tastatur (nur in der Flugansicht ohne Textfeld)
+	if not _typing():
+		var keys := [[KEY_Q, KEY_E], [KEY_Z, KEY_C]]
+		for k in keys.size():
+			if Input.is_physical_key_pressed(keys[k][0]): _geber_local[k] = maxf(_geber_local[k] - 0.8 * dt, -1.0)
+			if Input.is_physical_key_pressed(keys[k][1]): _geber_local[k] = minf(_geber_local[k] + 0.8 * dt, 1.0)
+	for k in JoystickInput.AUX_COUNT:
+		var from_joy: bool = _joy != null and _joy.active() and JoystickInput.assigned("s%d" % (k + 1))
+		var v: float = float(_joy.f_aux[k]) if from_joy else float(_geber_local[k])
+		fc.cmd_geber[k] = v
+		var sl: VSlider = _geber_sliders[k]
+		if absf(sl.value - v) > 0.001:
+			sl.set_value_no_signal(v)
+		sl.editable = not from_joy
+	# Sichtbarkeit alle 0,3 s prüfen (Modus kann wechseln)
+	_geber_check_t -= dt
+	if _geber_check_t <= 0.0:
+		_geber_check_t = 0.3
+		var calib_open: bool = _calib != null and _calib.visible
+		var keys_txt := [" (Q/E)", " (Z/C)", "", ""]
+		for k in JoystickInput.AUX_COUNT:
+			var on := fc.geber_used(k) and not calib_open      # beim Kalibrieren nicht über dem Fenster
+			_geber_sliders[k].visible = on
+			_geber_labels[k].visible = on
+			if on: _geber_labels[k].text = str(JoystickInput.aux_names[k]) + (keys_txt[k] if has_keyboard() else "")
+
+
+func _make_geber_sliders() -> void:
+	for k in JoystickInput.AUX_COUNT:
+		var sl := VSlider.new()
+		sl.min_value = -1.0
+		sl.max_value = 1.0
+		sl.step = 0.01
+		sl.visible = false
+		sl.focus_mode = Control.FOCUS_NONE
+		var kk := k
+		sl.value_changed.connect(func(v): _geber_local[kk] = v)
+		add_child(sl)
+		_geber_sliders.append(sl)
+		var lb := UITheme.make_label("S%d" % (k + 1), "MutedLabel")
+		lb.visible = false
+		lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		add_child(lb)
+		_geber_labels.append(lb)
+
+
+## Schieber am rechten Rand, mittig in der Höhe, nebeneinander von rechts.
+func _layout_geber() -> void:
+	var m := float(UITheme.space("lg"))
+	var x := size.x - m
+	for k in _geber_sliders.size():
+		var sl: VSlider = _geber_sliders[k]
+		if not sl.visible: continue
+		var h := size.y * 0.32
+		sl.size = Vector2(44, h)
+		x -= 56.0
+		sl.position = Vector2(x, size.y * 0.30)
+		var lb: Label = _geber_labels[k]
+		lb.size = Vector2(120, 20)
+		lb.position = Vector2(x - 38, sl.position.y - 26)
+
+
 func _layout() -> void:
+	_layout_geber()
 	var m := float(UITheme.space("lg"))
 	var sz := size
 	# Knopfreihe oben rechtsbündig (bei schmalen Bildschirmen so weit links wie nötig)
@@ -527,6 +606,7 @@ func _process(dt: float) -> void:
 			if stick_left.value != Vector2.ZERO or stick_right.value != Vector2.ZERO:
 				input_frames.Touch += 1
 			fc.set_sticks(stick_left.value, stick_right.value)
+		_update_geber(dt)
 		# Failsafe kann von außen entwaffnen (App im Hintergrund) → Schalter nachziehen
 		if _btn_arm.button_pressed != fc.armed:
 			_btn_arm.set_pressed_no_signal(fc.armed)
