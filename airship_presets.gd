@@ -1,3 +1,4 @@
+# 2026-11-16 10:30 – Sammlung ohne „(Sammlung)“ im Namen; feste Reihenfolge (ORDER): Picard, Velocita, Schubi, Chewie, Example, Albacore
 # 2026-11-14 11:20 – Testmodell Chewie27 (Chewie mit festen Massen 85 g / 10 g, Flugmodus Horizon), nur sichtbar mit AppSettings.show_test_models, nie in der Bestenliste
 # 2026-11-12 22:00 – make_motor: schwenkbar nur mit Schwenkweg > 0
 # 2026-11-12 11:50 – Hüllen- und Flossenmassen werden berechnet (Folie 27 g/m² + 7 %, Depron + Pauschale) statt fester Werte
@@ -67,6 +68,10 @@ static func meta(name: String) -> Dictionary:
 	return {"author": "", "team": "", "desc": ""}
 
 
+## Reihenfolge der Luftschiffe in der Auswahl (von oben nach unten)
+const ORDER := ["Picard", "Velocita", "Schubi", "Chewie", "Example", "Albacore Standard"]
+
+
 static func list() -> Array[Dictionary]:
 	var out: Array[Dictionary] = [
 		{"name": "Albacore Standard", "build": albacore_default, "source": "Standard"},
@@ -77,9 +82,19 @@ static func list() -> Array[Dictionary]:
 	if AppSettings.show_test_models:
 		out.append({"name": "Chewie27", "build": chewie27, "source": "Test"})
 	for e in ModelLibrary.entries():
-		out.append({"name": "%s (%s)" % [e.name, e.source],
-			"build": _build_from_code.bind(e.code), "source": e.source})
-	return out
+		# Sammlung ohne Zusatz im Namen, eigene Modelle mit „ (Eigene)“
+		var nm: String = e.name if e.source == "Sammlung" else "%s (%s)" % [e.name, e.source]
+		out.append({"name": nm, "build": _build_from_code.bind(e.code), "source": e.source})
+	# Reihenfolge wie vom Betreiber festgelegt; alles andere (Test, Eigene) danach
+	var sorted: Array[Dictionary] = []
+	for n in ORDER:
+		for e in out:
+			if e.name == n and e.source != "Eigene":
+				sorted.append(e)
+	for e in out:
+		if not sorted.has(e):
+			sorted.append(e)
+	return sorted
 
 
 ## Fingerabdrücke der zugelassenen Modelle (Standard + Sammlung), einmal berechnet
