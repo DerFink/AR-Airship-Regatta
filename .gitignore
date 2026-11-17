@@ -8,3 +8,4 @@ build/
 # Schlüssel niemals einchecken
 *.keystore
 *.jks
+__pycache__/
