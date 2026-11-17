@@ -1,3 +1,4 @@
+# 2026-11-17 21:55 – Karte „Bestenliste“ nennt die Aufnahme (● oben rechts, Browser)
 # 2026-11-17 09:55 – Karten im Flug oben (unten liegen die Knüppel), Signal step_changed für die pulsierende Acht
 # 2026-11-17 09:30 – Erstversion: Tutorial „Erste Schritte“ nach freigegebenem Entwurf 3 – 6 Karten über der echten Oberfläche, gemeinter Bereich leuchtet gelb, Vorlesen über die Sprachausgabe des Geräts
 # =============================================================================
@@ -32,7 +33,7 @@ const STEPS := [
 	{"title": "Mit Fernbedienung", "text": "Am besten fliegt es sich mit deinem RC-Sender: per USB anschließen (Joystick-Modus) und unter „Modell & Bau“ → „Sender kalibrieren“ einrichten.", "view": "start", "target": "start_build"},
 	{"title": "Fliegender Start", "text": "Gas geben und an Pylon 1 vorbeifliegen – die Zeit startet von selbst.", "view": "fly", "target": "race_hint"},
 	{"title": "Die Acht fliegen", "text": "Folge der orangen Acht in Pfeilrichtung um beide Pylone. Gelb zeigt, wohin es weitergeht.", "view": "fly", "target": "eight"},
-	{"title": "Bestenliste", "text": "Nach 3 Runden Namen eintragen. Kleine Luftschiffe bekommen einen Zeitbonus.", "view": "fly", "target": "race_panel"},
+	{"title": "Bestenliste", "text": "Nach 3 Runden Namen eintragen. Kleine Luftschiffe bekommen einen Zeitbonus. Im Browser kannst du den Flug mit ● oben rechts als Film aufnehmen und danach zuschneiden.", "view": "fly", "target": "race_panel"},
 	{"title": "Selbst bauen", "text": "Unter „Modell & Bau“ → „Eigenbau“ eigene Luftschiffe bauen und mit „Teilen“ weitergeben.", "view": "start", "target": "start_build"},
 ]
 const COLOR_HL := Color("ffb000")         ## Rahmenfarbe der Markierung

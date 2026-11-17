@@ -1,3 +1,4 @@
+<!-- 2026-11-17 20:10 – Lizenztext der chinesischen Schrift: fonts/OFL.txt -->
 <!-- 2026-11-17 09:00 – Erstversion: Lizenz des Projekts (GPL-3.0) und Fremdbestandteile -->
 # Lizenz und Fremdbestandteile
 
@@ -19,6 +20,6 @@ die GPL-3.0, weil Teile des Programms auf dRehmFlight (GPL-3.0) beruhen.
 |---|---|---|---|
 | dRehmFlight (Teensy-Flugcontroller) | `ino/chewie_beta_1_4.ino.txt` (Vorlage für den Sketch-Export), Regelung in `flight_controller.gd` (nachgebaut aus Chewies Teensy-Code) | Nicholas Rehm, angepasst von Erich Fink und Martin Zobel | GPL-3.0 – https://github.com/nickrehm/dRehmFlight |
 | Godot Engine 4.3 | Laufzeit der App | Juan Linietsky, Ariel Manzur und Godot-Beitragende | MIT – https://godotengine.org/license |
-| Noto Sans CJK TC (Teilmenge) | `fonts/cjk_tc_subset.otf` | Google / Adobe | SIL Open Font License 1.1 – https://openfontlicense.org |
+| Noto Sans CJK TC (Teilmenge) | `fonts/cjk_tc_subset.otf` | © 2014-2021 Adobe, Reserved Font Name „Source“ | SIL Open Font License 1.1 – Volltext in `fonts/OFL.txt` (wird mit der App ausgeliefert) |
 
 Eingesandte Logos bleiben Eigentum ihrer Urheber.

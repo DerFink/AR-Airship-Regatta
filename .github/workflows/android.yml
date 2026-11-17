@@ -1,3 +1,4 @@
+# 2026-11-17 21:45 – Test ino_modes_test und Prüfung des erzeugten Teensy-Sketches (g++ gegen Simulator)
 # 2026-11-17 18:15 – Test pan_test in der CI
 # 2026-11-17 18:20 – Server-Test server_access_test.sh (Zugangscodes) vor dem APK-Bau
 # 2026-11-17 09:50 – Test preset_reset_test in der CI
@@ -97,7 +98,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test modes_test step_bench_test geber_test mass6_test track_test mixer_ui_test tutorial_test preset_reset_test access_test pan_test; do
+          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test modes_test step_bench_test geber_test mass6_test track_test mixer_ui_test tutorial_test preset_reset_test access_test pan_test ino_modes_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
             rc=0; timeout 120 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
@@ -109,6 +110,14 @@ jobs:
             if [ "$rc" = "124" ]; then echo "Test $t hängt (Zeitlimit)"; exit 1; fi
             if grep -qE "SCRIPT ERROR|Parse Error" out.txt; then echo "Test $t fehlgeschlagen"; exit 1; fi
           done
+
+      - name: Teensy-Sketch prüfen (g++ gegen Simulator)
+        run: |
+          # Erzeugten Sketch mit Arduino-Ersatzköpfen übersetzen und seine Modus-Tabelle
+          # mit den Simulator-Ergebnissen aus ino_modes_test vergleichen
+          command -v g++ > /dev/null && command -v python3 > /dev/null || (apt-get update -qq && apt-get install -y -qq g++ python3 > /dev/null)
+          python3 tests/ino_syntax_check.py build/ino_test/Testmodell_5_Modi.ino ino/chewie_beta_1_4.ino.txt
+          python3 tests/ino_compare.py build/ino_test/Testmodell_5_Modi.ino build/ino_test/Testmodell_5_Modi.json
 
       - name: APK bauen
         run: |

@@ -1,3 +1,4 @@
+# 2026-11-17 21:00 – channels_for_ino liefert auch die Drehgeber S1–S4
 # 2026-11-16 18:00 – Geber S1–S4: freie Senderkanäle (Drehknopf, Schalter) mit Namen für den Mischer; Zurücksetzen und Geber dürfen „nicht belegt“ sein
 # 2026-11-16 12:00 – Gas „unten = Stopp“ (Modelle/Sender ohne Rückwärts): Knüppel unten 0, oben Vollgas; gespeichert mit der Kalibrierung
 # 2026-11-13 00:50 – Modus-Kanal je nach Anzahl der Flugmodi (1–5) in gleich große Bereiche geteilt
@@ -273,7 +274,7 @@ static func channels_for_ino(cal_list: Array = []) -> Dictionary:
 			for fn in FUNCS:
 				fmap[fn] = clampi(int(f.get_value("zuordnung", fn, fmap[fn])), 0 if fn in OPTIONAL else 1, CHANNELS)
 	var out := {}
-	for fn in ["thr", "pitch", "yaw", "roll", "arm", "mode"]:
+	for fn in ["thr", "pitch", "yaw", "roll", "arm", "mode", "s1", "s2", "s3", "s4"]:   # s1–s4: Drehgeber (0 = nicht belegt)
 		var ch: int = int(fmap[fn])
 		var inv: bool = cal_list[ch - 1].inv if ch - 1 < cal_list.size() else false
 		out[fn] = [ch, inv]

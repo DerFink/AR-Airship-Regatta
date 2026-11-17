@@ -205,3 +205,15 @@ Team:
  | Team: 
 Privat
 XXXX-XXXX-XXXX
+(rcMode ? (%s %s roll_IMU) : %s)
+WARNUNG: Drehgeber S%d wird gemischt, ist aber keinem Senderkanal zugeordnet (Sender kalibrieren)
+WARNUNG: Drehgeber werden gemischt – bitte mit Kanalzuordnung exportieren
+WARNUNG: setup() nicht gefunden – Modus-Tabelle fehlt
+WARNUNG: Regleraufruf im loop() nicht gefunden
+WARNUNG: Servo-Mix in controlMixer() nicht gefunden
+WARNUNG: throwScale in controlMixer() nicht gefunden
+WARNUNG: Motor-Mix nicht gefunden
+&s%d_center
+Flugmodi aus dem Modell (Kanal 13 in %d Stufen, oben = 1): %s
+Differenzschub (Nick/Gier/Roll auf Motoren) NICHT übernommen – Schub nur vom Gas des Piloten
+ACHTUNG: Im Modus %s haben Motoren eine Grundstellung – sie laufen bei freigegebenem Kanal 14 auch mit Gas auf Stopp (Drehgeber bzw. Kanal 14 = Notaus)

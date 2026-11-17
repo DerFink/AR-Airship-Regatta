@@ -1,3 +1,4 @@
+# 2026-11-17 21:00 – actuator_table: zusätzlich Schlüssel der Mischtabelle (key) und voller Ausschlag (max) je Stellglied (für den Teensy-Export)
 # 2026-11-17 09:00 – Lizenzhinweis (GPL-3.0, dRehmFlight) im Kopf
 # 2026-11-16 19:10 – Flugmodi je Luftschiff: default_ship_modes (Direkt/Angle/Horizon), adopt_ship_modes
 # 2026-11-16 18:10 – Mischer: Grundstellung je Ausgang und Geber S1–S4 (Tabellenschlüssel e<Ausgang> = [Grundstellung, S1…S4]), Desaturierung je Gruppe (alle Motoren bzw. alle Schwenker mit gemeinsamem Faktor)
@@ -1180,16 +1181,16 @@ func actuator_table() -> Array:
 		var c: Dictionary = _mot_cal[i]
 		if m.max_swivel_deg <= 0.0:
 			continue                                  # starrer Motor: kein Schwenkservo
-		mots.append({"kind": "motor", "name": m.display_name, "x": m.position.x, "y": m.position.y,
-			"n": c.n, "rot": -c.m, "s": c.s, "wp": c.wp, "wy": c.wy})
+		mots.append({"kind": "motor", "key": "m%d" % i, "name": m.display_name, "x": m.position.x, "y": m.position.y,
+			"n": c.n, "rot": -c.m, "s": c.s, "wp": c.wp, "wy": c.wy, "max": m.max_swivel_deg})
 	var fins := []
 	for i in airship.surfaces.size():
 		var c: Dictionary = _fin_cal[i]
 		if not c.active:
 			continue
 		var srf: ControlSurface = airship.surfaces[i]
-		fins.append({"kind": "fin", "name": "Flosse %d°" % roundi(srf.hull_angle_deg), "x": srf.position.x, "y": srf.position.y,
-			"n": c.n, "rot": -c.m, "s": c.s, "r": c.r})
+		fins.append({"kind": "fin", "key": "s%d" % i, "name": "Flosse %d°" % roundi(srf.hull_angle_deg), "x": srf.position.x, "y": srf.position.y,
+			"n": c.n, "rot": -c.m, "s": c.s, "r": c.r, "max": srf.max_deflection_deg})
 	# links (x < 0) zuerst, dann rechts, dann Mitte; innerhalb unten vor oben
 	var key := func(e: Dictionary) -> float:
 		var side: float = 0.0 if e.x < -0.01 else (1.0 if e.x > 0.01 else 2.0)

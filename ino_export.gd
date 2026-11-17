@@ -1,3 +1,4 @@
+# 2026-11-17 21:10 – Modus-Tabelle: 1–5 Flugmodi parametrisch, PID je Modus/Achse, Mischtabellen je Modus, Motoren aus/Gas-Anteil/Grundstellung, Drehgeber S1–S4 (ohne Differenzschub); für Chewie-Standard unverändert
 # 2026-11-17 09:00 – Zweite Kopfzeile im erzeugten Sketch: Lizenzhinweis GPL-3.0 (dRehmFlight), nur Kommentar
 # 2026-11-11 14:50 – Hinweise für die Anzeige übersetzt (note_ui); Kopfzeile im Sketch bleibt Deutsch
 # 2026-11-11 13:30 – Parametrisch: Mischer (Mode 1 und Mode 2/3), Servo-Ausgänge und Motoren werden aus der Leitwerks- und Antriebskonfiguration des Modells erzeugt; optional Kanalzuordnung des Senders
@@ -52,6 +53,12 @@ const SERVO_PINS := [0, 7, 6, 8, 9, 10, 11, 12]
 const ESC_PINS := [0, 0, 1, 2, 3, 4, 5]
 ## Logische Kanäle im Sketch (getDesState & Co.) für jede Funktion
 const LOGICAL_CH := {"thr": 1, "pitch": 5, "yaw": 6, "roll": 7, "zero": 12, "mode": 13, "arm": 14}
+## Logische Kanäle für die Drehgeber S1–S4 (frei in der Vorlage), nur mit Kanalzuordnung
+const GEBER_LOGICAL := [8, 9, 10, 11]
+## Art je Flugmodus im Sketch (flightMode): 1 Direkt, 2 Angle, 3 Horizon, 4 PID je Achse
+const ART_CODE := {"direkt": 1, "angle": 2, "horizon": 3, "pid": 4}
+## Reihenfolge der Vorlage am Schalter Kanal 13 (oben, Mitte, unten)
+const LEGACY_ARTS := ["direkt", "angle", "horizon"]
 
 
 ## Passt der Aufbau des Modells zum Sketch? Leer = ja, sonst Hinweistext.
@@ -87,10 +94,16 @@ static func build(fc: FlightController, model_name: String, opts := {}) -> Dicti
 	# Vorlage hat Windows-Zeilenenden (CRLF): intern mit LF arbeiten, am Ende wieder CRLF
 	var src := FileAccess.get_file_as_string(TEMPLATE).replace("\r\n", "\n")
 	var notes := []
-	if opts.get("mixer", false) and fc.airship:
-		src = _gen_mixer(src, fc, notes)
+	# Flugmodi, PID je Modus, Mischtabellen, Motoren je Modus oder Drehgeber im
+	# Modell? Dann wird die Modus-Tabelle erzeugt (braucht den erzeugten Mischer).
+	# Sonst bleibt alles wie in der Vorlage (Chewie: Direkt/Angle/Horizon).
+	var table := fc.airship != null and needs_mode_table(fc)
+	if (opts.get("mixer", false) or table) and fc.airship:
+		src = _gen_mixer(src, fc, notes, table)
 	if not (opts.get("channels", {}) as Dictionary).is_empty():
-		src = _gen_channels(src, opts.channels, notes)
+		src = _gen_channels(src, opts.channels, notes, table)
+	if table:
+		src = _gen_modes(src, fc, opts.get("channels", {}), notes)
 	if src == "":
 		return {"text": "", "changed": [], "missing": ["Vorlage fehlt"]}
 	var lines := src.split("\n")
@@ -138,7 +151,7 @@ static func build(fc: FlightController, model_name: String, opts := {}) -> Dicti
 # Chewie-Sketch, Winkel und Richtungen aus FlightController.actuator_table()).
 # Für Chewie entsteht genau dieselbe Rechnung wie in BETA 1.4.
 # =============================================================================
-static func _gen_mixer(src: String, fc: FlightController, notes: Array) -> String:
+static func _gen_mixer(src: String, fc: FlightController, notes: Array, table := false) -> String:
 	var acts := fc.actuator_table().slice(0, 7)
 	var ship := fc.airship
 	var k := acts.size()
@@ -181,11 +194,15 @@ static func _gen_mixer(src: String, fc: FlightController, notes: Array) -> Strin
 	# --- Mode 2/3 (stabilisiert): nur die Ausgabezeilen am Ende ersetzen ---
 	var m2 := PackedStringArray()
 	m2.append("  //Ausgabe je Stellglied (erzeugt aus dem Modell): Winkel n fest fuer Knueppel, n + Rollwinkel fuer die Stabilisierung")
+	if table:
+		m2.append("  //Rollausgleich (je Modus, MODE_ROLL_COMP): dann verteilt auch der Knueppel mit n + Rollwinkel")
+		m2.append("  bool rcMode = MODE_ROLL_COMP[modeSlot];")
 	for i in k:
 		var a: Dictionary = acts[i]
 		var sv := "s%d" % (i + 1)
-		var nn: String = deg.call(a.n)
-		var aa := "(%s %s roll_IMU)*DEG2RAD" % [nn, "+" if a.rot > 0 else "-"]
+		var aa := "(%s %s roll_IMU)*DEG2RAD" % [deg.call(a.n), "+" if a.rot > 0 else "-"]
+		# Knueppelwinkel: fest n, mit Rollausgleich n + Rollwinkel (nur Modus-Tabelle)
+		var nn: String = deg.call(a.n) if not table else "(rcMode ? (%s %s roll_IMU) : %s)" % [deg.call(a.n), "+" if a.rot > 0 else "-", deg.call(a.n)]
 		if a.kind == "fin":
 			m2.append("  %s_command_scaled = %s_center + %s*( - tailPitchStick*sin(%s*DEG2RAD) - tailPitchStab*sin(%s) - tailYaw*cos(%s*DEG2RAD) %s*tailRoll ); //%s (Pin %d)" % [
 				sv, sv, _n(a.s), nn, aa, nn, _n(-a.r, true), a.name, SERVO_PINS[i + 1]])
@@ -261,7 +278,7 @@ static func _gen_mixer(src: String, fc: FlightController, notes: Array) -> Strin
 # Sketches legen (Gas 1, Höhe 5, Seite 6, Rolle 7, IMU-Null 12, Modus 13,
 # Motorfreigabe 14). Umkehr nur für Knüppel (Schalter behalten ihre Logik).
 # =============================================================================
-static func _gen_channels(src: String, ch: Dictionary, notes: Array) -> String:
+static func _gen_channels(src: String, ch: Dictionary, notes: Array, gebers := false) -> String:
 	var srcmap := []
 	var rev := []
 	for i in 17:
@@ -274,6 +291,13 @@ static func _gen_channels(src: String, ch: Dictionary, notes: Array) -> String:
 		if fn in ["thr", "pitch", "yaw", "roll"] and ch[fn][1]:
 			rev[LOGICAL_CH[fn]] = 1
 		desc.append("%s=CH%d%s" % [fn, phys, " umgekehrt" if rev[LOGICAL_CH[fn]] else ""])
+	# Drehgeber S1–S4 (nur mit Modus-Tabelle): logische Kanaele 8–11, siehe GEBER_CH
+	if gebers:
+		for g in 4:
+			var gk := "s%d" % (g + 1)
+			if ch.has(gk) and int(ch[gk][0]) > 0:
+				srcmap[GEBER_LOGICAL[g]] = clampi(int(ch[gk][0]), 1, 16)
+				desc.append("S%d=CH%d" % [g + 1, int(ch[gk][0])])
 	# Kanäle, die durch die Zuordnung „frei“ würden, bekommen ihre eigene Quelle
 	var block := PackedStringArray()
 	block.append("      //Kanalzuordnung aus RC Airship Regatta (Sender): logischer Kanal k <- SBUS-Kanal CH_SRC[k], CH_REV = umkehren")
@@ -340,3 +364,409 @@ static func save(text: String, file_name: String) -> String:
 	f.store_string(text)
 	f.close()
 	return path
+
+
+
+# =============================================================================
+# Modus-Tabelle (17.11.2026): Flugmodi des Modells parametrisch in den Sketch
+# -----------------------------------------------------------------------------
+# Was übernommen wird (je Flugmodus, 1–5 Stück, Schalter Kanal 13):
+#   - Art: Direkt, Angle, Horizon (Regler der Vorlage) oder PID je Achse
+#   - Name (für die serielle Ausgabe), Rollausgleich
+#   - Mischtabelle für Flossen und Schwenker (Nick, Gier, Roll, Grundstellung,
+#     Drehgeber S1–S4) – Direkt mit eigener Tabelle und PID
+#   - PID je Achse: an/aus, Lage oder Drehrate, Kp, Ki, Kd, Grenze
+#   - Motoren: aus in diesem Modus, Gas-Anteil, Grundstellung + Drehgeber
+# NICHT übernommen: Schubanteile aus Nick, Gier und Roll (Differenzschub) –
+# am echten Luftschiff kommt der Schub nur vom Gas des Piloten (Regel des
+# Projektinhabers); der Regler verändert den Schub nie.
+# Für Chewie mit Standardwerten wird nichts davon erzeugt (Sketch wie bisher).
+# =============================================================================
+
+## Braucht das Modell die Modus-Tabelle? (sonst Sketch wie die Vorlage)
+static func needs_mode_table(fc: FlightController) -> bool:
+	var ship := fc.airship
+	var modes: Array = fc.modes
+	if modes.size() > 3:
+		return true
+	for i in modes.size():
+		var m: Dictionary = modes[i]
+		var art := str(m.get("art", "direkt"))
+		if art != LEGACY_ARTS[i] or bool(m.get("roll_comp", false)):
+			return true
+		if m.get("mix") is Dictionary:
+			return true
+	if ship.mix_manual and fc.manual_mix_valid():
+		return true
+	return _table_has_extras(ship.mix_table)
+
+
+## Enthält eine Tabelle Motorzeilen oder Grundstellung/Drehgeber?
+static func _table_has_extras(t: Dictionary) -> bool:
+	for key in t:
+		var k := str(key)
+		if k.begins_with("t") or k.begins_with("x") or k.begins_with("e"):
+			return true
+	return false
+
+
+## Mischtabelle eines Modus für die Motoren (wie active_table im Simulator)
+static func _motor_table(fc: FlightController, m: Dictionary) -> Dictionary:
+	return m.get("mix") if m.get("mix") is Dictionary else fc.airship.mix_table
+
+
+## Mischtabelle eines Modus für Flossen/Schwenker; {} = Mischer nach Einbaulage (Vorlage)
+static func _servo_table(fc: FlightController, m: Dictionary) -> Dictionary:
+	var art := str(m.get("art", "direkt"))
+	if art == "pid":
+		return fc._table_for(m)                      # eigene, „Mischer einstellen“ oder Vorschlag
+	if art == "direkt":
+		var own = m.get("mix")
+		if own is Dictionary and fc._table_valid(own):
+			return own
+		if fc.airship.mix_manual and fc.manual_mix_valid():
+			return fc.airship.mix_table
+	return {}
+
+
+## Zahl als C++-float
+static func _f(v: float) -> String:
+	return _fmt(snappedf(v, 0.00001)) + "f"
+
+
+## Text für einen C-String (Name des Modus)
+static func _cstr(t: String) -> String:
+	return "\"" + t.replace("\\", "/").replace("\"", "'").left(20) + "\""
+
+
+static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes: Array) -> String:
+	var ship := fc.airship
+	var modes: Array = fc.modes.slice(0, 5)
+	var n := modes.size()
+	var acts := fc.actuator_table().slice(0, 7)
+	var k := acts.size()
+	var nm := mini(ship.motors.size(), 6)
+	# Spiegelung der linken Schwenker wie in _gen_mixer (Servo andersherum eingebaut)
+	var mirror := []
+	for a in acts:
+		mirror.append(-1.0 if a.kind == "motor" and a.x < -0.01 else 1.0)
+	# Rolldrehung wie roll_rotate im Simulator: Spiegelung m der ersten Flosse
+	var m_roll := 1.0
+	for a in acts:
+		if a.kind == "fin":
+			m_roll = -float(a.rot)
+			break
+	var arts := []
+	var names := []
+	var rc := []
+	var use_tab := []
+	var mix := []
+	var ext := []
+	var pid := {"on": [], "ang": [], "kp": [], "ki": [], "kd": [], "max": []}
+	var mot_off := []
+	var mot_gas := []
+	var mot_ext := []
+	var diff := false
+	var run_idle := []                          ## Modi, in denen Motoren mit Grundstellung laufen (Gas auf Stopp)
+	var geber_used := [false, false, false, false]
+	for m in modes:
+		var art := str(m.get("art", "direkt"))
+		arts.append(ART_CODE.get(art, 1))
+		names.append(_cstr(str(m.get("name", "Modus"))))
+		rc.append("true" if bool(m.get("roll_comp", false)) else "false")
+		# --- Servos ---
+		var tab := _servo_table(fc, m)
+		use_tab.append("false" if tab.is_empty() else "true")
+		var rows := []
+		var erows := []
+		for i in k:
+			var key: String = acts[i].key
+			var w = tab.get(key)
+			var e = tab.get("e" + key)
+			var kk: Array = w if w is Array and w.size() >= 3 else [0.0, 0.0, 0.0]
+			rows.append("{%s, %s, %s}" % [_f(kk[0] / 100.0), _f(kk[1] / 100.0), _f(kk[2] / 100.0)])
+			var ee: Array = e if e is Array and e.size() >= 5 else [0.0, 0.0, 0.0, 0.0, 0.0]
+			erows.append("{%s}" % ", ".join(ee.slice(0, 5).map(func(x): return _f(float(x) / 100.0))))
+			for g in 4:
+				if absf(float(ee[g + 1])) > 0.01 and not tab.is_empty(): geber_used[g] = true
+		mix.append("{" + ", ".join(rows) + "}")
+		ext.append("{" + ", ".join(erows) + "}")
+		# --- PID je Achse (Reihenfolge Nick, Rolle, Gier) ---
+		var axes: Dictionary = m.get("axes", FlightController.default_axes()) if art == "pid" else {}
+		var row := {"on": [], "ang": [], "kp": [], "ki": [], "kd": [], "max": []}
+		for ax in ["pitch", "roll", "yaw"]:
+			var a: Dictionary = axes.get(ax, {})
+			row.on.append("true" if bool(a.get("on", false)) else "false")
+			row.ang.append("true" if str(a.get("kind", "rate")) == "angle" and ax != "yaw" else "false")
+			row.kp.append(_f(float(a.get("Kp", 0.0)))); row.ki.append(_f(float(a.get("Ki", 0.0))))
+			row.kd.append(_f(float(a.get("Kd", 0.0)))); row.max.append(_f(float(a.get("max", 30.0))))
+		for key in row:
+			pid[key].append("{" + ", ".join(row[key]) + "}")
+		# --- Motoren ---
+		var mt := _motor_table(fc, m)
+		var off := []
+		var gas := []
+		var mex := []
+		for j in 6:
+			var x := j < nm and bool(mt.get("x%d" % j, false))
+			off.append("true" if x else "false")
+			var t = mt.get("t%d" % j)
+			var e = mt.get("et%d" % j)
+			var w := 1.0
+			if t is Array and t.size() >= 4:
+				w = float(t[0]) / 100.0
+				if absf(float(t[1])) + absf(float(t[2])) + absf(float(t[3])) > 0.01: diff = true
+			gas.append(_f(w if j < nm else 0.0))
+			var ee: Array = e if e is Array and e.size() >= 5 else [0.0, 0.0, 0.0, 0.0, 0.0]
+			mex.append("{%s}" % ", ".join(ee.slice(0, 5).map(func(v): return _f(float(v) / 100.0))))
+			if j < nm and not x and absf(float(ee[0])) > 0.5 and not run_idle.has(str(m.get("name", ""))):
+				run_idle.append(str(m.get("name", "")))
+			for g in 4:
+				if j < nm and absf(float(ee[g + 1])) > 0.01: geber_used[g] = true
+		mot_off.append("{" + ", ".join(off) + "}")
+		mot_gas.append("{" + ", ".join(gas) + "}")
+		mot_ext.append("{" + ", ".join(mex) + "}")
+	# Drehgeber: Kanal (mit Kanalzuordnung: logischer Kanal 8–11, sonst SBUS-Kanal direkt)
+	var gch := []
+	var ginv := []
+	for g in 4:
+		var gk := "s%d" % (g + 1)
+		var phys := int(ch[gk][0]) if ch.has(gk) else 0
+		gch.append(str(GEBER_LOGICAL[g] if phys > 0 else 0))
+		ginv.append(_f(-1.0 if ch.has(gk) and bool(ch[gk][1]) else 1.0))
+		if geber_used[g] and phys <= 0:
+			notes.append("WARNUNG: Drehgeber S%d wird gemischt, ist aber keinem Senderkanal zugeordnet (Sender kalibrieren)" % (g + 1))
+	if ch.is_empty() and geber_used.has(true):
+		notes.append("WARNUNG: Drehgeber werden gemischt – bitte mit Kanalzuordnung exportieren")
+	# Failsafe-Modus: erster Angle-Modus, sonst die Mittelstellung
+	var fs := arts.find(2)
+	# --- globaler Block ---
+	var g := PackedStringArray()
+	g.append("//--- MODUSTABELLE-BLOCK-BEGIN (erzeugt aus RC Airship Regatta)")
+	g.append("//========================================================================================================================//")
+	g.append("//  FLUGMODI DES MODELLS: Schalter Kanal 13 wird in MODE_COUNT gleich breite Stufen geteilt, oben (2000 us) = Modus 1.")
+	g.append("//  Art: 1 = Direkt, 2 = Angle, 3 = Horizon (Regler wie Vorlage), 4 = PID je Achse (Lage oder Drehrate, Werte unten).")
+	g.append("//  Direkt mit eigener Mischtabelle und PID mischen ueber MODE_MIX (Nick, Gier, Roll; -1..1 = voller Ausschlag des Bauteils).")
+	g.append("//  Motoren: MOT_OFF = in diesem Modus aus, MOT_GAS = Anteil vom Gas des Piloten, MOT_EXT = Grundstellung + Drehgeber S1..S4.")
+	g.append("//  Der Regler veraendert den Schub NIE. VOR DEM ERSTFLUG: Bodentest je Modus (Propeller ab).")
+	g.append("//========================================================================================================================//")
+	g.append("const int   MODE_COUNT = %d;" % n)
+	g.append("const int   MODE_ART[MODE_COUNT]       = {%s};" % ", ".join(arts.map(func(v): return str(v))))
+	g.append("const char* MODE_NAME[MODE_COUNT]      = {%s};" % ", ".join(names))
+	g.append("const bool  MODE_ROLL_COMP[MODE_COUNT] = {%s};" % ", ".join(rc))
+	g.append("const bool  MODE_USE_TABLE[MODE_COUNT] = {%s}; //Direkt/PID: Mischtabelle statt Mischer nach Einbaulage" % ", ".join(use_tab))
+	g.append("const int   MODE_FAILSAFE_SLOT = %d;    //Modus bei Funkausfall (-1 = Schalterstellung); Motoren sind dann ohnehin aus" % fs)
+	g.append("//Mischtabelle [Modus][Servo] = {Nick, Gier, Roll}; Servo-Reihenfolge wie s1..s%d" % k)
+	g.append("const float MODE_MIX[MODE_COUNT][SERVO_ACT_COUNT][3] = {%s};" % ", ".join(mix))
+	g.append("//Grundstellung und Drehgeber [Modus][Servo] = {Grundstellung, S1, S2, S3, S4}")
+	g.append("const float MODE_EXT[MODE_COUNT][SERVO_ACT_COUNT][5] = {%s};" % ", ".join(ext))
+	var maxd := []
+	var tdir := []
+	var swv := []
+	for i in k:
+		maxd.append(_f(float(acts[i].max)))
+		tdir.append(_f(mirror[i]))
+		swv.append("true" if acts[i].kind == "motor" else "false")
+	g.append("const float SERVO_MAX_DEG[SERVO_ACT_COUNT]   = {%s}; //voller Ausschlag des Bauteils (Grad)" % ", ".join(maxd))
+	g.append("const float SERVO_TABLE_DIR[SERVO_ACT_COUNT] = {%s}; //Richtung (linke Schwenker gespiegelt eingebaut)" % ", ".join(tdir))
+	g.append("const bool  SERVO_IS_SWIVEL[SERVO_ACT_COUNT] = {%s};" % ", ".join(swv))
+	g.append("const float ROLL_ROT_M = %s;                 //Drehsinn fuer den Rollausgleich (wie Simulator)" % _f(m_roll))
+	g.append("//PID je Modus und Achse {Nick, Rolle, Gier} (nur Art 4): an, Lage (sonst Drehrate), Kp, Ki, Kd, Grenze (Grad bzw. Grad/s)")
+	g.append("const bool  PID_ON[MODE_COUNT][3]    = {%s};" % ", ".join(pid.on))
+	g.append("const bool  PID_ANGLE[MODE_COUNT][3] = {%s};" % ", ".join(pid.ang))
+	g.append("const float PID_KP[MODE_COUNT][3]    = {%s};" % ", ".join(pid.kp))
+	g.append("const float PID_KI[MODE_COUNT][3]    = {%s};" % ", ".join(pid.ki))
+	g.append("const float PID_KD[MODE_COUNT][3]    = {%s};" % ", ".join(pid.kd))
+	g.append("const float PID_MAX[MODE_COUNT][3]   = {%s};" % ", ".join(pid.max))
+	g.append("//Motoren je Modus (ESC m1..m6)")
+	g.append("const int   MOTOR_COUNT = %d;" % nm)
+	g.append("const bool  MOT_OFF[MODE_COUNT][6]    = {%s};" % ", ".join(mot_off))
+	g.append("const float MOT_GAS[MODE_COUNT][6]    = {%s};" % ", ".join(mot_gas))
+	g.append("const float MOT_EXT[MODE_COUNT][6][5] = {%s};" % ", ".join(mot_ext))
+	g.append("//Drehgeber S1..S4: Kanal (0 = nicht belegt) und Richtung")
+	g.append("const int   GEBER_CH[4]  = {%s};" % ", ".join(gch))
+	g.append("const float GEBER_DIR[4] = {%s};" % ", ".join(ginv))
+	g.append("int   modeSlot = 0;                    //gewaehlter Modus (0 .. MODE_COUNT-1)")
+	g.append("float pidInt[3]  = {0.0f, 0.0f, 0.0f}; //PID-Modus: Integrale {Nick, Rolle, Gier}")
+	g.append("float pidPrev[3] = {0.0f, 0.0f, 0.0f}; //PID-Modus: Drehrate im letzten Loop (D bei Drehratenregelung)")
+	g.append("float pidOut[3]  = {0.0f, 0.0f, 0.0f}; //PID-Modus: Ausgang {Nick, Rolle, Gier} (-1..1)")
+	g.append("//--- MODUSTABELLE-BLOCK-END")
+	g.append("")
+	var gs := src.find("\nvoid setup() {")
+	if gs < 0:
+		notes.append("WARNUNG: setup() nicht gefunden – Modus-Tabelle fehlt")
+		return src
+	src = src.substr(0, gs + 1) + "\n".join(g) + "\n" + src.substr(gs + 1)
+	# --- Moduswahl ---
+	var fm := PackedStringArray()
+	fm.append("void determineFlightMode() {")
+	fm.append("  //DESCRIPTION: Kanal 13 in MODE_COUNT Stufen teilen (oben = Modus 1) und die Art des Modus setzen (erzeugt, RC Airship Regatta)")
+	fm.append("  int slot = (int)floorf((2000.0f - (float)channel_13_pwm)/1000.0f*MODE_COUNT);")
+	fm.append("  slot = constrain(slot, 0, MODE_COUNT - 1);")
+	fm.append("  if (radioFailsafe && MODE_FAILSAFE_SLOT >= 0) slot = MODE_FAILSAFE_SLOT;")
+	fm.append("  int newMode = imuOK ? MODE_ART[slot] : 1;       //ohne IMU nur Direktsteuerung")
+	fm.append("  if (newMode != flightMode || slot != modeSlot) {")
+	fm.append("    resetControllers();                            //keine Integrator-Spruenge beim Umschalten")
+	fm.append("    adaptResetDetector();                          //Lern-Erkennung neu starten")
+	fm.append("    for (int a = 0; a < 3; a++) { pidInt[a] = 0.0f; pidOut[a] = 0.0f; }")
+	fm.append("    flightMode = newMode;")
+	fm.append("    modeSlot = slot;")
+	fm.append("    Serial.print(\"Modus \"); Serial.print(slot + 1); Serial.print(\": \"); Serial.println(MODE_NAME[slot]);")
+	fm.append("  }")
+	fm.append("  applyModeGains();")
+	fm.append("}")
+	src = _replace_function(src, "void determineFlightMode() {", "\n".join(fm))
+	# --- Loop: PID-Modus statt controlANGLE ---
+	var lp_old := "  if (flightMode != 1) {\n    controlANGLE(); //Stabilize on angle setpoint\n  }"
+	var lp_new := "  if (flightMode == 2 || flightMode == 3) {\n    controlANGLE(); //Stabilize on angle setpoint\n  }\n  else if (flightMode == 4) {\n    controlPIDMode(); //PID je Achse (Modus-Tabelle)\n  }"
+	if src.find(lp_old) < 0:
+		notes.append("WARNUNG: Regleraufruf im loop() nicht gefunden")
+	src = src.replace(lp_old, lp_new)
+	# --- Mixer: Servos je Modus, Motoren aus der Tabelle ---
+	var sm_old := "  //Servo Mix\n  if (flightMode == 1) {\n    mixServosDirect();\n  }"
+	var sm_new := "  //Servo Mix (Modus-Tabelle: PID und Direkt mit eigener Tabelle mischen ueber MODE_MIX)\n  if (flightMode == 4) {\n    mixServosTable(pidOut[0], pidOut[2], pidOut[1]);\n  }\n  else if (flightMode == 1) {\n    if (MODE_USE_TABLE[modeSlot]) mixServosTableDirect();\n    else mixServosDirect();\n  }"
+	if src.find(sm_old) < 0:
+		notes.append("WARNUNG: Servo-Mix in controlMixer() nicht gefunden")
+	src = src.replace(sm_old, sm_new)
+	var th_old := "  float throwScale = (flightMode == 1) ? servo_throw_m1 : ((flightMode == 3) ? servo_throw_m3 : servo_throw_m2);"
+	var th_new := "  //Tabellen-Modi: Tabelle gibt den Ausschlag schon in Bruchteilen des vollen Ausschlags vor (kein zusaetzlicher Faktor)\n  float throwScale = (flightMode == 4 || (flightMode == 1 && MODE_USE_TABLE[modeSlot])) ? 1.0f : ((flightMode == 1) ? servo_throw_m1 : ((flightMode == 3) ? servo_throw_m3 : servo_throw_m2));"
+	if src.find(th_old) < 0:
+		notes.append("WARNUNG: throwScale in controlMixer() nicht gefunden")
+	src = src.replace(th_old, th_new)
+	# Motor-Mix ersetzen (Vorlage: 2 Motoren; _gen_mixer: n Motoren mit gleichem Gas)
+	var q0 := src.find("  //Motor Mix")
+	var q1 := src.find("m6_command_scaled = MOTOR_STOP_THRO;", q0)
+	if q0 > 0 and q1 > q0:
+		src = src.substr(0, q0) + "  //Motor Mix (Modus-Tabelle: Motor aus, Gas-Anteil, Grundstellung + Drehgeber; Schub nur vom Piloten)\n  mixMotorsTable();" + src.substr(q1 + "m6_command_scaled = MOTOR_STOP_THRO;".length())
+	else:
+		notes.append("WARNUNG: Motor-Mix nicht gefunden")
+	# --- neue Funktionen vor determineFlightMode ---
+	var f := PackedStringArray()
+	f.append("//--- MODUSTABELLE-FUNKTIONEN-BEGIN (erzeugt aus RC Airship Regatta)")
+	f.append("float geberVal(int g) {")
+	f.append("  //DESCRIPTION: Drehgeber S1..S4 als -1..1 (Mitte 1500 us), 0 wenn nicht belegt")
+	f.append("  if (GEBER_CH[g] <= 0) return 0.0f;")
+	f.append("  return GEBER_DIR[g]*constrain(((float)getChannelPwm(GEBER_CH[g]) - 1500.0f)/500.0f, -1.0f, 1.0f);")
+	f.append("}")
+	f.append("")
+	f.append("float extPart(const float* e, float v, float &off) {")
+	f.append("  //DESCRIPTION: Grundstellung e[0] und Drehgeber e[1..4] auf den Knueppelanteil v anwenden (wie _ext im Simulator)")
+	f.append("  off = constrain(e[0], -1.0f, 1.0f);")
+	f.append("  for (int g = 0; g < 4; g++) v += e[g + 1]*geberVal(g);")
+	f.append("  return v;")
+	f.append("}")
+	f.append("")
+	f.append("float groupFactor(const float* off, const float* v, const bool* use, int count) {")
+	f.append("  //DESCRIPTION: gemeinsame Desaturierung: kleinster Faktor, mit dem kein Ausgang anschlaegt (Verhaeltnisse bleiben)")
+	f.append("  float f = 1.0f;")
+	f.append("  for (int i = 0; i < count; i++) {")
+	f.append("    if (!use[i] || fabsf(v[i]) < 1e-6f) continue;")
+	f.append("    float room = (v[i] > 0.0f) ? (1.0f - off[i]) : (1.0f + off[i]);")
+	f.append("    if (fabsf(v[i]) > room) f = fminf(f, fmaxf(room, 0.0f)/fabsf(v[i]));")
+	f.append("  }")
+	f.append("  return f;")
+	f.append("}")
+	f.append("")
+	f.append("void rollRotate(float &p, float &y) {")
+	f.append("  //DESCRIPTION: Rollausgleich - Hoehen- und Seitenbefehl in die Achsen des gerollten Luftschiffs drehen")
+	f.append("  float a = ROLL_ROT_M*roll_IMU*DEG2RAD;")
+	f.append("  float p2 = p*cosf(a) - y*sinf(a);")
+	f.append("  float y2 = p*sinf(a) + y*cosf(a);")
+	f.append("  p = p2; y = y2;")
+	f.append("}")
+	f.append("")
+	f.append("void mixServosTable(float p, float y, float r) {")
+	f.append("  //DESCRIPTION: Mischtabelle des Modus auf alle Servos (p, y, r: -1..1). Flossen einzeln begrenzt, Schwenker gemeinsam.")
+	f.append("  float* cmd[8]    = {%s};" % ", ".join(["nullptr"] + range(1, 8).map(func(i): return ("&s%d_command_scaled" % i) if i <= k else "nullptr")))
+	f.append("  float* center[8] = {%s};" % ", ".join(["nullptr"] + range(1, 8).map(func(i): return ("&s%d_center" % i) if i <= k else "nullptr")))
+	f.append("  float off[SERVO_ACT_COUNT], v[SERVO_ACT_COUNT];")
+	f.append("  for (int i = 0; i < SERVO_ACT_COUNT; i++) {")
+	f.append("    const float* w = MODE_MIX[modeSlot][i];")
+	f.append("    v[i] = extPart(MODE_EXT[modeSlot][i], w[0]*p + w[1]*y + w[2]*r, off[i]);")
+	f.append("  }")
+	f.append("  float fs = groupFactor(off, v, SERVO_IS_SWIVEL, SERVO_ACT_COUNT);")
+	f.append("  for (int i = 0; i < SERVO_ACT_COUNT; i++) {")
+	f.append("    float c = SERVO_IS_SWIVEL[i] ? constrain(off[i] + v[i]*fs, -1.0f, 1.0f) : constrain(off[i] + v[i], -1.0f, 1.0f);")
+	f.append("    float dir = SERVO_IS_SWIVEL[i] ? motor_servo_dir*SERVO_TABLE_DIR[i] : SERVO_TABLE_DIR[i];")
+	f.append("    *cmd[i + 1] = *center[i + 1] + dir*c*SERVO_MAX_DEG[i]/180.0f;   //Ausschlag in Grad -> 0..1 (0..180 Grad)")
+	f.append("  }")
+	f.append("}")
+	f.append("")
+	f.append("void mixServosTableDirect() {")
+	f.append("  //DESCRIPTION: Direkt mit Mischtabelle - Knueppel (-1..1) ohne Regler, Rolle mit Totband wie Mode 1")
+	f.append("  float p = pitch_des/maxPitch;")
+	f.append("  float y = yaw_des/maxYaw;")
+	f.append("  float rollStick = yawLStick_des/maxYaw;")
+	f.append("  float r = 0.0f;")
+	f.append("  if (fabsf(rollStick) > MODE1_ROLL_DEADBAND) {")
+	f.append("    float over = (fabsf(rollStick) - MODE1_ROLL_DEADBAND)/(1.0f - MODE1_ROLL_DEADBAND);")
+	f.append("    r = MODE1_ROLL_SIGN*((rollStick > 0.0f) ? over : -over);")
+	f.append("  }")
+	f.append("  if (MODE_ROLL_COMP[modeSlot]) rollRotate(p, y);")
+	f.append("  mixServosTable(p, y, r);")
+	f.append("}")
+	f.append("")
+	f.append("void controlPIDMode() {")
+	f.append("  //DESCRIPTION: Art 4 - je Achse Lage oder Drehrate regeln (wie der PID-Modus im Simulator)")
+	f.append("  //  Lage:     Soll = Knueppel * Grenze (Grad),   Fehler = Soll - Winkel,    D auf die Drehrate")
+	f.append("  //  Drehrate: Soll = Knueppel * Grenze (Grad/s), Fehler = Soll - Kreisel,  D auf die Drehbeschleunigung")
+	f.append("  //  Ausgang = 0.01*(Kp*Fehler + Ki*Integral - Kd*D), begrenzt auf -1..1; Achse aus = Knueppel direkt")
+	f.append("  float d = constrain(dt, 0.0001f, 0.05f);")
+	f.append("  float rollStick = MODE1_ROLL_SIGN*yawLStick_des/maxYaw;")
+	f.append("  if (fabsf(rollStick) <= MODE1_ROLL_DEADBAND) rollStick = 0.0f;")
+	f.append("  float stick[3] = {pitch_des/maxPitch, rollStick, yaw_des/maxYaw};     //Nick, Rolle, Gier")
+	f.append("  float angle[3] = {pitch_IMU, roll_IMU, 0.0f};")
+	f.append("  float rate[3]  = {GyroY, GyroX, YAW_RATE_SIGN*GyroZ};")
+	f.append("  for (int a = 0; a < 3; a++) {")
+	f.append("    if (!PID_ON[modeSlot][a]) {")
+	f.append("      pidInt[a] = 0.0f;")
+	f.append("      pidOut[a] = stick[a];")
+	f.append("      pidPrev[a] = rate[a];")
+	f.append("      continue;")
+	f.append("    }")
+	f.append("    bool useAngle = PID_ANGLE[modeSlot][a] && a != 2;                       //Gier nur als Drehrate")
+	f.append("    float sp = stick[a]*PID_MAX[modeSlot][a];")
+	f.append("    float err = sp - (useAngle ? angle[a] : rate[a]);")
+	f.append("    if (motorsEnabled) pidInt[a] = constrain(pidInt[a] + err*d, -i_limit, i_limit); //am Boden nichts aufsammeln")
+	f.append("    float dterm = useAngle ? rate[a] : (rate[a] - pidPrev[a])/d;")
+	f.append("    pidPrev[a] = rate[a];")
+	f.append("    pidOut[a] = constrain(0.01f*(PID_KP[modeSlot][a]*err + PID_KI[modeSlot][a]*pidInt[a] - PID_KD[modeSlot][a]*dterm), -1.0f, 1.0f);")
+	f.append("  }")
+	f.append("  if (MODE_ROLL_COMP[modeSlot]) rollRotate(pidOut[0], pidOut[2]);")
+	f.append("}")
+	f.append("")
+	f.append("void mixMotorsTable() {")
+	f.append("  //DESCRIPTION: Motoren je Modus - aus, Gas-Anteil, Grundstellung + Drehgeber; alle gemeinsam desaturiert.")
+	f.append("  //Gas -1..1 (Mitte = Stopp, 3D-ESC). Ohne Freigabe (Kanal 14) oder im Failsafe: alle auf Stopp.")
+	f.append("  float thr = 2.0f*thro_des - 1.0f;")
+	f.append("  float off[6], v[6];")
+	f.append("  bool use[6];")
+	f.append("  for (int j = 0; j < 6; j++) {")
+	f.append("    use[j] = (j < MOTOR_COUNT) && !MOT_OFF[modeSlot][j];")
+	f.append("    off[j] = 0.0f; v[j] = 0.0f;")
+	f.append("    if (use[j]) v[j] = extPart(MOT_EXT[modeSlot][j], MOT_GAS[modeSlot][j]*thr, off[j]);")
+	f.append("  }")
+	f.append("  float f = groupFactor(off, v, use, 6);")
+	f.append("  float out[6];")
+	f.append("  for (int j = 0; j < 6; j++) out[j] = use[j] ? constrain(off[j] + v[j]*f, -1.0f, 1.0f) : 0.0f;")
+	f.append("  float trim[6] = {motor1_trim, motor2_trim, 0.0f, 0.0f, 0.0f, 0.0f};")
+	f.append("  float* m[6] = {&m1_command_scaled, &m2_command_scaled, &m3_command_scaled, &m4_command_scaled, &m5_command_scaled, &m6_command_scaled};")
+	f.append("  for (int j = 0; j < 6; j++) {")
+	f.append("    bool run = motorsEnabled && use[j];")
+	f.append("    *m[j] = (j < MOTOR_COUNT ? trim[j] : 0.0f) + MOTOR_STOP_THRO + (run ? 0.5f*out[j] : 0.0f);   //0.5 = Stopp")
+	f.append("  }")
+	f.append("}")
+	f.append("//--- MODUSTABELLE-FUNKTIONEN-END")
+	f.append("")
+	var fd := src.find("void determineFlightMode() {")
+	src = src.substr(0, fd) + "\n".join(f) + "\n" + src.substr(fd)
+	# Hinweise
+	var desc := PackedStringArray()
+	for i in n:
+		desc.append("%d=%s (%s)" % [i + 1, str(modes[i].get("name", "")), str(modes[i].get("art", ""))])
+	notes.append("Flugmodi aus dem Modell (Kanal 13 in %d Stufen, oben = 1): %s" % [n, ", ".join(desc)])
+	if diff:
+		notes.append("Differenzschub (Nick/Gier/Roll auf Motoren) NICHT übernommen – Schub nur vom Gas des Piloten")
+	if not run_idle.is_empty():
+		notes.append("ACHTUNG: Im Modus %s haben Motoren eine Grundstellung – sie laufen bei freigegebenem Kanal 14 auch mit Gas auf Stopp (Drehgeber bzw. Kanal 14 = Notaus)" % ", ".join(run_idle))
+	return src

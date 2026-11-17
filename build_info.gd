@@ -1,3 +1,4 @@
+# 2026-11-17 22:00 – Version 1.6.0 (Teensy-Sketch mit Modus-Tabelle, OFL-Lizenztext)
 # 2026-11-17 18:40 – Version 1.5.2 (Abmelden, Hinweis Teensy-Sketch, Verwaltung)
 # 2026-11-17 18:15 – Version 1.5.1 (Baukasten: Modell verschieben)
 # 2026-11-17 18:55 – Version 1.5.0 (Zugangscodes für private Modelle und Admin)
@@ -80,7 +81,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "1.5.2"
+const VERSION := "1.6.0"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)
