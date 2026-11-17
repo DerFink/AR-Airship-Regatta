@@ -1,4 +1,5 @@
 <?php
+// 2026-11-17 18:30 – Knopf „Modelle“ heißt „Modelle hinzufügen – .txt hineinkopieren“
 // 2026-11-17 18:00 – neu: Bereich „Zugangscodes“ (anlegen, private Modelle je Code, sperren/entsperren, löschen)
 // 2026-11-14 21:40 – Anmeldung: Sperre nach 5 Fehlversuchen (15 min) mit Meldung; neu: Besucherzähler (heute, 30 Tage, insgesamt, je Plattform, je Tag)
 // 2026-11-11 19:20 – Erstversion: Verwaltung der Online-Bestenliste (Anmeldung mit Passwort, Einträge ansehen und einzelne Piloten streichen)
@@ -158,7 +159,7 @@ if ($admin && ($_POST['csrf'] ?? '') === ($_SESSION['csrf'] ?? 'x')) {
     <td><?= $c['role'] === 'admin' ? 'Admin' : 'Gruppe' ?></td>
     <td><?= $c['role'] === 'admin' ? 'alle' : '' ?><?= h(implode(', ', array_column($mine, 'name'))) ?></td>
     <td><?= h(substr($c['last_used'], 0, 16)) ?></td><td><?= (int)$c['uses'] ?></td>
-    <td><details><summary style="cursor:pointer;color:#3d8bfd">Modelle</summary>
+    <td><details><summary style="cursor:pointer;color:#3d8bfd">Modelle hinzufügen – .txt hineinkopieren</summary>
       <form method="post"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="code_models" value="<?= (int)$c['id'] ?>">
        <textarea name="models" rows="3" cols="60" style="font-family:monospace;font-size:12px;background:#0f141b;color:#e9eef3;border:1px solid #ffffff33;border-radius:8px"><?= h($txt) ?></textarea><br><button>Speichern</button></form></details>
      <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="code_toggle" value="<?= (int)$c['id'] ?>"><button><?= $c['active'] ? 'Sperren' : 'Entsperren' ?></button></form>

@@ -1,3 +1,4 @@
+# 2026-11-17 18:30 – Teensy-Sketch: Hinweis „auf Anfrage beim Admin“ für alle sichtbar, Knopf nur mit Admin-Code
 # 2026-11-17 18:15 – Bedienhinweis im Baukasten nennt Verschieben (Touch: 2 Finger, Maus: Rad gedrückt)
 # 2026-11-17 18:40 – „Teensy-Sketch erzeugen“ nur mit Admin-Zugangscode (update_admin)
 # 2026-11-17 09:05 – Fehler behoben: Mischer zeigte beim Moduswechsel immer die Tabelle des Flugmodus (Neuaufbau lief ins Leere, Lambda-Kopie) – jetzt eigene Methode _refill_mixer
@@ -870,10 +871,12 @@ func _build_fc_page(col: VBoxContainer) -> void:
 	_b_blocks.pressed.connect(func(): ui_action.emit("select"); _show_blocks())
 	col.add_child(_b_blocks)
 	# --- Admin: Teensy-Sketch (nur mit Admin-Zugangscode sichtbar) ---
-	_admin_nodes = [UITheme.make_title("Admin"),
-		_note("Nur für den Admin: Teensy-Sketch (.ino) aus diesem Modell erzeugen."),
-		UITheme.make_button("Teensy-Sketch erzeugen")]
-	(_admin_nodes[2] as Button).pressed.connect(func(): ui_action.emit("select"); _show_ino())
+	# Überschrift und Hinweis sieht jeder; der Knopf erscheint nur mit Admin-Code
+	col.add_child(UITheme.make_title("Teensy-Sketch"))
+	_ino_note = _note("")
+	col.add_child(_ino_note)
+	_admin_nodes = [UITheme.make_button("Teensy-Sketch erzeugen")]
+	(_admin_nodes[0] as Button).pressed.connect(func(): ui_action.emit("select"); _show_ino())
 	for n in _admin_nodes: col.add_child(n)
 	update_admin()
 	_update_fc_enabled()
@@ -986,6 +989,9 @@ func _note(text: String) -> Label:
 func update_admin() -> void:
 	for n in _admin_nodes:
 		if is_instance_valid(n): n.visible = AccessCodes.is_admin()
+	if is_instance_valid(_ino_note):
+		_ino_note.text = I18n.t("Teensy-Sketch (.ino) aus diesem Modell erzeugen.") if AccessCodes.is_admin() \
+			else I18n.t("Aus diesem Modell lässt sich ein Teensy-Sketch (.ino) für den echten Flugcontroller erzeugen – auf Anfrage beim Admin (Kontakt: %s).") % ModelHub.CONTACT
 
 
 func _update_fc_enabled() -> void:
@@ -1044,7 +1050,8 @@ func _window(title: String, close_text := "Fertig") -> Dictionary:
 # Reglermenü eingestellt. Werte −200 … +200 %. Das Gas bleibt beim Piloten.
 # =============================================================================
 var _mix_mode := -1                    ## im Mischer gewählter Flugmodus (Index in fc.modes)
-var _admin_nodes: Array = []          ## Überschrift, Hinweis, Knopf „Teensy-Sketch erzeugen“ (nur Admin)
+var _admin_nodes: Array = []          ## Knopf „Teensy-Sketch erzeugen“ (nur mit Admin-Code)
+var _ino_note: Label                   ## Hinweis zum Teensy-Sketch (für alle sichtbar)
 var _mix_body: VBoxContainer           ## Inhalt des offenen Mischer-Fensters
 var _mix_fc: FlightController
 var _mix_sugg: Button                  ## Knopf „Vorschlag aus Einbaulage“

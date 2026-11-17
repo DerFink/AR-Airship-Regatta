@@ -1,3 +1,4 @@
+# 2026-11-17 18:35 – Abmelden/Anmelden und Hinweis zum Teensy-Sketch geprüft
 # 2026-11-17 18:50 – Erstversion: Zugangscodes in der App – ohne Code keine privaten Modelle; nach Freischalten in „Modell & Bau“ (Schloss), nie in der Bestenliste; Admin-Rolle zeigt „Teensy-Sketch erzeugen“; Code entfernen räumt auf. Bildschirmfotos mit --shots=<Ordner>
 extends SceneTree
 # Der Server wird nicht gefragt: Die Antwort von api.php?unlock wird direkt an
@@ -66,7 +67,7 @@ func _process(_dt: float) -> bool:
 					if AirshipPresets.standard_model_of(t) != "": _fail("privates Modell gilt als Standardmodell")
 					if AirshipPresets.private_model_of(t) != "Geheimschiff": _fail("privates Modell nicht erkannt")
 					t.free()
-			if main.builder._admin_nodes[2].visible: _fail("Teensy-Sketch für Gruppe sichtbar")
+			if main.builder._admin_nodes[0].visible: _fail("Teensy-Sketch für Gruppe sichtbar")
 			main.settings.visible = true
 			main.settings._show_access("")
 		6:
@@ -82,12 +83,20 @@ func _process(_dt: float) -> bool:
 			# --- Admin ---
 			AccessCodes.store("ADMN-ADMN-ADMN", {"ok": true, "role": "admin", "group": "Erich", "models": []})
 			main.settings.access_changed.emit()
-			if not main.builder._admin_nodes[2].visible: _fail("Teensy-Sketch für Admin unsichtbar")
+			if not main.builder._admin_nodes[0].visible: _fail("Teensy-Sketch für Admin unsichtbar")
+			# --- Abmelden: Code bleibt, wirkt aber nicht; Anmelden stellt wieder her ---
+			main.settings._code_sign.emit_signal("pressed")
+			if AccessCodes.is_admin() or not AccessCodes.has_saved_code(): _fail("Abmelden falsch")
+			if main.builder._admin_nodes[0].visible: _fail("Teensy-Sketch nach Abmelden sichtbar")
+			if not ("Admin" in main.builder._ino_note.text): _fail("Hinweis auf den Admin fehlt")
+			AccessCodes.set_signed_in(true)
+			main.settings.access_changed.emit()
+			if not AccessCodes.is_admin(): _fail("Anmelden stellt den Zugang nicht her")
 			# --- Code entfernen ---
 			main.settings._code_del.emit_signal("pressed")
 			if AccessCodes.has_code() or FileAccess.file_exists(AccessCodes.MODELS_FILE): _fail("Code entfernen räumt nicht auf")
 			if not _names("Privat").is_empty(): _fail("private Modelle nach Entfernen sichtbar")
-			if main.builder._admin_nodes[2].visible: _fail("Teensy-Sketch nach Entfernen sichtbar")
+			if main.builder._admin_nodes[0].visible: _fail("Teensy-Sketch nach Entfernen sichtbar")
 			print("access_test: " + ("OK" if ok else "FEHLER"))
 			print("ENDE")
 			if not ok: assert(false, "Zugangscodes fehlerhaft")

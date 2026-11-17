@@ -1,3 +1,4 @@
+# 2026-11-17 18:35 – Zugang: „Abmelden“/„Anmelden“ (Code bleibt gespeichert)
 # 2026-11-17 18:40 – Abschnitt „Zugang“: Zugangscode eingeben (Freischalten), Stand anzeigen, Code entfernen
 # 2026-11-17 08:45 – Schalter „Physik genau“ entfernt (volle 6×6-Massenmatrix ist jetzt immer an)
 # 2026-11-17 00:45 – Aufnahme-Schalter (Browser)
@@ -42,6 +43,7 @@ var _code_edit: LineEdit              ## Zugang: Code-Eingabe
 var _code_btn: Button                 ## „Freischalten“
 var _code_status: Label               ## Zugang: Stand („Freigeschaltet: …“ oder Fehler)
 var _code_del: Button                 ## „Code entfernen“
+var _code_sign: Button                ## „Abmelden“ / „Anmelden“ (Code bleibt gespeichert)
 var _del_armed := false               ## erster Tipp gemacht → zweiter löscht
 var _del_status: Label
 var _test_toggle: CheckButton       ## versteckter Schalter „Testmodelle zeigen“
@@ -138,6 +140,16 @@ func _ready() -> void:
 	_code_btn = UITheme.make_primary_button("Freischalten")
 	_code_btn.pressed.connect(_on_unlock)
 	crow.add_child(_code_btn)
+	# Abmelden: Code bleibt gespeichert, wirkt aber nicht; Anmelden mit einem Tipp
+	_code_sign = UITheme.make_button("Abmelden")
+	_code_sign.pressed.connect(func():
+		var on := not AccessCodes.has_code()
+		AccessCodes.set_signed_in(on)
+		if on and online:
+			AccessCodes.refresh(online, func(): _show_access(""); access_changed.emit())
+		_show_access("")
+		access_changed.emit())
+	crow.add_child(_code_sign)
 	_code_del = UITheme.make_button("Code entfernen")
 	_code_del.pressed.connect(func():
 		AccessCodes.clear()
@@ -238,7 +250,9 @@ func _on_unlock() -> void:
 func _show_access(msg: String) -> void:
 	if _code_status == null:
 		return
-	_code_del.visible = AccessCodes.has_code()
+	_code_del.visible = AccessCodes.has_saved_code()
+	_code_sign.visible = AccessCodes.has_saved_code()
+	_code_sign.text = I18n.t("Abmelden") if AccessCodes.has_code() else I18n.t("Anmelden")
 	if msg != "":
 		_code_status.text = msg
 		_code_status.add_theme_color_override("font_color", Color("ff9a9a"))
@@ -248,6 +262,9 @@ func _show_access(msg: String) -> void:
 		var cnt := I18n.t("1 privates Modell") if AccessCodes.model_count == 1 else I18n.t("%d private Modelle") % AccessCodes.model_count
 		_code_status.text = "● " + I18n.t("Freigeschaltet: %s") % who + " · " + cnt
 		_code_status.add_theme_color_override("font_color", Color("3fbf6a"))
+	elif AccessCodes.has_saved_code():
+		_code_status.text = "○ " + I18n.t("Abgemeldet – der Code bleibt auf diesem Gerät gespeichert.")
+		_code_status.remove_theme_color_override("font_color")
 	else:
 		_code_status.text = ""
 		_code_status.remove_theme_color_override("font_color")

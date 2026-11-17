@@ -1,3 +1,4 @@
+# 2026-11-17 18:30 – Abmelden/Anmelden: Code bleibt gespeichert, wirkt abgemeldet aber nicht (signed_in)
 # 2026-11-17 18:30 – Erstversion: Zugangscodes – Code auf dem Gerät, Rolle (Gruppe/Admin), private Modelle auf dem Gerät, beim Start auffrischen
 # =============================================================================
 # AccessCodes.gd
@@ -28,6 +29,9 @@ static var role := ""            ## "gruppe" oder "admin"
 static var group := ""           ## Gruppe/Notiz des Codes (Anzeige)
 static var model_count := 0
 static var updated := ""         ## wann zuletzt vom Server geladen (Anzeige)
+## Abgemeldet: Code bleibt auf dem Gerät gespeichert, wirkt aber nicht (keine
+## privaten Modelle, kein Admin-Bereich) – „Anmelden“ schaltet ihn wieder ein.
+static var signed_in := true
 static var _loaded := false
 
 
@@ -42,6 +46,7 @@ static func load_saved() -> void:
 	group = str(cfg.get_value("zugang", "gruppe", ""))
 	model_count = int(cfg.get_value("zugang", "modelle", 0))
 	updated = str(cfg.get_value("zugang", "geladen", ""))
+	signed_in = bool(cfg.get_value("zugang", "angemeldet", true))
 
 
 static func _ensure() -> void:
@@ -49,14 +54,27 @@ static func _ensure() -> void:
 		load_saved()
 
 
+## Wirkt ein Code gerade? (vorhanden und angemeldet)
 static func has_code() -> bool:
+	_ensure()
+	return code != "" and signed_in
+
+
+## Ist ein Code gespeichert (auch abgemeldet)?
+static func has_saved_code() -> bool:
 	_ensure()
 	return code != ""
 
 
-static func is_admin() -> bool:
+## Abmelden (Code bleibt gespeichert) bzw. wieder anmelden.
+static func set_signed_in(on: bool) -> void:
 	_ensure()
-	return code != "" and role == "admin"
+	signed_in = on
+	_save_cfg()
+
+
+static func is_admin() -> bool:
+	return has_code() and role == "admin"
 
 
 ## Eingabe vereinheitlichen wie der Server: Großbuchstaben, Bindestriche neu.
@@ -73,6 +91,7 @@ static func normalize(s: String) -> String:
 ## Antwort des Servers übernehmen und auf dem Gerät speichern.
 static func store(c: String, res: Dictionary) -> void:
 	code = c
+	signed_in = true
 	role = str(res.get("role", "gruppe"))
 	group = str(res.get("group", ""))
 	var lines: PackedStringArray = ["# Private Modelle (Zugangscode) – wird beim Start der App neu geladen"]
@@ -101,6 +120,7 @@ static func store(c: String, res: Dictionary) -> void:
 ## Code und private Modelle vom Gerät entfernen.
 static func clear() -> void:
 	code = ""
+	signed_in = true
 	role = ""
 	group = ""
 	model_count = 0
@@ -118,6 +138,7 @@ static func _save_cfg() -> void:
 	cfg.set_value("zugang", "gruppe", group)
 	cfg.set_value("zugang", "modelle", model_count)
 	cfg.set_value("zugang", "geladen", updated)
+	cfg.set_value("zugang", "angemeldet", signed_in)
 	cfg.save(FILE)
 
 

@@ -1,3 +1,4 @@
+# 2026-11-17 18:40 – Version 1.5.2 (Abmelden, Hinweis Teensy-Sketch, Verwaltung)
 # 2026-11-17 18:15 – Version 1.5.1 (Baukasten: Modell verschieben)
 # 2026-11-17 18:55 – Version 1.5.0 (Zugangscodes für private Modelle und Admin)
 # 2026-11-17 09:50 – Version 1.4.1 (Mischer bleibt nicht mehr beim Modellwechsel hängen)
@@ -79,7 +80,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "1.5.1"
+const VERSION := "1.5.2"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)
