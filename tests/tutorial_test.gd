@@ -1,3 +1,4 @@
+# 2026-11-17 20:50 – Karten aus tut.steps (Aufnahme-Karte nur im Browser)
 # 2026-11-17 09:45 – Erstversion: Tutorial – Knopf auf der Startseite, 6 Karten mit passender Ansicht und markiertem Bereich, Überspringen führt zur Startseite; Bildschirmfotos mit --shots=<Ordner>
 extends SceneTree
 
@@ -38,9 +39,9 @@ func _process(_dt: float) -> bool:
 		_shot("tut_0_start")
 		main.start_screen._btn_tut.emit_signal("pressed")
 	# je Karte 12 Bilder: prüfen, Bild, weiter
-	if f >= 14 and step < Tutorial.STEPS.size():
+	if f >= 14 and step < tut.steps.size():
 		if (f - 14) % 12 == 8:
-			var s: Dictionary = Tutorial.STEPS[step]
+			var s: Dictionary = tut.steps[step]
 			print("Karte %d: %s | Ansicht %d | markiert %d" % [step + 1, tut._title.text, main.view, tut._rects.size()])
 			if main.view != VIEW_OF[s.view]: _fail("Karte %d: falsche Ansicht %d" % [step + 1, main.view])
 			if s.target == "eight":
@@ -49,11 +50,11 @@ func _process(_dt: float) -> bool:
 			_shot("tut_%d" % (step + 1))
 		if (f - 14) % 12 == 11:
 			step += 1
-			if step < Tutorial.STEPS.size():
+			if step < tut.steps.size():
 				tut._b_next.emit_signal("pressed")
 			else:
 				tut._b_skip.emit_signal("pressed")      # letzte Karte: Schließen
-	if step >= Tutorial.STEPS.size() and f > 14 + 12 * Tutorial.STEPS.size() + 4:
+	if step >= tut.steps.size() and f > 14 + 12 * tut.steps.size() + 4:
 		if tut.visible: _fail("Tutorial nach Schließen noch sichtbar")
 		if main.view != 6: _fail("nach dem Tutorial nicht auf der Startseite")
 		if main.track.attention: _fail("Acht pulsiert nach dem Tutorial weiter")

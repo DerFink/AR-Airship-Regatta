@@ -1,3 +1,4 @@
+# 2026-11-17 22:10 – Tutorial: eigene Karte für den Aufnahmeknopf (rec), nur wenn vorhanden (rec_ok)
 # 2026-11-17 21:55 – Tutorial: bei „Bestenliste“ leuchtet auch der Aufnahmeknopf
 # 2026-11-17 18:05 – Baukasten: Modell verschieben (Scrollrad gedrückt bzw. Umschalt + linke Maustaste ziehen, 2 Finger schieben); Ansicht zurücksetzen setzt es zurück
 # 2026-11-17 18:35 – Zugangscodes: beim Start auffrischen; private Modelle melden im Ziel „zählen nicht für die Bestenliste“
@@ -450,12 +451,10 @@ func _build_ui() -> void:
 		"start_main": func(): return [start_screen._btn_fly.get_global_rect(), start_screen._btn_build.get_global_rect()],
 		"start_build": func(): return [start_screen._btn_build.get_global_rect()],
 		"race_hint": func(): return [hud._pill_race.get_global_rect()],
-		"race_panel": func():
-			# Rennanzeige (falls sichtbar) und der Aufnahmeknopf ● (nur im Browser sichtbar)
-			var rs := []
-			if hud.race_panel.visible: rs.append(hud.race_panel.get_global_rect())
-			if hud.recorder and hud.recorder.button.visible: rs.append(hud.recorder.button.get_global_rect())
-			return rs,
+		"race_panel": func(): return [hud.race_panel.get_global_rect()] if hud.race_panel.visible else [],
+		# Karte „Flug aufnehmen“: Knopf ● (nur im Browser vorhanden)
+		"rec": func(): return [hud.recorder.button.get_global_rect()] if hud.recorder and hud.recorder.button.visible else [],
+		"rec_ok": func(): return hud.recorder != null and hud.recorder.button.visible,
 	}
 	# Karte „Die Acht fliegen“: statt eines Rahmens pulsiert die Acht auf dem Boden
 	tutorial.step_changed.connect(func(t: String): track.attention = t == "eight")

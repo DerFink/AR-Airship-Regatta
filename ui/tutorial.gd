@@ -1,3 +1,4 @@
+# 2026-11-17 22:10 – Eigene Karte „Flug aufnehmen“ (nur im Browser, wo es die Aufnahme gibt); Karte „Bestenliste“ wieder ohne Aufnahme-Satz
 # 2026-11-17 21:55 – Karte „Bestenliste“ nennt die Aufnahme (● oben rechts, Browser)
 # 2026-11-17 09:55 – Karten im Flug oben (unten liegen die Knüppel), Signal step_changed für die pulsierende Acht
 # 2026-11-17 09:30 – Erstversion: Tutorial „Erste Schritte“ nach freigegebenem Entwurf 3 – 6 Karten über der echten Oberfläche, gemeinter Bereich leuchtet gelb, Vorlesen über die Sprachausgabe des Geräts
@@ -33,7 +34,8 @@ const STEPS := [
 	{"title": "Mit Fernbedienung", "text": "Am besten fliegt es sich mit deinem RC-Sender: per USB anschließen (Joystick-Modus) und unter „Modell & Bau“ → „Sender kalibrieren“ einrichten.", "view": "start", "target": "start_build"},
 	{"title": "Fliegender Start", "text": "Gas geben und an Pylon 1 vorbeifliegen – die Zeit startet von selbst.", "view": "fly", "target": "race_hint"},
 	{"title": "Die Acht fliegen", "text": "Folge der orangen Acht in Pfeilrichtung um beide Pylone. Gelb zeigt, wohin es weitergeht.", "view": "fly", "target": "eight"},
-	{"title": "Bestenliste", "text": "Nach 3 Runden Namen eintragen. Kleine Luftschiffe bekommen einen Zeitbonus. Im Browser kannst du den Flug mit ● oben rechts als Film aufnehmen und danach zuschneiden.", "view": "fly", "target": "race_panel"},
+	{"title": "Bestenliste", "text": "Nach 3 Runden Namen eintragen. Kleine Luftschiffe bekommen einen Zeitbonus.", "view": "fly", "target": "race_panel"},
+	{"title": "Flug aufnehmen", "text": "Mit ● oben rechts nimmst du den Flug als Film auf. Danach kannst du ihn zuschneiden und speichern.", "view": "fly", "target": "rec", "web": true},
 	{"title": "Selbst bauen", "text": "Unter „Modell & Bau“ → „Eigenbau“ eigene Luftschiffe bauen und mit „Teilen“ weitergeben.", "view": "start", "target": "start_build"},
 ]
 const COLOR_HL := Color("ffb000")         ## Rahmenfarbe der Markierung
@@ -43,6 +45,8 @@ const CARD_W := 560.0                     ## Kartenbreite (auf dem Handy schmale
 var targets: Dictionary = {}
 
 var _step := 0
+## Karten, die auf diesem Gerät gelten (Aufnahme nur im Browser)
+var steps: Array = []
 var _card: PanelContainer
 var _title: Label
 var _text: Label
@@ -102,6 +106,7 @@ func _ready() -> void:
 
 ## Tutorial von vorn starten (Knopf „Tutorial“ auf der Startseite).
 func start() -> void:
+	steps = STEPS.filter(func(st): return not st.get("web", false) or targets.get("rec_ok", func(): return false).call())
 	visible = true
 	_go(0)
 
@@ -119,21 +124,21 @@ func stop() -> void:
 
 ## Zu Karte i wechseln (nach der letzten: beenden).
 func _go(i: int) -> void:
-	if i >= STEPS.size():
+	if i >= steps.size():
 		stop()
 		return
-	_step = clampi(i, 0, STEPS.size() - 1)
-	var s: Dictionary = STEPS[_step]
+	_step = clampi(i, 0, steps.size() - 1)
+	var s: Dictionary = steps[_step]
 	view_requested.emit(s.view)
 	step_changed.emit(s.target)
 	_title.text = "%d · %s" % [_step + 1, I18n.t(s.title)]
 	_text.text = I18n.t(s.text)
 	var dots := ""
-	for k in STEPS.size():
+	for k in steps.size():
 		dots += "●" if k <= _step else "○"
 	_dots.text = dots
 	_b_back.visible = _step > 0
-	var last := _step == STEPS.size() - 1
+	var last := _step == steps.size() - 1
 	_b_skip.text = I18n.t("Schließen") if last else I18n.t("Überspringen")
 	_b_next.text = I18n.t("Los geht’s") if last else I18n.t("Weiter")
 	_update_voice_icon()
@@ -150,7 +155,7 @@ func _layout() -> void:
 	_card.custom_minimum_size = Vector2(w, 0)
 	_card.size = Vector2(w, 0)                       # Höhe aus dem Inhalt
 	var h := _card.get_combined_minimum_size().y
-	var s: Dictionary = STEPS[_step]
+	var s: Dictionary = steps[_step]
 	if s.view == "start" and vp.x >= 900.0:
 		_card.position = Vector2(vp.x * 0.42, vp.y * 0.36)
 		_card.position.x = minf(_card.position.x, vp.x - w - 16.0)
@@ -166,7 +171,7 @@ func _process(dt: float) -> void:
 	if not visible: return
 	_t += dt
 	# markierte Bereiche jedes Bild neu holen (Kamera bewegt sich, Fenster ändert Größe)
-	var key: String = STEPS[_step].target
+	var key: String = steps[_step].target
 	_rects = targets[key].call() if targets.has(key) and (targets[key] as Callable).is_valid() else []
 	queue_redraw()
 
@@ -229,7 +234,7 @@ func _speak() -> void:
 	var voice := _voice_for(I18n.current)
 	if voice == "":
 		return                                       # keine Stimme auf diesem Gerät: still
-	var s: Dictionary = STEPS[_step]
+	var s: Dictionary = steps[_step]
 	DisplayServer.tts_speak(I18n.t(s.title) + ". " + I18n.t(s.text).replace("→", ","), voice, 80)
 
 

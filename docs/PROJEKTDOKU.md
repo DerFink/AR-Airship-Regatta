@@ -326,6 +326,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 17.11. | 1.5.2 | Zugang: „Abmelden“/„Anmelden“ in Einstellungen → Zugang (`AccessCodes.signed_in`; Code bleibt gespeichert, wirkt abgemeldet nicht). Reiter Steuerung: Abschnitt „Teensy-Sketch“ für alle mit Hinweis „auf Anfrage beim Admin (Kontakt …)“, Knopf „Teensy-Sketch erzeugen“ nur mit Admin-Code. Verwaltung: Knopf je Code heißt „Modelle hinzufügen – .txt hineinkopieren“. |
 | 17.11. | 1.6.0 | Teensy-Sketch mit Modus-Tabelle (1–5 Modi, PID je Modus/Achse, Mischtabellen je Modus, Motor aus/Gas-Anteil/Grundstellung, Drehgeber S1–S4; ohne Differenzschub), Chewie unverändert; Prüfung mit g++ gegen den Simulator in der CI (siehe 6.6). Lizenztext der chinesischen Schrift `fonts/OFL.txt` (wird mit der App ausgeliefert). Tutorial-Karte „Bestenliste“ nennt die Aufnahme (●), Knopf leuchtet mit. |
 | 17.11. | 1.6.1 | Teensy-Sketch: Differenzschub aus den Piloten-Knüppeln wird übernommen (`MOT_MIX[Modus][Motor] = {Gas, Nick, Gier, Roll}`, rohe Kanäle 5/6/7 wie im Simulator `motor_throttle`), Warnhinweis „ACHTUNG“ im Export; PID-Regler weiterhin ohne Einfluss auf den Schub. Regel 1 in Abschnitt 2 angepasst. |
+| 17.11. | 1.6.2 | Tutorial: eigene Karte „Flug aufnehmen“ (Knopf ● markiert), nur im Browser – Karten mit `"web": true` werden ohne Aufnahmeknopf ausgelassen (`tutorial.steps`); Karte „Bestenliste“ wieder ohne Aufnahme-Satz. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 
