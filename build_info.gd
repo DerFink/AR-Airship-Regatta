@@ -1,3 +1,4 @@
+# 2026-11-17 09:50 – Version 1.4.1 (Mischer bleibt nicht mehr beim Modellwechsel hängen)
 # 2026-11-17 10:05 – Version 1.4.0 (Tutorial, Roll-Tasten A/D, Mischer je Modus)
 # 2026-11-17 09:10 – Version 1.3.0 (6×6-Physik immer an, GPL-3.0, Acht bleibt beim Ortswechsel)
 # 2026-11-17 01:15 – Version 1.2.0 (Aufnahme im Browser)
@@ -76,7 +77,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "1.4.0"
+const VERSION := "1.4.1"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)

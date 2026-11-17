@@ -1,3 +1,4 @@
+# 2026-11-17 09:45 – Fehler behoben: Mischer (mix_manual, mix_table) des vorigen Modells blieb beim Laden eines Standardmodells bzw. „Werkseinstellung“ stehen
 # 2026-11-16 19:55 – Kurzbeschreibung des vorigen Modells wird beim Laden eines Presets geleert
 # 2026-11-16 19:50 – Albacore: Heckmotor wie Chewie (1804 2450 kV, T4×2×3, berechnet)
 # 2026-11-16 19:45 – Chewie: elastisches Leitwerk als Standard, stark ab 30 km/h (Restausschlag ≈ 30 %)
@@ -164,6 +165,8 @@ static func make_motor(name: String, x: float, angle_deg: float, thrust_n: float
 ## Flossenmasse von Chewie im Albacore).
 static func _reset_common(ship: AirshipPhysics) -> void:
 	ship.flight_modes = []                    # Flugmodi: Vorschlag Direkt/Angle/Horizon (Chewie setzt eigene)
+	ship.mix_manual = false                   # Mischer des vorigen Modells nicht mitnehmen (Fehler 17.11.:
+	ship.mix_table = {}                       # PigLeg-Mischer landete im Chewie, Schub verkehrt, „verändert“)
 	ship.model_description = ""               # Beschreibung des vorigen Modells nicht stehen lassen (kommt aus meta)
 	ship.trim_heaviness_n = 0.05
 	ship.fin_mass_kg = 0.0

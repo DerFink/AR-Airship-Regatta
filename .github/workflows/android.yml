@@ -1,3 +1,4 @@
+# 2026-11-17 09:50 – Test preset_reset_test in der CI
 # 2026-11-17 10:00 – Tests mixer_ui_test und tutorial_test in der CI
 # 2026-11-17 08:50 – Test track_test (Acht bleibt beim Ortswechsel) in der CI
 # 2026-11-17 00:50 – Aufnahme-Helfer ar-recorder.js in die Browser-Version einbinden
@@ -88,7 +89,7 @@ jobs:
         run: |
           # Ergebnisse zusätzlich in die Zusammenfassung des Laufs (auf GitHub sichtbar)
           echo '## Headless-Tests' >> "$GITHUB_STEP_SUMMARY"
-          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test modes_test step_bench_test geber_test mass6_test track_test mixer_ui_test tutorial_test; do
+          for t in smoke_test chewie_test v03_test tail_test airship_mode_test maneuver_test course_test ui_test menu_test i18n_test crash_test stickmode_test leaderboard_test modes_test step_bench_test geber_test mass6_test track_test mixer_ui_test tutorial_test preset_reset_test; do
             echo "=== $t"
             # Zeitlimit je Test: ein hängender Test bricht nach 3 min ab statt den Lauf zu blockieren
             rc=0; timeout 120 godot --headless --path . -s tests/$t.gd > out.txt 2>&1 || rc=$?
