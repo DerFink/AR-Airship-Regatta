@@ -1,3 +1,4 @@
+# 2026-11-17 20:45 – Motorfälle mit Knüppelausschlag (Differenzschub im Sketch)
 # 2026-11-17 21:20 – Erstversion: Teensy-Export mit Modus-Tabelle – Testmodell mit 5 Flugmodi (Direkt mit eigener Tabelle, PID mit Rollausgleich, Angle, Horizon, PID ohne eigene Tabelle), Motoren aus/Gas-Anteil/Grundstellung, Drehgeber. Schreibt Sketch und Vergleichsfälle (Simulator-Ergebnisse) nach res://build/ino_test/ für tests/ino_compare.py
 extends SceneTree
 
@@ -54,7 +55,8 @@ func _initialize() -> void:
 	var txt: String = r.text
 	for must in ["const int   MODE_COUNT = 5;", "MODE_ART[MODE_COUNT]       = {1, 4, 2, 3, 4}", "void controlPIDMode()", "mixMotorsTable();", "\"Cruise\""]:
 		if txt.find(must) < 0: _fail("im Sketch fehlt: " + must)
-	if not " ".join(r.notes).contains("Differenzschub"): _fail("Hinweis auf nicht übernommenen Differenzschub fehlt")
+	if not " ".join(r.notes).contains("Differenzschub"): _fail("Warnhinweis Differenzschub fehlt")
+	if txt.find("MOT_MIX[MODE_COUNT][6][4]") < 0: _fail("Differenzschub-Tabelle fehlt im Sketch")
 	# --- Vergleichsfälle: was rechnet der Simulator? ---
 	var acts := fc.actuator_table().slice(0, 7)
 	var cases := []
@@ -91,16 +93,13 @@ func _initialize() -> void:
 			var idx := int(str(a.key).substr(1))
 			exp.append(s.surfaces[idx].command if a.kind == "fin" else s.motors[idx].swivel_cmd)
 		cs["servo"] = exp
-		# Motoren (nur Gas; Knüppel Nick/Gier/Roll auf 0, damit der Differenzschub nicht hineinspielt)
+		# Motoren: Gas und Knüppel Nick/Gier/Roll (Differenzschub, seit 1.6.1 auch im Sketch)
 		var thr := rng.randf_range(-1, 1)
 		fc.cmd_throttle = thr
-		var cp := fc.cmd_pitch; var cy := fc.cmd_yaw; var ca := fc.cmd_aux
-		fc.cmd_pitch = 0.0; fc.cmd_yaw = 0.0; fc.cmd_aux = 0.0
 		var me := []
 		for j in s.motors.size():
 			fc._thr_frame = -1
 			me.append(fc.motor_throttle(j))
-		fc.cmd_pitch = cp; fc.cmd_yaw = cy; fc.cmd_aux = ca
 		cs["thr"] = thr
 		cs["motors"] = me
 		cases.append(cs)

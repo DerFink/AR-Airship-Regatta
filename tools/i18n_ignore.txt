@@ -217,3 +217,4 @@ WARNUNG: Motor-Mix nicht gefunden
 Flugmodi aus dem Modell (Kanal 13 in %d Stufen, oben = 1): %s
 Differenzschub (Nick/Gier/Roll auf Motoren) NICHT übernommen – Schub nur vom Gas des Piloten
 ACHTUNG: Im Modus %s haben Motoren eine Grundstellung – sie laufen bei freigegebenem Kanal 14 auch mit Gas auf Stopp (Drehgeber bzw. Kanal 14 = Notaus)
+ACHTUNG: Im Modus %s steuern Nick/Gier/Roll den Schub mit (Differenzschub) – Motoren können auch bei Gas auf Stopp laufen, sobald ein Knüppel ausgeschlagen ist (Kanal 14 = Notaus)

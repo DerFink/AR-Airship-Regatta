@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 2026-11-17 20:45 – Motorfälle mit Knüppeln (Differenzschub)
 # 2026-11-17 21:30 – Erstversion: erzeugten Teensy-Sketch übersetzen (g++, Arduino-Ersatzköpfe) und seine neuen Funktionen (Modus-Tabelle) mit den Ergebnissen des Simulators vergleichen
 # =============================================================================
 #   python3 tests/ino_compare.py <sketch.ino> <faelle.json>
@@ -77,6 +78,8 @@ def main(sketch: str, cases_path: str) -> bool:
             body.append(f'    printf(" %.6f", ({cmds[i]} - {cens[i]})*180.0f/SERVO_MAX_DEG[{i}]/{dirx});')
         body.append('    printf("\\n");')
         # Motoren: Gas -1..1 → thro_des 0..1
+        # rohe Knueppel fuer den Differenzschub (Kanal 5/6/7 wie getDesState)
+        body.append(f"    channel_5_pwm = lroundf(1500.0f + 500.0f*{L(c['p'])}); channel_6_pwm = lroundf(1500.0f + 500.0f*{L(c['y'])}); channel_7_pwm = lroundf(1500.0f + 500.0f*{L(c['r'])});")
         body.append(f"    thro_des = ({L(c['thr'])} + 1.0f)*0.5f; motorsEnabled = true;")
         body.append("    mixMotorsTable();")
         body.append("    float mm[6] = {m1_command_scaled, m2_command_scaled, m3_command_scaled, m4_command_scaled, m5_command_scaled, m6_command_scaled};")

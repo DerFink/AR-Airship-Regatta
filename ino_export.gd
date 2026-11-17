@@ -1,3 +1,4 @@
+# 2026-11-17 20:45 – Differenzschub (Nick/Gier/Roll der Piloten-Knüppel) wird in den Teensy-Sketch übernommen (Freigabe 17.11.), Warnhinweis im Export
 # 2026-11-17 21:10 – Modus-Tabelle: 1–5 Flugmodi parametrisch, PID je Modus/Achse, Mischtabellen je Modus, Motoren aus/Gas-Anteil/Grundstellung, Drehgeber S1–S4 (ohne Differenzschub); für Chewie-Standard unverändert
 # 2026-11-17 09:00 – Zweite Kopfzeile im erzeugten Sketch: Lizenzhinweis GPL-3.0 (dRehmFlight), nur Kommentar
 # 2026-11-11 14:50 – Hinweise für die Anzeige übersetzt (note_ui); Kopfzeile im Sketch bleibt Deutsch
@@ -377,9 +378,9 @@ static func save(text: String, file_name: String) -> String:
 #     Drehgeber S1–S4) – Direkt mit eigener Tabelle und PID
 #   - PID je Achse: an/aus, Lage oder Drehrate, Kp, Ki, Kd, Grenze
 #   - Motoren: aus in diesem Modus, Gas-Anteil, Grundstellung + Drehgeber
-# NICHT übernommen: Schubanteile aus Nick, Gier und Roll (Differenzschub) –
-# am echten Luftschiff kommt der Schub nur vom Gas des Piloten (Regel des
-# Projektinhabers); der Regler verändert den Schub nie.
+# Seit 1.6.1 auch Differenzschub (Nick/Gier/Roll der Knüppel des Piloten auf
+# die Motoren, Freigabe Projektinhaber 17.11.2026). Der PID-Regler verändert
+# den Schub weiterhin nicht; Kanal 14 bleibt Notaus.
 # Für Chewie mit Standardwerten wird nichts davon erzeugt (Sketch wie bisher).
 # =============================================================================
 
@@ -466,7 +467,7 @@ static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes:
 	var mot_off := []
 	var mot_gas := []
 	var mot_ext := []
-	var diff := false
+	var diff_modes := []                        ## Modi mit Differenzschub (Nick/Gier/Roll auf Motoren)
 	var run_idle := []                          ## Modi, in denen Motoren mit Grundstellung laufen (Gas auf Stopp)
 	var geber_used := [false, false, false, false]
 	for m in modes:
@@ -512,11 +513,14 @@ static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes:
 			off.append("true" if x else "false")
 			var t = mt.get("t%d" % j)
 			var e = mt.get("et%d" % j)
-			var w := 1.0
+			# Schub = (Gas·Gas% + Nick·Nick% + Gier·Gier% + Roll·Roll%) – Knüppel des Piloten (wie motor_throttle)
+			var kk := [1.0, 0.0, 0.0, 0.0]
 			if t is Array and t.size() >= 4:
-				w = float(t[0]) / 100.0
-				if absf(float(t[1])) + absf(float(t[2])) + absf(float(t[3])) > 0.01: diff = true
-			gas.append(_f(w if j < nm else 0.0))
+				kk = [float(t[0]) / 100.0, float(t[1]) / 100.0, float(t[2]) / 100.0, float(t[3]) / 100.0]
+				if j < nm and not x and absf(kk[1]) + absf(kk[2]) + absf(kk[3]) > 0.0001 and not diff_modes.has(str(m.get("name", ""))):
+					diff_modes.append(str(m.get("name", "")))
+			if j >= nm: kk = [0.0, 0.0, 0.0, 0.0]
+			gas.append("{%s}" % ", ".join(kk.map(func(v): return _f(v))))
 			var ee: Array = e if e is Array and e.size() >= 5 else [0.0, 0.0, 0.0, 0.0, 0.0]
 			mex.append("{%s}" % ", ".join(ee.slice(0, 5).map(func(v): return _f(float(v) / 100.0))))
 			if j < nm and not x and absf(float(ee[0])) > 0.5 and not run_idle.has(str(m.get("name", ""))):
@@ -547,8 +551,9 @@ static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes:
 	g.append("//  FLUGMODI DES MODELLS: Schalter Kanal 13 wird in MODE_COUNT gleich breite Stufen geteilt, oben (2000 us) = Modus 1.")
 	g.append("//  Art: 1 = Direkt, 2 = Angle, 3 = Horizon (Regler wie Vorlage), 4 = PID je Achse (Lage oder Drehrate, Werte unten).")
 	g.append("//  Direkt mit eigener Mischtabelle und PID mischen ueber MODE_MIX (Nick, Gier, Roll; -1..1 = voller Ausschlag des Bauteils).")
-	g.append("//  Motoren: MOT_OFF = in diesem Modus aus, MOT_GAS = Anteil vom Gas des Piloten, MOT_EXT = Grundstellung + Drehgeber S1..S4.")
-	g.append("//  Der Regler veraendert den Schub NIE. VOR DEM ERSTFLUG: Bodentest je Modus (Propeller ab).")
+	g.append("//  Motoren: MOT_OFF = in diesem Modus aus, MOT_MIX = Anteile {Gas, Nick, Gier, Roll} der Knueppel des Piloten,")
+	g.append("//  MOT_EXT = Grundstellung + Drehgeber S1..S4. Der PID-Regler veraendert den Schub nicht. Notaus: Kanal 14.")
+	g.append("//  VOR DEM ERSTFLUG: Bodentest je Modus (Propeller ab).")
 	g.append("//========================================================================================================================//")
 	g.append("const int   MODE_COUNT = %d;" % n)
 	g.append("const int   MODE_ART[MODE_COUNT]       = {%s};" % ", ".join(arts.map(func(v): return str(v))))
@@ -581,7 +586,7 @@ static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes:
 	g.append("//Motoren je Modus (ESC m1..m6)")
 	g.append("const int   MOTOR_COUNT = %d;" % nm)
 	g.append("const bool  MOT_OFF[MODE_COUNT][6]    = {%s};" % ", ".join(mot_off))
-	g.append("const float MOT_GAS[MODE_COUNT][6]    = {%s};" % ", ".join(mot_gas))
+	g.append("const float MOT_MIX[MODE_COUNT][6][4] = {%s}; //{Gas, Nick, Gier, Roll}" % ", ".join(mot_gas))
 	g.append("const float MOT_EXT[MODE_COUNT][6][5] = {%s};" % ", ".join(mot_ext))
 	g.append("//Drehgeber S1..S4: Kanal (0 = nicht belegt) und Richtung")
 	g.append("const int   GEBER_CH[4]  = {%s};" % ", ".join(gch))
@@ -736,15 +741,20 @@ static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes:
 	f.append("}")
 	f.append("")
 	f.append("void mixMotorsTable() {")
-	f.append("  //DESCRIPTION: Motoren je Modus - aus, Gas-Anteil, Grundstellung + Drehgeber; alle gemeinsam desaturiert.")
+	f.append("  //DESCRIPTION: Motoren je Modus - aus, Anteile von Gas/Nick/Gier/Roll, Grundstellung + Drehgeber; alle gemeinsam desaturiert.")
 	f.append("  //Gas -1..1 (Mitte = Stopp, 3D-ESC). Ohne Freigabe (Kanal 14) oder im Failsafe: alle auf Stopp.")
+	f.append("  //Nick/Gier/Roll: rohe Knueppel des Piloten (Kanal 5/6/7, wie im Simulator), nicht der Reglerausgang")
 	f.append("  float thr = 2.0f*thro_des - 1.0f;")
+	f.append("  float stP = constrain(((float)channel_5_pwm - 1500.0f)/500.0f, -1.0f, 1.0f);")
+	f.append("  float stY = constrain(((float)channel_6_pwm - 1500.0f)/500.0f, -1.0f, 1.0f);")
+	f.append("  float stR = MODE1_ROLL_SIGN*constrain(((float)channel_7_pwm - 1500.0f)/500.0f, -1.0f, 1.0f);")
 	f.append("  float off[6], v[6];")
 	f.append("  bool use[6];")
 	f.append("  for (int j = 0; j < 6; j++) {")
 	f.append("    use[j] = (j < MOTOR_COUNT) && !MOT_OFF[modeSlot][j];")
 	f.append("    off[j] = 0.0f; v[j] = 0.0f;")
-	f.append("    if (use[j]) v[j] = extPart(MOT_EXT[modeSlot][j], MOT_GAS[modeSlot][j]*thr, off[j]);")
+	f.append("    const float* k = MOT_MIX[modeSlot][j];")
+	f.append("    if (use[j]) v[j] = extPart(MOT_EXT[modeSlot][j], k[0]*thr + k[1]*stP + k[2]*stY + k[3]*stR, off[j]);")
 	f.append("  }")
 	f.append("  float f = groupFactor(off, v, use, 6);")
 	f.append("  float out[6];")
@@ -765,8 +775,8 @@ static func _gen_modes(src: String, fc: FlightController, ch: Dictionary, notes:
 	for i in n:
 		desc.append("%d=%s (%s)" % [i + 1, str(modes[i].get("name", "")), str(modes[i].get("art", ""))])
 	notes.append("Flugmodi aus dem Modell (Kanal 13 in %d Stufen, oben = 1): %s" % [n, ", ".join(desc)])
-	if diff:
-		notes.append("Differenzschub (Nick/Gier/Roll auf Motoren) NICHT übernommen – Schub nur vom Gas des Piloten")
+	if not diff_modes.is_empty():
+		notes.append("ACHTUNG: Im Modus %s steuern Nick/Gier/Roll den Schub mit (Differenzschub) – Motoren können auch bei Gas auf Stopp laufen, sobald ein Knüppel ausgeschlagen ist (Kanal 14 = Notaus)" % ", ".join(diff_modes))
 	if not run_idle.is_empty():
 		notes.append("ACHTUNG: Im Modus %s haben Motoren eine Grundstellung – sie laufen bei freigegebenem Kanal 14 auch mit Gas auf Stopp (Drehgeber bzw. Kanal 14 = Notaus)" % ", ".join(run_idle))
 	return src
