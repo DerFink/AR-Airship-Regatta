@@ -1,3 +1,4 @@
+<!-- 2026-11-17 23:10 – Servos: Datenblatt EMAX ES9251 II, Stellkraft-Grenze als Prüfpunkt -->
 <!-- 2026-11-17 23:05 – Erstversion: Backlog (notiert, noch nicht freigegeben) – Realismus-Punkte aus der Prüfung vom 17.11., Location „Aerarium“, Restpunkte der offenen Liste -->
 # Backlog – RC Airship Regatta
 
@@ -47,8 +48,17 @@ Angle regelt auf einen schiefen Horizont. Dazu Rauschen und Nullpunktdrift.
 Stellgeschwindigkeit ist begrenzt (Flossen 500 °/s ≈ 0,12 s/60°, Schwenker
 400 °/s ≈ 0,15 s/60°), es fehlen aber Totzeit, Spiel und Totband.
 - Etwa 15 ms Totzeit und 0,5° Spiel.
-- Stellgeschwindigkeit an Chewies echte Servos anpassen (Typ/Datenblatt nötig;
-  Angabe im Modellbau: Sekunden je 60° bei 4,8 V bzw. 6 V, unter Last langsamer).
+- Stellgeschwindigkeit an Chewies echte Servos anpassen. Chewie hat **EMAX ES9251 II**
+  (digital, 4 g, Kunststoffgetriebe, 4,8–6,0 V): **0,09 s/60° bei 4,8 V (≈ 670 °/s),
+  0,07 s/60° bei 6,0 V (≈ 860 °/s)**, Stellkraft **0,25 / 0,3 kgf·cm** (≈ 2,5 / 2,9 N·cm).
+  Die echten Servos sind also schneller als im Simulator (Flossen 500 °/s,
+  Schwenker 400 °/s; bei 5 V vom BEC etwa 700 °/s). Offen: Sitzen an den
+  Motorschwenkern dieselben Servos?
+- **Stellkraft-Grenze** (neu zu prüfen): 0,25 kgf·cm ist wenig. Bei Pendelflossen
+  (≈ 19 × 19 cm) hängt das Rückstellmoment vom Abstand Drehachse – Druckpunkt
+  ab; bei höherer Fahrt könnte das Servo den vollen Ausschlag nicht mehr halten
+  (Ausschlag wird von der Luft zurückgedrückt). Für das Modell nötig: Lage der
+  Drehachse der Flossen und Hebelverhältnis der Anlenkung.
 
 ### C) Abgleich mit dem echten Chewie (dauert noch)
 Auffällig im Simulator:
