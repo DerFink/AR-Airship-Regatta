@@ -1,24 +1,32 @@
+# 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
+# 2026-11-17 08:40 – fizyka: pełna macierz mas 6×6 (jedyny model), masa dodana płetw; usunięto modele standardowe; wzór F7B z L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Teksty strony „Podstawy symulatora” (BBCode). Zakładki oddzielone wierszem @@@:
 # Fizyka, Model sterowca, Regulator (PID), Akumulator, O programie / licencja. Zmienne {VERSION} i {CONTACT}.
 [b]Równania ruchu (6 stopni swobody)[/b]
-Sterowiec jest bryłą sztywną z 3 przesunięciami i 3 obrotami. Symulator liczy w układzie związanym z bryłą (początek w środku wyporu, dziób do przodu) z częstotliwością 60 kroków na sekundę:
+Sterowiec jest bryłą sztywną z 3 przesunięciami i 3 obrotami. Symulator liczy w układzie związanym z bryłą (początek w środku wyporu, dziób do przodu) z 60 krokami na sekundę. Prędkość v i prędkość kątowa ω tworzą stan ν = [v; ω]; wszystkie masy są w pełnej macierzy mas 6×6 M:
 
-[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
-(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+[code]M = M_RB + M_A
+p = M·ν = [p1; p2]
+M·dν/dt = [ F − ω × p1 ;  T − ω × p2 − v × p1 ][/code]
 
-m, I: masa i bezwładność sterowca (powłoka, gaz nośny, silniki, akumulator, płetwy)
-M_a, I_a: masy i bezwładności dodane (wirtualne) porywanego powietrza
+M_RB: masa i bezwładność sterowca (powłoka, gaz nośny, silniki, akumulator, płetwy) względem środka wyporu – z pełnym tensorem bezwładności (momenty dewiacyjne zamontowanych części) i sprzężeniem m·r_G między przesunięciem a obrotem, bo środek ciężkości leży pod środkiem wyporu
+M_A: masy dodane porywanego powietrza (powłoka i płetwy)
+p1, p2: pęd i kręt sterowca razem z porywanym powietrzem
 F, T: siły i momenty od ciężaru, wyporu, kadłuba, płetw i silników
+Równanie rozwiązuje się rozkładem Choleskiego macierzy M, przeliczanym tylko przy przebudowie modelu. Gdy brakuje mocy obliczeniowej, symulator przechodzi na uproszczone obliczenia tylko z przekątną M.
 
 [b]Masy dodane[/b]
-Sterowiec jest prawie tak lekki jak powietrze, które wypiera. Przy przyspieszaniu musi pchać to powietrze ze sobą – w poprzek dużo bardziej niż wzdłuż. Symulator używa współczynników Lamba dla wydłużonej elipsoidy (podejście ATTAS):
+Sterowiec jest prawie tak lekki jak wypierane powietrze. Przyspieszając, musi pchać to powietrze ze sobą – w poprzek dużo bardziej niż wzdłuż. Dla powłoki symulator używa współczynników Lamba elipsoidy wydłużonej (podejście ATTAS):
 [code]wzdłuż: k1·ρ·V      w poprzek: k2·ρ·V      obrót: k'·I_powietrza[/code]
 Przy L/D = 6 k1 ≈ 0,05 i k2 ≈ 0,92: w poprzek sterowiec ciągnie prawie drugą objętość powietrza.
+Każda płetwa dodatkowo porywa powietrze prostopadle do swojej powierzchni, jak płaska płytka (c cięciwa, b rozpiętość):
+[code]m_F = ρ·π/4·c²·b[/code]
+Ponieważ płetwy są daleko z tyłu, zwiększa to głównie bezwładność w pochyleniu i odchyleniu oraz sprzęga ruch boczny z obrotem.
 
 [b]Moment Munka[/b]
-Z nierównych mas dodanych wynika bezpośrednio ostatni człon drugiego równania, [code]−v × (M_a·v)[/code]. Przy kącie natarcia α w przybliżeniu
+Z nierównych mas dodanych wynika bezpośrednio udział M_A w członie [code]−v × p1[/code] równania momentów. Dla powłoki przy kącie natarcia α zachodzi w przybliżeniu
 [code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 Ten moment wykręca dziób jeszcze bardziej z wiatru – sam kadłub jest niestateczny. Ponieważ warstwa przyścienna na ogonie znosi jego część, symulator przyjmuje 60 % wartości teoretycznej.
 
@@ -44,10 +52,6 @@ Pozostała masa (akumulator, balast) jest tak dobrana i umieszczona, aby sterowi
 [b]Powłoka wg Gertlera[/b]
 Kształt powłoki pochodzi z serii DTMB 58 (Gertler, 1950), zrealizowany według Gertler Shape Generatora Johannesa Eissinga. Wielomian 6. stopnia opisuje promień wzdłuż długości; parametry to długość/średnica (L/D), położenie największego przekroju, promienie dziobu i ogona oraz pełność. Z kształtu wynikają objętość, powierzchnia, środek wyporu i masy dodane.
 
-[b]Modele standardowe[/b]
-[b]Chewie[/b] – prawdziwy sterowiec wyścigowy: L/D 6, usterzenie lambda z trzech lekkich płetw całkowicie ruchomych (±50°), dwa wychylane silniki nisko po bokach, kontroler lotu Teensy.
-[b]Albacore[/b] – wg okrętu podwodnego USS Albacore, L/D 7,5, usterzenie krzyżowe z klapami, dwa silniki nisko po bokach.
-
 [b]Masy[/b]
 Powłoka (rozłożona na powierzchni), silniki i płetwy w miejscu montażu, elektronika i akumulator pod powłoką. Z tego symulator oblicza środek ciężkości i momenty bezwładności; pozostała masa jest wyważana automatycznie.
 
@@ -55,12 +59,13 @@ Powłoka (rozłożona na powierzchni), silniki i płetwy w miejscu montażu, ele
 Kreator sprawdza objętość usterzenia [code]V_H = S_płetw · ramię / V_powłoki[/code]. Jeśli jest za mała, usterzenie nie zrównoważy momentu Munka i pojawia się ostrzeżenie.
 
 [b]Własne modele[/b]
-W „Model i budowa” → „Własna konstrukcja” można dowolnie ustawić powłokę, usterzenie, napęd i wygląd. Modele można wyeksportować do pliku i wysłać administratorowi – sprawdzone modele stają się standardowymi dla wszystkich.
+W „Model i budowa” → „Własna konstrukcja” można dowolnie ustawić powłokę, usterzenie, napęd i wygląd. Modele można wyeksportować do pliku i wysłać administratorowi – sprawdzone modele trafiają do wyboru dla wszystkich.
 
 [b]Punktacja wyścigu (regulamin F7B)[/b]
 Lata się 3 okrążenia ósemki wokół obu pylonów ze startem lotnym. Mierzy się łączny czas t za 3 okrążenia. Aby uczciwie porównać duże i małe sterowce, czas jest ważony wielkością sterowca:
 [code]V_ref = D · S · W · π/6
-t_wynik = t · V_ref^(1/3)[/code]
+L_ref = V_ref^(1/3)
+t_wynik = t · √(L_ref / 1 m)[/code]
 D, S, W: długość, szerokość i wysokość całkowitego prostopadłościanu (powłoka, płetwy, silniki, akumulator) w m – jak pokazuje kreator. V_ref to objętość elipsoidy w tym prostopadłościanie; mniejszy sterowiec dostaje więc premię. Panel po prawej w czasie lotu pokazuje okrążenia, łączny czas i wynik.
 @@@
 [b]Wirtualny kontroler lotu[/b]
@@ -103,7 +108,9 @@ Symulator open source dla wyścigowych sterowców DIY. Zbudowany w Godot Engine 
 {VERSION}
 
 [b]Licencja[/b]
-Licencja MIT – © 2026 Erich Fink (DerFink). Kod źródłowy można swobodnie używać, zmieniać i udostępniać.
+Powszechna Licencja Publiczna GNU w wersji 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Symulator jest wolnym oprogramowaniem: możesz go używać, zmieniać i udostępniać, także w zmienionej postaci – ale tylko ponownie na licencji GPL i razem z kodem źródłowym. Jest dostarczany bez żadnej gwarancji.
+Kod źródłowy: github.com/DerFink/AR-Airship-Regatta · Tekst licencji: gnu.org/licenses/gpl-3.0
+Kontroler lotu i szkic Teensy opierają się na dRehmFlight autorstwa Nicholasa Rehma (GPL-3.0).
 Godot Engine: licencja MIT. Czcionka dla chińskiego: Noto Sans CJK (SIL Open Font License).
 
 [b]Stworzone z pomocą AI[/b]

@@ -1,3 +1,4 @@
+# 2026-11-17 08:45 – Export-Hinweis ohne „Standardmodell“
 # 2026-11-16 20:30 – Kommentar: F7B-Faktor √(L_ref) statt L_ref
 # 2026-11-16 16:00 – Knopf „Auf Werkseinstellung zurücksetzen“ je Standardmodell, Hinweis wenn das geladene Luftschiff abweicht (keine Wertung)
 # 2026-11-16 15:10 – Wiese 100 m statt 200 m
@@ -189,7 +190,7 @@ func _ready() -> void:
 	_factory_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_factory_note.add_theme_color_override("font_color", Color("ffcf9a"))
 	dcol.add_child(_factory_note)
-	var note := UITheme.make_label("Export: Modell als Datei speichern. Schick sie an den Admin – geprüfte Modelle werden als Standardmodell für alle aufgenommen.")
+	var note := UITheme.make_label("Export: Modell als Datei speichern. Schick sie an den Admin – geprüfte Modelle kommen für alle in die Auswahl.")
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_color_override("font_color", Color("ffcf9a"))
 	dcol.add_child(note)

@@ -1,3 +1,4 @@
+# 2026-11-17 08:45 – Fehler behoben: Beim Wechsel Halle ↔ Wiese wurde die Acht auf dem Boden (CourseTrack) mit gelöscht und kam nicht wieder
 # 2026-11-16 20:30 – F7B-Wertung korrigiert: Zeit × √(L_ref/1 m) mit L_ref = V_ref^(1/3), also V_ref^(1/6) (vorher V_ref^(1/3))
 # 2026-11-16 15:10 – Wiese: Vorgabe-Pylonabstand 100 m statt 200 m (gewertet wird „wiese_100.0“); alte gespeicherte Vorgabe 200 m wird auf 100 m umgestellt
 # 2026-11-16 09:50 – Pylonabstand zurück auf 18 m in der Halle schaltet wieder auf den Cup (vorher blieb „frei“ gemerkt → keine Wertung)
@@ -156,7 +157,11 @@ func title() -> String:
 # Pylone und Rechteck aufbauen (bei jeder Abstandsänderung)
 # =============================================================================
 func rebuild() -> void:
-	for c in get_children(): c.queue_free()
+	# Pylone, Hallen-/Wiesenteile neu – die Bodenspur (CourseTrack) gehört main.gd und bleibt;
+	# sie baut sich selbst um, sobald sich der Pylonabstand ändert
+	for c in get_children():
+		if not c is CourseTrack:
+			c.queue_free()
 	if ground_mesh:
 		ground_mesh.position.y = -0.2 if location == 0 else 0.0
 	var d := distance()

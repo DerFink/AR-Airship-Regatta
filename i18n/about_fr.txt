@@ -1,24 +1,32 @@
+# 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
+# 2026-11-17 08:40 – physique : matrice de masse 6×6 complète (seul modèle), masse ajoutée des ailerons ; modèles standard supprimés ; formule F7B avec L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte de la page « Bases du simulateur » (BBCode). Onglets séparés par une ligne @@@ :
 # Physique, Modèle de dirigeable, Régulateur (PID), Batterie, À propos / licence. Variables {VERSION} et {CONTACT}.
 [b]Équations du mouvement (6 degrés de liberté)[/b]
-Le dirigeable est un corps rigide avec 3 translations et 3 rotations. Le simulateur calcule dans le repère du corps (origine au centre de poussée, nez vers l'avant) à 60 pas par seconde :
+Le dirigeable est un corps rigide avec 3 translations et 3 rotations. Le simulateur calcule dans le repère du corps (origine au centre de poussée, nez vers l'avant) à 60 pas par seconde. La vitesse v et la vitesse de rotation ω forment l'état ν = [v; ω] ; toutes les masses sont réunies dans une matrice de masse 6×6 complète M :
 
-[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
-(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+[code]M = M_RB + M_A
+p = M·ν = [p1; p2]
+M·dν/dt = [ F − ω × p1 ;  T − ω × p2 − v × p1 ][/code]
 
-m, I : masse et inertie du dirigeable (enveloppe, gaz porteur, moteurs, batterie, ailerons)
-M_a, I_a : masses et inerties ajoutées (virtuelles) de l'air entraîné
+M_RB : masse et inertie du dirigeable (enveloppe, gaz porteur, moteurs, batterie, ailerons) autour du centre de poussée – avec le tenseur d'inertie complet (produits d'inertie des pièces montées) et le couplage m·r_G entre translation et rotation, car le centre de gravité se trouve sous le centre de poussée
+M_A : masses ajoutées de l'air entraîné (enveloppe et ailerons)
+p1, p2 : quantité de mouvement et moment cinétique du dirigeable et de l'air entraîné
 F, T : forces et moments dus au poids, à la poussée d'Archimède, à la coque, aux ailerons et aux moteurs
+L'équation est résolue par une factorisation de Cholesky de M, recalculée seulement lors d'une modification du modèle. Si la puissance de calcul manque, le simulateur passe à un calcul simplifié avec la seule diagonale de M.
 
 [b]Masses ajoutées[/b]
-Un dirigeable est presque aussi léger que l'air qu'il déplace. Quand il accélère, il doit pousser cet air avec lui – bien plus en travers qu'en longueur. Le simulateur utilise les coefficients de Lamb de l'ellipsoïde allongé (approche ATTAS) :
+Un dirigeable est presque aussi léger que l'air qu'il déplace. En accélérant, il doit pousser cet air avec lui – beaucoup plus latéralement que longitudinalement. Pour l'enveloppe, le simulateur utilise les coefficients de Lamb de l'ellipsoïde allongé (approche ATTAS) :
 [code]longitudinal : k1·ρ·V      transversal : k2·ρ·V      rotation : k'·I_air[/code]
 Pour L/D = 6, k1 ≈ 0,05 et k2 ≈ 0,92 : en travers, le dirigeable entraîne presque un second volume d'air.
+Chaque aileron entraîne aussi de l'air perpendiculairement à sa surface, comme une plaque plane (c profondeur, b envergure) :
+[code]m_F = ρ·π/4·c²·b[/code]
+Comme les ailerons sont loin à l'arrière, cela augmente surtout l'inertie en tangage et en lacet et couple le mouvement latéral à la rotation.
 
 [b]Moment de Munk[/b]
-Les masses ajoutées inégales donnent directement le dernier terme de la seconde équation, [code]−v × (M_a·v)[/code]. Sous un angle d'incidence α, on a approximativement
+Les masses ajoutées inégales donnent directement la part de M_A dans le terme [code]−v × p1[/code] de l'équation des moments. Pour l'enveloppe sous un angle d'incidence α, on a approximativement
 [code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 Ce moment écarte encore plus le nez du vent – la coque seule est instable. Comme la couche limite à l'arrière en annule une partie, le simulateur utilise 60 % de la valeur théorique.
 
@@ -44,10 +52,6 @@ La masse restante (batterie, lest) est dimensionnée et placée de sorte que le 
 [b]Enveloppe Gertler[/b]
 La forme de l'enveloppe vient de la série DTMB 58 (Gertler, 1950), mise en œuvre d'après le Gertler Shape Generator de Johannes Eissing. Un polynôme de degré 6 donne le rayon le long de la longueur ; les paramètres sont longueur/diamètre (L/D), position du maître-couple, rayons du nez et de la queue et coefficient prismatique. Volume, surface, centre de poussée et masses ajoutées découlent de la forme.
 
-[b]Modèles standard[/b]
-[b]Chewie[/b] – le vrai dirigeable de course : L/D 6, empennage lambda de trois ailerons monoblocs légers (±50°), deux moteurs orientables bas sur les côtés, contrôleur de vol Teensy.
-[b]Albacore[/b] – d'après le sous-marin USS Albacore, L/D 7,5, empennage en croix avec volets, deux moteurs bas sur les côtés.
-
 [b]Masses[/b]
 Enveloppe (répartie sur la surface), moteurs et ailerons à leur emplacement, électronique et batterie sous l'enveloppe. Le simulateur en déduit le centre de gravité et les moments d'inertie ; la masse restante est équilibrée automatiquement.
 
@@ -55,12 +59,13 @@ Enveloppe (répartie sur la surface), moteurs et ailerons à leur emplacement, �
 L'atelier vérifie le volume d'empennage [code]V_H = S_ailerons · bras de levier / V_enveloppe[/code]. S'il est trop petit, l'empennage ne peut pas compenser le moment de Munk et un avertissement apparaît.
 
 [b]Tes propres modèles[/b]
-Sous « Modèle & construction » → « Construction perso », tu peux régler librement l'enveloppe, l'empennage, la propulsion et l'apparence. Les modèles peuvent être exportés en fichier et envoyés à l'administrateur – les modèles vérifiés deviennent des modèles standard pour tous.
+Sous « Modèle & construction » → « Construction perso », tu peux régler librement l'enveloppe, l'empennage, la propulsion et l'apparence. Les modèles peuvent être exportés en fichier et envoyés à l'administrateur – les modèles vérifiés sont ajoutés à la sélection pour tous.
 
 [b]Classement de course (règlement F7B)[/b]
 La course comporte 3 tours en huit autour des deux pylônes, départ lancé. On mesure le temps total t sur les 3 tours. Pour comparer équitablement grands et petits dirigeables, le temps est pondéré par la taille :
 [code]V_ref = L · l · H · π/6
-t_classé = t · V_ref^(1/3)[/code]
+L_ref = V_ref^(1/3)
+t_classé = t · √(L_ref / 1 m)[/code]
 L, l, H : longueur, largeur et hauteur de la boîte hors tout (enveloppe, ailerons, moteurs, batterie) en m – comme affiché dans l'atelier. V_ref est le volume de l'ellipsoïde dans cette boîte ; un dirigeable plus petit obtient donc un bonus. L'affichage à droite pendant le vol montre les tours, le temps total et le temps classé.
 @@@
 [b]Le contrôleur de vol virtuel[/b]
@@ -103,7 +108,9 @@ Simulateur open source pour dirigeables de course DIY. Construit avec Godot Engi
 {VERSION}
 
 [b]Licence[/b]
-Licence MIT – © 2026 Erich Fink (DerFink). Le code source peut être utilisé, modifié et partagé librement.
+Licence publique générale GNU version 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Le simulateur est un logiciel libre : tu peux l'utiliser, le modifier et le partager, y compris sous une forme modifiée – mais uniquement à nouveau sous la GPL et avec le code source. Il est fourni sans aucune garantie.
+Code source : github.com/DerFink/AR-Airship-Regatta · Texte de la licence : gnu.org/licenses/gpl-3.0
+Le contrôleur de vol et le sketch Teensy reposent sur dRehmFlight de Nicholas Rehm (GPL-3.0).
 Godot Engine : licence MIT. Police pour le chinois : Noto Sans CJK (SIL Open Font License).
 
 [b]Créé avec l'IA[/b]

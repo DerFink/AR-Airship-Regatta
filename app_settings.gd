@@ -1,3 +1,4 @@
+# 2026-11-17 08:45 – physics_full entfernt (volle 6×6-Massenmatrix ist immer an)
 # 2026-11-17 00:45 – Aufnahme: rec_auto, rec_audio
 # 2026-11-16 23:50 – physics_full: Physik „genau“ (volle 6×6-Massenmatrix), gespeichert unter [physik]
 # 2026-11-15 22:00 – Browser-Motorklang: Säuseln (Standard) oder fein; apply_sound_mode()
@@ -41,7 +42,6 @@ static var device_id := ""
 static var sound_fine_web := false
 ## Physik „genau“: volle 6×6-Massenmatrix statt Diagonale (Einstellungen).
 ## Zählt vorerst nicht für die Bestenliste (dort gilt „einfach“).
-static var physics_full := false
 ## Aufnahme (Browser): beim Rennstart automatisch starten / Ton mit aufnehmen
 static var rec_auto := false
 static var rec_audio := true
@@ -66,7 +66,6 @@ static func load_all() -> void:
 		online_consent = int(cfg.get_value("online", "einwilligung", online_consent))
 		device_id = str(cfg.get_value("online", "geraet", device_id))
 		sound_fine_web = bool(cfg.get_value("ton", "fein_browser", sound_fine_web))
-		physics_full = bool(cfg.get_value("physik", "voll_6x6", physics_full))
 		rec_auto = bool(cfg.get_value("aufnahme", "automatisch", rec_auto))
 		rec_audio = bool(cfg.get_value("aufnahme", "ton", rec_audio))
 	apply()
@@ -102,7 +101,6 @@ static func save() -> void:
 	cfg.set_value("online", "einwilligung", online_consent)
 	cfg.set_value("online", "geraet", device_id)
 	cfg.set_value("ton", "fein_browser", sound_fine_web)
-	cfg.set_value("physik", "voll_6x6", physics_full)
 	cfg.set_value("aufnahme", "automatisch", rec_auto)
 	cfg.set_value("aufnahme", "ton", rec_audio)
 	cfg.save(PATH)

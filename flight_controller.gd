@@ -1,3 +1,4 @@
+# 2026-11-17 09:00 – Lizenzhinweis (GPL-3.0, dRehmFlight) im Kopf
 # 2026-11-16 19:10 – Flugmodi je Luftschiff: default_ship_modes (Direkt/Angle/Horizon), adopt_ship_modes
 # 2026-11-16 18:10 – Mischer: Grundstellung je Ausgang und Geber S1–S4 (Tabellenschlüssel e<Ausgang> = [Grundstellung, S1…S4]), Desaturierung je Gruppe (alle Motoren bzw. alle Schwenker mit gemeinsamem Faktor)
 # 2026-11-16 17:30 – Schub je Motor im Mischer: Gas/Nick/Gier/Roll in % je Motor, Motor je Modus abschaltbar (motor_throttle, active_table); Regler ändert den Schub weiterhin nie
@@ -49,6 +50,9 @@
 # =============================================================================
 # FlightController.gd  (als Kind-Node des Luftschiffs)
 # -----------------------------------------------------------------------------
+# Lizenz: Die Regelung ist aus Chewies Teensy-Code nachgebaut, der auf
+# dRehmFlight von Nicholas Rehm (GPL-3.0) beruht – deshalb steht das ganze
+# Projekt unter der GPL-3.0 (siehe LICENSE und NOTICE.md).
 # Nachbau des echten Flugcontrollers von Chewie (Teensy 4.0, dRehmFlight,
 # Datei Chewie_SBUS_dRehmFlight_Teensy_BETA_1_3_20261001.ino, Stand 04.11.2026).
 # Rechenweg, Einheiten und Werte sind dieselben wie im Teensy-Code, damit

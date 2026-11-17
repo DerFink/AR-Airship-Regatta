@@ -1,3 +1,4 @@
+# 2026-11-17 08:45 – Export-Hinweis ohne „Standardmodell“
 # 2026-11-11 17:00 – Erster Start: Sprache des Geräts/Browsers übernehmen (nicht unterstützte → Englisch); selbst gewählte Sprache bleibt gespeichert
 # 2026-11-11 16:00 – „Autopilot“ → „Demo“
 # 2026-11-11 14:40 – Alle übrigen Anzeige-Texte aus i18n/ui_texte.txt; I18n.t() für zusammengesetzte Texte, I18n.dec() für das Dezimalzeichen je Sprache
@@ -76,14 +77,14 @@ const TEXTS := {
 	"Regler (PID)": ["Controller (PID)", "Régulateur (PID)", "Controlador (PID)", "Regolatore (PID)", "Regulátor (PID)", "Regulator (PID)", "控制器（PID）"],
 	"Autor": ["Author", "Auteur", "Autor", "Autore", "Autor", "Autor", "作者"],
 	"Team": ["Team", "Équipe", "Equipo", "Team", "Tým", "Zespół", "團隊"],
-	"Export: Modell als Datei speichern. Schick sie an den Admin – geprüfte Modelle werden als Standardmodell für alle aufgenommen.": [
-		"Export: save the model as a file. Send it to the admin – checked models are added as standard models for everyone.",
-		"Export : enregistrer le modèle dans un fichier. Envoie-le à l'administrateur – les modèles vérifiés deviennent des modèles standard pour tous.",
-		"Exportar: guardar el modelo como archivo. Envíalo al administrador: los modelos revisados se añaden como modelos estándar para todos.",
-		"Esporta: salva il modello come file. Invialo all'amministratore – i modelli verificati diventano modelli standard per tutti.",
-		"Export: uložit model jako soubor. Pošli ho správci – ověřené modely se přidají jako standardní pro všechny.",
-		"Eksport: zapisz model jako plik. Wyślij go administratorowi – sprawdzone modele zostaną dodane jako standardowe dla wszystkich.",
-		"匯出：將模型存成檔案並寄給管理員，審核後會成為所有人可用的標準模型。"],
+	"Export: Modell als Datei speichern. Schick sie an den Admin – geprüfte Modelle kommen für alle in die Auswahl.": [
+		"Export: save the model as a file. Send it to the admin – checked models are added to the selection for everyone.",
+		"Export : enregistrer le modèle dans un fichier. Envoie-le à l'administrateur – les modèles vérifiés sont ajoutés à la sélection pour tous.",
+		"Exportar: guardar el modelo como archivo. Envíalo al administrador: los modelos revisados se añaden a la selección para todos.",
+		"Esporta: salva il modello come file. Invialo all'amministratore – i modelli verificati vengono aggiunti alla selezione per tutti.",
+		"Export: uložit model jako soubor. Pošli ho správci – ověřené modely se přidají do výběru pro všechny.",
+		"Eksport: zapisz model jako plik. Wyślij go administratorowi – sprawdzone modele trafią do wyboru dla wszystkich.",
+		"匯出：將模型存成檔案並寄給管理員，審核通過後會加入所有人可選的清單。"],
 	# --- Über ---
 	# --- Ergänzungen 10.11.2026 (Startseite, Modell & Bau, Autopilot, Kalibrieren) ---
 	"Einstellungen": ["Settings", "Paramètres", "Ajustes", "Impostazioni", "Nastavení", "Ustawienia", "設定"],

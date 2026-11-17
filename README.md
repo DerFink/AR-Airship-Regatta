@@ -1,3 +1,4 @@
+<!-- 2026-11-17 09:00 – Lizenz auf GPL-3.0 umgestellt (dRehmFlight), Verweis auf NOTICE.md -->
 <!-- 2026-11-12 22:50 – Verweis auf docs/PROJEKTDOKU.md -->
 # RC Airship Regatta
 
@@ -75,7 +76,7 @@ Die Oberfläche gibt es in Deutsch, Englisch, Französisch, Spanisch, Italienisc
 Was gebaut wurde, warum, wo es im Code steht und bekannte Fallen: **`docs/PROJEKTDOKU.md`**.
 
 ## Lizenz
-MIT – siehe `LICENSE`. Eingesandte Logos bleiben Eigentum ihrer Urheber.
+GNU General Public License Version 3 (GPL-3.0) – siehe `LICENSE`. Flugcontroller und Teensy-Sketch beruhen auf [dRehmFlight](https://github.com/nickrehm/dRehmFlight) von Nicholas Rehm (GPL-3.0); weitere Fremdbestandteile und ihre Lizenzen stehen in `NOTICE.md`. Bis Version 1.2.0 stand das Projekt unter MIT. Eingesandte Logos bleiben Eigentum ihrer Urheber.
 
 ## Mit KI erstellt
 Dieses Programm wurde nur dank KI erstellt: Code, Physikmodell und Texte sind im Dialog mit Claude (KI von Anthropic) entstanden. KI kann Fehler machen – bitte Ergebnisse prüfen, besonders exportierte Teensy-Sketche: vor dem Erstflug immer einen Bodentest mit abgenommenen Propellern machen.

@@ -1,3 +1,4 @@
+# 2026-11-17 08:45 – Schalter „Physik genau“ entfernt (volle 6×6-Massenmatrix ist jetzt immer an)
 # 2026-11-17 00:45 – Aufnahme-Schalter (Browser)
 # 2026-11-16 23:50 – Schalter „Physik genau (6×6)“
 # 2026-11-15 22:05 – Browser: Schalter „Motorklang fein“ (Standard aus = Säuseln)
@@ -118,9 +119,6 @@ func _ready() -> void:
 			func(on): AppSettings.rec_auto = on; AppSettings.save()))
 		box.add_child(_toggle("Ton mit aufnehmen", AppSettings.rec_audio,
 			func(on): AppSettings.rec_audio = on; AppSettings.save()))
-	# --- Physik: einfach (Diagonale, bisher) oder genau (volle 6×6-Massenmatrix) ---
-	box.add_child(_toggle("Physik genau (volle 6×6-Massenmatrix: Schwerpunkt-Kopplung, Deviationsmomente, Flossen) – vorerst ohne Wertung",
-		AppSettings.physics_full, func(on): AppSettings.physics_full = on; AppSettings.save()))
 	# --- Rechtliches: Impressum und Datenschutz (öffnen den Browser) ---
 	var lrow := UITheme.make_hbox("sm")
 	var b_imp := UITheme.make_button("Impressum ↗")

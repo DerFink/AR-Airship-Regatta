@@ -1,25 +1,33 @@
+# 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
+# 2026-11-17 08:40 – Physik: volle 6×6-Massenmatrix (einziges Modell), virtuelle Masse der Flossen; Standardmodelle entfernt; F7B-Formel mit L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
 # Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
 # Zeilen mit # am Anfang werden ignoriert.
 [b]Bewegungsgleichungen (6 Freiheitsgrade)[/b]
-Das Luftschiff ist ein starrer Körper mit 3 Verschiebungen und 3 Drehungen. Gerechnet wird im Körpersystem (Ursprung im Auftriebszentrum, Nase nach vorn) mit 60 Schritten pro Sekunde:
+Das Luftschiff ist ein starrer Körper mit 3 Verschiebungen und 3 Drehungen. Gerechnet wird im Körpersystem (Ursprung im Auftriebszentrum, Nase nach vorn) mit 60 Schritten pro Sekunde. Geschwindigkeit v und Drehrate ω bilden den Zustand ν = [v; ω]; alle Massen stehen in einer vollen 6×6-Massenmatrix M:
 
-[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
-(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+[code]M = M_RB + M_A
+p = M·ν = [p1; p2]
+M·dν/dt = [ F − ω × p1 ;  T − ω × p2 − v × p1 ][/code]
 
-m, I: Masse und Trägheit des Schiffs (Hülle, Traggas, Motoren, Akku, Flossen)
-M_a, I_a: virtuelle Massen und Trägheiten der mitbewegten Luft
+M_RB: Masse und Trägheit des Schiffs (Hülle, Traggas, Motoren, Akku, Flossen) um das Auftriebszentrum – mit vollem Trägheitstensor (Deviationsmomente der Anbauten) und der Kopplung m·r_G zwischen Verschiebung und Drehung, weil der Schwerpunkt unter dem Auftriebszentrum liegt
+M_A: virtuelle Massen der mitbewegten Luft (Hülle und Flossen)
+p1, p2: Impuls und Drehimpuls von Schiff und mitbewegter Luft
 F, T: Kräfte und Momente aus Gewicht, Auftrieb, Rumpf, Flossen und Motoren
+Gelöst wird mit einer Cholesky-Zerlegung von M, die nur beim Umbau neu berechnet wird. Wird die Rechenleistung knapp, rechnet der Simulator vereinfacht nur mit der Diagonale von M.
 
 [b]Virtuelle Massen[/b]
-Ein Luftschiff ist fast so leicht wie die Luft, die es verdrängt. Beim Beschleunigen muss es diese Luft mit anschieben – und zwar quer viel mehr als längs. Der Simulator nutzt dafür die Lamb-Faktoren des Rotationsellipsoids (ATTAS-Ansatz):
+Ein Luftschiff ist fast so leicht wie die Luft, die es verdrängt. Beim Beschleunigen muss es diese Luft mit anschieben – und zwar quer viel mehr als längs. Für die Hülle nutzt der Simulator die Lamb-Faktoren des Rotationsellipsoids (ATTAS-Ansatz):
 [code]längs: k1·ρ·V      quer: k2·ρ·V      Drehung: k'·I_Luft[/code]
 Bei L/D = 6 ist k1 ≈ 0,05 und k2 ≈ 0,92: quer schiebt das Schiff fast eine zweite Luftfüllung mit.
+Jede Flosse schiebt quer zu ihrer Fläche zusätzlich Luft mit, wie eine ebene Platte (c Tiefe, b Spannweite):
+[code]m_F = ρ·π/4·c²·b[/code]
+Weil die Flossen weit hinten sitzen, erhöht das vor allem die Trägheit beim Nicken und Gieren und koppelt Querbewegung und Drehung.
 
 [b]Munk-Moment[/b]
-Aus den ungleichen virtuellen Massen folgt direkt der letzte Term der zweiten Gleichung, [code]−v × (M_a·v)[/code]. Bei Schräganströmung unter dem Winkel α gilt näherungsweise
+Aus den ungleichen virtuellen Massen folgt direkt der Anteil von M_A im Term [code]−v × p1[/code] der Momentengleichung. Bei Schräganströmung unter dem Winkel α gilt für die Hülle näherungsweise
 [code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 Dieses Moment dreht die Nase weiter aus dem Wind – der Rumpf allein ist instabil. Weil die Grenzschicht am Heck einen Teil davon aufhebt, rechnet der Simulator mit 60 % des theoretischen Werts.
 
@@ -45,10 +53,6 @@ Restmasse (Akku, Ballast) wird so bemessen und gelegt, dass das Schiff leicht sc
 [b]Hülle nach Gertler[/b]
 Die Form der Hülle stammt aus der DTMB-Serie 58 (Gertler, 1950), umgesetzt nach dem Gertler Shape Generator von Johannes Eissing. Ein Polynom 6. Grades beschreibt den Radius über der Länge; die Parameter sind Länge/Durchmesser (L/D), Lage des dicksten Querschnitts, Nasen- und Heckradius und Völligkeit. Aus der Form folgen Volumen, Oberfläche, Auftriebszentrum und die virtuellen Massen.
 
-[b]Standardmodelle[/b]
-[b]Chewie[/b] – das echte Rennluftschiff: L/D 6, Lambda-Leitwerk aus drei leichten Pendelflossen (±50°), zwei schwenkbare Motoren seitlich unten, Teensy-Flugcontroller.
-[b]Albacore[/b] – nach dem U-Boot USS Albacore, L/D 7,5, Kreuzleitwerk mit Ruderklappen, zwei Motoren seitlich unten.
-
 [b]Massen[/b]
 Hülle (verteilt über die Fläche), Motoren und Flossen am Einbauort, Elektronik und Akku unten an der Hülle. Daraus berechnet der Simulator Schwerpunkt und Trägheitsmomente; die Restmasse wird automatisch getrimmt.
 
@@ -56,12 +60,13 @@ Hülle (verteilt über die Fläche), Motoren und Flossen am Einbauort, Elektroni
 Der Baukasten prüft das Leitwerksvolumen [code]V_H = S_Flossen · Hebelarm / V_Hülle[/code]. Ist es zu klein, kann das Leitwerk das Munk-Moment nicht ausgleichen und es erscheint eine Warnung.
 
 [b]Eigene Modelle[/b]
-Unter „Modell & Bau“ → „Eigenbau“ lassen sich Hülle, Leitwerk, Antrieb und Aussehen frei einstellen. Modelle können als Datei exportiert und an den Admin geschickt werden – geprüfte Modelle kommen als Standardmodell für alle in die App.
+Unter „Modell & Bau“ → „Eigenbau“ lassen sich Hülle, Leitwerk, Antrieb und Aussehen frei einstellen. Modelle können als Datei exportiert und an den Admin geschickt werden – geprüfte Modelle kommen für alle in die Auswahl.
 
 [b]Rennwertung (F7B-Reglement)[/b]
 Geflogen werden 3 Runden als Acht um die beiden Pylone, mit fliegendem Start. Gemessen wird die Gesamtzeit t über alle 3 Runden. Damit große und kleine Luftschiffe fair verglichen werden, wird die Zeit mit der Größe des Schiffs gewertet:
 [code]V_ref = L · B · H · π/6
-t_gewertet = t · V_ref^(1/3)[/code]
+L_ref = V_ref^(1/3)
+t_gewertet = t · √(L_ref / 1 m)[/code]
 L, B, H: Länge, Breite und Höhe der Box über alles (Hülle, Flossen, Motoren, Akku) in m – wie im Baukasten als Boxmaß angezeigt. V_ref ist das Volumen des Ellipsoids in dieser Box. Ein kleineres Schiff bekommt also einen Bonus. Die Anzeige rechts im Flug zeigt die Runden, die Gesamtzeit und die gewertete Zeit.
 @@@
 [b]Der virtuelle Flugcontroller[/b]
@@ -104,7 +109,9 @@ Open-Source-Simulator für DIY-Rennluftschiffe. Gebaut mit der Godot Engine 4.
 {VERSION}
 
 [b]Lizenz[/b]
-MIT-Lizenz – © 2026 Erich Fink (DerFink). Der Quelltext darf frei verwendet, verändert und weitergegeben werden.
+GNU General Public License Version 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Der Simulator ist freie Software: Du darfst ihn verwenden, verändern und weitergeben, auch in veränderter Form – dann aber wieder unter der GPL und mit Quelltext. Er wird ohne jede Gewährleistung bereitgestellt.
+Quelltext: github.com/DerFink/AR-Airship-Regatta · Lizenztext: gnu.org/licenses/gpl-3.0
+Flugcontroller und Teensy-Sketch beruhen auf dRehmFlight von Nicholas Rehm (GPL-3.0).
 Godot Engine: MIT-Lizenz. Schrift für Chinesisch: Noto Sans CJK (SIL Open Font License).
 
 [b]Mit KI erstellt[/b]

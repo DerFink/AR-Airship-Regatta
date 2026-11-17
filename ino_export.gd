@@ -1,3 +1,4 @@
+# 2026-11-17 09:00 – Zweite Kopfzeile im erzeugten Sketch: Lizenzhinweis GPL-3.0 (dRehmFlight), nur Kommentar
 # 2026-11-11 14:50 – Hinweise für die Anzeige übersetzt (note_ui); Kopfzeile im Sketch bleibt Deutsch
 # 2026-11-11 13:30 – Parametrisch: Mischer (Mode 1 und Mode 2/3), Servo-Ausgänge und Motoren werden aus der Leitwerks- und Antriebskonfiguration des Modells erzeugt; optional Kanalzuordnung des Senders
 # 2026-11-11 11:20 – Erstversion: Teensy-Sketch (.ino) aus dem Simulator erzeugen – Vorlage ist Chewies dRehmFlight-Stand BETA 1.4; die Reglerwerte des Simulators werden in die passenden Variablen eingesetzt, oben steht eine Kopfzeile mit Zeitstempel und Liste der Änderungen
@@ -126,6 +127,8 @@ static func build(fc: FlightController, model_name: String, opts := {}) -> Dicti
 		what += "; " + "; ".join(notes)
 	var head := "// %s | Aenderungen: Export aus RC Airship Regatta %s, Modell \"%s\": %s. VOR DEM ERSTFLUG: Bodentest (Propeller ab) - jede Flosse/jeden Schwenker auf Richtung pruefen" % [
 		stamp.left(16), BuildInfo.VERSION, model_name, what]
+	# Lizenzhinweis (nur Kommentar): der Sketch beruht auf dRehmFlight (GPL-3.0)
+	head += "\n// Lizenz: GNU GPL Version 3 - beruht auf dRehmFlight von Nicholas Rehm (github.com/nickrehm/dRehmFlight); Simulator: github.com/DerFink/AR-Airship-Regatta"
 	return {"text": (head + "\n" + "\n".join(lines)).replace("\n", "\r\n"), "changed": changed, "missing": missing, "notes": notes}
 
 

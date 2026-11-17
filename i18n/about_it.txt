@@ -1,24 +1,32 @@
+# 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
+# 2026-11-17 08:40 – fisica: matrice delle masse 6×6 completa (unico modello), massa aggiunta delle pinne; modelli standard rimossi; formula F7B con L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Testi della pagina «Fondamenti del simulatore» (BBCode). Schede separate da una riga @@@:
 # Fisica, Modello del dirigibile, Regolatore (PID), Batteria, Info / licenza. Variabili {VERSION} e {CONTACT}.
 [b]Equazioni del moto (6 gradi di libertà)[/b]
-Il dirigibile è un corpo rigido con 3 traslazioni e 3 rotazioni. Il simulatore calcola negli assi corpo (origine nel centro di spinta, prua in avanti) a 60 passi al secondo:
+Il dirigibile è un corpo rigido con 3 traslazioni e 3 rotazioni. Il simulatore calcola negli assi corpo (origine nel centro di spinta, prua in avanti) a 60 passi al secondo. La velocità v e la velocità di rotazione ω formano lo stato ν = [v; ω]; tutte le masse stanno in una matrice delle masse 6×6 completa M:
 
-[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
-(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+[code]M = M_RB + M_A
+p = M·ν = [p1; p2]
+M·dν/dt = [ F − ω × p1 ;  T − ω × p2 − v × p1 ][/code]
 
-m, I: massa e inerzia del dirigibile (involucro, gas portante, motori, batteria, pinne)
-M_a, I_a: masse e inerzie aggiunte (virtuali) dell'aria trascinata
+M_RB: massa e inerzia del dirigibile (involucro, gas, motori, batteria, pinne) rispetto al centro di spinta – con il tensore d'inerzia completo (prodotti d'inerzia delle parti montate) e l'accoppiamento m·r_G tra traslazione e rotazione, perché il baricentro sta sotto il centro di spinta
+M_A: masse aggiunte dell'aria trascinata (involucro e pinne)
+p1, p2: quantità di moto e momento angolare del dirigibile e dell'aria trascinata
 F, T: forze e momenti da peso, spinta aerostatica, scafo, pinne e motori
+L'equazione si risolve con una fattorizzazione di Cholesky di M, ricalcolata solo quando si modifica il modello. Se la potenza di calcolo non basta, il simulatore passa a un calcolo semplificato con la sola diagonale di M.
 
 [b]Masse aggiunte[/b]
-Un dirigibile è leggero quasi quanto l'aria che sposta. Quando accelera deve spingere con sé quest'aria – molto più di lato che in lunghezza. Il simulatore usa i coefficienti di Lamb dell'ellissoide allungato (approccio ATTAS):
+Un dirigibile è leggero quasi quanto l'aria che sposta. Quando accelera deve spingere quell'aria con sé – molto più di lato che in lunghezza. Per l'involucro il simulatore usa i coefficienti di Lamb dell'ellissoide allungato (approccio ATTAS):
 [code]assiale: k1·ρ·V      laterale: k2·ρ·V      rotazione: k'·I_aria[/code]
 Con L/D = 6, k1 ≈ 0,05 e k2 ≈ 0,92: di lato il dirigibile trascina quasi un secondo volume d'aria.
+Ogni pinna trascina inoltre aria perpendicolarmente alla sua superficie, come una lastra piana (c corda, b apertura):
+[code]m_F = ρ·π/4·c²·b[/code]
+Poiché le pinne sono molto indietro, questo aumenta soprattutto l'inerzia in beccheggio e imbardata e accoppia il moto laterale con la rotazione.
 
 [b]Momento di Munk[/b]
-Le masse aggiunte disuguali danno direttamente l'ultimo termine della seconda equazione, [code]−v × (M_a·v)[/code]. Con un angolo d'incidenza α, approssimativamente
+Le masse aggiunte diverse producono direttamente la parte di M_A nel termine [code]−v × p1[/code] dell'equazione dei momenti. Per l'involucro con angolo d'incidenza α vale approssimativamente
 [code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 Questo momento allontana ancora di più la prua dal vento – lo scafo da solo è instabile. Poiché lo strato limite in coda ne annulla una parte, il simulatore usa il 60 % del valore teorico.
 
@@ -44,10 +52,6 @@ La massa residua (batteria, zavorra) è dimensionata e posizionata in modo che i
 [b]Involucro Gertler[/b]
 La forma dell'involucro deriva dalla serie DTMB 58 (Gertler, 1950), realizzata secondo il Gertler Shape Generator di Johannes Eissing. Un polinomio di 6° grado dà il raggio lungo la lunghezza; i parametri sono lunghezza/diametro (L/D), posizione della sezione massima, raggi di prua e di coda e coefficiente prismatico. Volume, superficie, centro di spinta e masse aggiunte derivano dalla forma.
 
-[b]Modelli standard[/b]
-[b]Chewie[/b] – il vero dirigibile da corsa: L/D 6, impennaggio lambda con tre pinne interamente mobili leggere (±50°), due motori orientabili in basso ai lati, flight controller Teensy.
-[b]Albacore[/b] – dal sottomarino USS Albacore, L/D 7,5, impennaggio a croce con flap, due motori in basso ai lati.
-
 [b]Masse[/b]
 Involucro (distribuito sulla superficie), motori e pinne nel punto di montaggio, elettronica e batteria sotto l'involucro. Da questi il simulatore calcola baricentro e momenti d'inerzia; la massa residua viene bilanciata automaticamente.
 
@@ -55,12 +59,13 @@ Involucro (distribuito sulla superficie), motori e pinne nel punto di montaggio,
 Il costruttore controlla il volume dell'impennaggio [code]V_H = S_pinne · braccio / V_involucro[/code]. Se è troppo piccolo, l'impennaggio non riesce a compensare il momento di Munk e compare un avviso.
 
 [b]I tuoi modelli[/b]
-In «Modello e costruzione» → «Costruzione propria» puoi impostare liberamente involucro, impennaggio, propulsione e aspetto. I modelli si possono esportare come file e inviare all'amministratore – i modelli verificati diventano modelli standard per tutti.
+In «Modello e costruzione» → «Costruzione propria» puoi impostare liberamente involucro, impennaggio, propulsione e aspetto. I modelli si possono esportare come file e inviare all'amministratore – i modelli verificati vengono aggiunti alla selezione per tutti.
 
 [b]Classifica di gara (regolamento F7B)[/b]
 Si volano 3 giri a otto attorno ai due piloni, con partenza lanciata. Si misura il tempo totale t sui 3 giri. Per confrontare in modo equo dirigibili grandi e piccoli, il tempo viene pesato con la dimensione:
 [code]V_ref = L · W · H · π/6
-t_valutato = t · V_ref^(1/3)[/code]
+L_ref = V_ref^(1/3)
+t_valutato = t · √(L_ref / 1 m)[/code]
 L, W, H: lunghezza, larghezza e altezza del box d'ingombro (involucro, pinne, motori, batteria) in m, come mostrato nel costruttore. V_ref è il volume dell'ellissoide in quel box; un dirigibile più piccolo ottiene quindi un vantaggio. Il riquadro a destra durante il volo mostra i giri, il tempo totale e il tempo valutato.
 @@@
 [b]Il flight controller virtuale[/b]
@@ -103,7 +108,9 @@ Simulatore open source per dirigibili da corsa fai-da-te. Realizzato con Godot E
 {VERSION}
 
 [b]Licenza[/b]
-Licenza MIT – © 2026 Erich Fink (DerFink). Il codice sorgente può essere usato, modificato e condiviso liberamente.
+GNU General Public License versione 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Il simulatore è software libero: puoi usarlo, modificarlo e condividerlo, anche in forma modificata – ma solo di nuovo sotto la GPL e insieme al codice sorgente. È fornito senza alcuna garanzia.
+Codice sorgente: github.com/DerFink/AR-Airship-Regatta · Testo della licenza: gnu.org/licenses/gpl-3.0
+Il flight controller e lo sketch Teensy si basano su dRehmFlight di Nicholas Rehm (GPL-3.0).
 Godot Engine: licenza MIT. Font per il cinese: Noto Sans CJK (SIL Open Font License).
 
 [b]Creato con l'IA[/b]

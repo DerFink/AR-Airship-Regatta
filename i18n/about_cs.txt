@@ -1,24 +1,32 @@
+# 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
+# 2026-11-17 08:40 – fyzika: úplná matice hmotnosti 6×6 (jediný model), přidaná hmotnost ploutví; standardní modely odstraněny; vzorec F7B s L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texty stránky „Základy simulátoru“ (BBCode). Karty oddělené řádkem @@@:
 # Fyzika, Model vzducholodě, Regulátor (PID), Baterie, O aplikaci / licence. Proměnné {VERSION} a {CONTACT}.
 [b]Pohybové rovnice (6 stupňů volnosti)[/b]
-Vzducholoď je tuhé těleso se 3 posuvy a 3 rotacemi. Simulátor počítá v souřadnicích tělesa (počátek ve středu vztlaku, příď dopředu) 60 kroků za sekundu:
+Vzducholoď je tuhé těleso se 3 posuny a 3 rotacemi. Simulátor počítá v souřadnicích tělesa (počátek ve středu vztlaku, příď dopředu) se 60 kroky za sekundu. Rychlost v a úhlová rychlost ω tvoří stav ν = [v; ω]; všechny hmotnosti jsou v úplné matici hmotnosti 6×6 M:
 
-[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
-(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+[code]M = M_RB + M_A
+p = M·ν = [p1; p2]
+M·dν/dt = [ F − ω × p1 ;  T − ω × p2 − v × p1 ][/code]
 
-m, I: hmotnost a setrvačnost lodi (obal, nosný plyn, motory, baterie, ploutve)
-M_a, I_a: přidané (virtuální) hmotnosti a setrvačnosti strhávaného vzduchu
+M_RB: hmotnost a setrvačnost vzducholodi (obal, nosný plyn, motory, akumulátor, ploutve) ke středu vztlaku – s úplným tenzorem setrvačnosti (deviační momenty namontovaných dílů) a vazbou m·r_G mezi posunem a rotací, protože těžiště leží pod středem vztlaku
+M_A: přidané hmotnosti strhávaného vzduchu (obal a ploutve)
+p1, p2: hybnost a moment hybnosti vzducholodi a strhávaného vzduchu
 F, T: síly a momenty od tíhy, vztlaku, trupu, ploutví a motorů
+Rovnice se řeší Choleského rozkladem M, který se přepočítá jen při přestavbě modelu. Když nestačí výpočetní výkon, simulátor přejde na zjednodušený výpočet jen s diagonálou M.
 
 [b]Přidané hmotnosti[/b]
-Vzducholoď je skoro tak lehká jako vzduch, který vytlačuje. Při zrychlování musí tento vzduch tlačit s sebou – napříč mnohem víc než podélně. Simulátor používá Lambovy koeficienty protáhlého elipsoidu (přístup ATTAS):
+Vzducholoď je skoro tak lehká jako vzduch, který vytlačuje. Při zrychlování musí tento vzduch tlačit s sebou – napříč mnohem víc než podélně. Pro obal simulátor používá Lambovy koeficienty protáhlého elipsoidu (přístup ATTAS):
 [code]podélně: k1·ρ·V      příčně: k2·ρ·V      rotace: k'·I_vzduch[/code]
 Při L/D = 6 je k1 ≈ 0,05 a k2 ≈ 0,92: napříč loď strhává skoro druhý objem vzduchu.
+Každá ploutev navíc strhává vzduch kolmo ke své ploše, jako rovná deska (c hloubka, b rozpětí):
+[code]m_F = ρ·π/4·c²·b[/code]
+Protože ploutve jsou daleko vzadu, zvyšuje to hlavně setrvačnost v klopení a zatáčení a váže boční pohyb s rotací.
 
 [b]Munkův moment[/b]
-Z nestejných přidaných hmotností přímo vyplývá poslední člen druhé rovnice, [code]−v × (M_a·v)[/code]. Při úhlu náběhu α přibližně platí
+Z nestejných přidaných hmotností přímo plyne podíl M_A v členu [code]−v × p1[/code] momentové rovnice. Pro obal při úhlu náběhu α platí přibližně
 [code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 Tento moment vytáčí příď ještě víc z větru – samotný trup je nestabilní. Protože mezní vrstva na zádi část z něj ruší, simulátor počítá se 60 % teoretické hodnoty.
 
@@ -44,10 +52,6 @@ Zbývající hmotnost (baterie, zátěž) se volí a umisťuje tak, aby loď byl
 [b]Obal podle Gertlera[/b]
 Tvar obalu pochází z řady DTMB 58 (Gertler, 1950), převzatý podle Gertler Shape Generatoru Johannese Eissinga. Polynom 6. stupně popisuje poloměr po délce; parametry jsou délka/průměr (L/D), poloha největšího průřezu, poloměr přídě a zádě a plnost. Z tvaru vyplývá objem, povrch, střed vztlaku a přidané hmotnosti.
 
-[b]Standardní modely[/b]
-[b]Chewie[/b] – skutečná závodní vzducholoď: L/D 6, lambda ocasní plochy ze tří lehkých celopohyblivých ploutví (±50°), dva naklápěcí motory dole po stranách, letový kontrolér Teensy.
-[b]Albacore[/b] – podle ponorky USS Albacore, L/D 7,5, křížové ocasní plochy s klapkami, dva motory dole po stranách.
-
 [b]Hmotnosti[/b]
 Obal (rozložený po povrchu), motory a ploutve v místě montáže, elektronika a baterie dole na obalu. Z toho simulátor počítá těžiště a momenty setrvačnosti; zbývající hmotnost se vyváží automaticky.
 
@@ -55,12 +59,13 @@ Obal (rozložený po povrchu), motory a ploutve v místě montáže, elektronika
 Stavebnice kontroluje objem ocasních ploch [code]V_H = S_ploutví · rameno / V_obalu[/code]. Je-li příliš malý, ocasní plochy nevyrovnají Munkův moment a objeví se varování.
 
 [b]Vlastní modely[/b]
-V „Model a stavba“ → „Vlastní stavba“ lze volně nastavit obal, ocasní plochy, pohon a vzhled. Modely lze exportovat jako soubor a poslat správci – ověřené modely se stanou standardními pro všechny.
+V „Model a stavba“ → „Vlastní stavba“ lze volně nastavit obal, ocasní plochy, pohon a vzhled. Modely lze exportovat jako soubor a poslat správci – ověřené modely se přidají do výběru pro všechny.
 
 [b]Hodnocení závodu (pravidla F7B)[/b]
 Létají se 3 kola osmičky kolem obou pylonů s letmým startem. Měří se celkový čas t za všechna 3 kola. Aby se velké a malé vzducholodě porovnaly spravedlivě, čas se váží velikostí lodi:
 [code]V_ref = D · Š · V · π/6
-t_hodnocený = t · V_ref^(1/3)[/code]
+L_ref = V_ref^(1/3)
+t_hodnocený = t · √(L_ref / 1 m)[/code]
 D, Š, V: délka, šířka a výška celkového boxu (obal, ploutve, motory, baterie) v m – jak ukazuje stavebnice. V_ref je objem elipsoidu v tomto boxu; menší loď tedy dostane bonus. Panel vpravo během letu ukazuje kola, celkový a hodnocený čas.
 @@@
 [b]Virtuální letový kontrolér[/b]
@@ -103,7 +108,9 @@ Open-source simulátor pro závodní vzducholodě DIY. Vytvořeno v Godot Engine
 {VERSION}
 
 [b]Licence[/b]
-Licence MIT – © 2026 Erich Fink (DerFink). Zdrojový kód lze volně používat, měnit a šířit.
+GNU General Public License verze 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Simulátor je svobodný software: smíš ho používat, měnit a šířit, i v upravené podobě – ale jen znovu pod GPL a se zdrojovým kódem. Je poskytován bez jakékoli záruky.
+Zdrojový kód: github.com/DerFink/AR-Airship-Regatta · Text licence: gnu.org/licenses/gpl-3.0
+Letový kontrolér a sketch pro Teensy vycházejí z dRehmFlight od Nicholase Rehma (GPL-3.0).
 Godot Engine: licence MIT. Písmo pro čínštinu: Noto Sans CJK (SIL Open Font License).
 
 [b]Vytvořeno s pomocí AI[/b]

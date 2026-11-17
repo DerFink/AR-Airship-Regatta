@@ -1,25 +1,33 @@
+# 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
+# 2026-11-17 08:40 – physics: full 6×6 mass matrix (only model), fin added mass; standard models removed; F7B formula with L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
 # Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
 # Zeilen mit # am Anfang werden ignoriert.
 [b]Equations of motion (6 degrees of freedom)[/b]
-The airship is a rigid body with 3 translations and 3 rotations. The simulator works in body axes (origin at the centre of buoyancy, nose forward) at 60 steps per second:
+The airship is a rigid body with 3 translations and 3 rotations. The simulator works in body axes (origin at the centre of buoyancy, nose forward) at 60 steps per second. Velocity v and rotation rate ω form the state ν = [v; ω]; all masses are collected in a full 6×6 mass matrix M:
 
-[code](m + M_a)·a = F + M_a·(ω × v) − ω × (M_a·v)
-(I + I_a)·dω/dt = T − ω × ((I + I_a)·ω) − v × (M_a·v)[/code]
+[code]M = M_RB + M_A
+p = M·ν = [p1; p2]
+M·dν/dt = [ F − ω × p1 ;  T − ω × p2 − v × p1 ][/code]
 
-m, I: mass and inertia of the ship (envelope, lifting gas, motors, battery, fins)
-M_a, I_a: added (virtual) masses and inertias of the air moved along
+M_RB: mass and inertia of the ship (envelope, lifting gas, motors, battery, fins) about the centre of buoyancy – with the full inertia tensor (products of inertia of the attached parts) and the coupling m·r_G between translation and rotation, because the centre of gravity lies below the centre of buoyancy
+M_A: added (virtual) masses of the air moved along (hull and fins)
+p1, p2: linear and angular momentum of ship and entrained air
 F, T: forces and moments from weight, buoyancy, hull, fins and motors
+The equation is solved with a Cholesky factorisation of M, which is only recomputed when the ship is rebuilt. If computing power runs short, the simulator falls back to a simplified calculation using only the diagonal of M.
 
 [b]Added masses[/b]
-An airship is almost as light as the air it displaces. When it accelerates it has to push that air along – much more sideways than lengthwise. The simulator uses Lamb's coefficients for the prolate ellipsoid (ATTAS approach):
+An airship is almost as light as the air it displaces. When it accelerates it has to push that air along – much more sideways than lengthwise. For the hull the simulator uses Lamb's coefficients for the prolate ellipsoid (ATTAS approach):
 [code]axial: k1·ρ·V      lateral: k2·ρ·V      rotation: k'·I_air[/code]
 At L/D = 6, k1 ≈ 0.05 and k2 ≈ 0.92: sideways the ship drags almost a second load of air.
+Each fin also carries air along perpendicular to its surface, like a flat plate (c chord, b span):
+[code]m_F = ρ·π/4·c²·b[/code]
+Because the fins sit far aft, this mainly raises the inertia in pitch and yaw and couples sideways motion with rotation.
 
 [b]Munk moment[/b]
-The unequal added masses directly produce the last term of the second equation, [code]−v × (M_a·v)[/code]. At an angle of attack α, approximately
+The unequal added masses directly produce the M_A part of the term [code]−v × p1[/code] in the moment equation. For the hull at an angle of attack α, approximately
 [code]M_Munk = ½·ρ·v²·V·(k2 − k1)·sin 2α[/code]
 This moment turns the nose further out of the wind – the bare hull is unstable. Because the boundary layer at the tail cancels part of it, the simulator uses 60 % of the theoretical value.
 
@@ -45,10 +53,6 @@ The remaining mass (battery, ballast) is sized and placed so that the ship is sl
 [b]Gertler hull[/b]
 The envelope shape comes from the DTMB Series 58 (Gertler, 1950), implemented after Johannes Eissing's Gertler Shape Generator. A 6th-order polynomial gives the radius along the length; parameters are length/diameter (L/D), position of maximum diameter, nose and tail radius and prismatic coefficient. Volume, surface, centre of buoyancy and added masses follow from the shape.
 
-[b]Standard models[/b]
-[b]Chewie[/b] – the real racing airship: L/D 6, lambda tail of three light all-moving fins (±50°), two swivelling motors low on the sides, Teensy flight controller.
-[b]Albacore[/b] – after the submarine USS Albacore, L/D 7.5, cross tail with flaps, two motors low on the sides.
-
 [b]Masses[/b]
 Envelope (spread over the surface), motors and fins where they are mounted, electronics and battery underneath the hull. From these the simulator computes centre of gravity and moments of inertia; the remaining mass is trimmed automatically.
 
@@ -56,12 +60,13 @@ Envelope (spread over the surface), motors and fins where they are mounted, elec
 The builder checks the tail volume [code]V_H = S_fins · lever arm / V_hull[/code]. If it is too small, the tail cannot balance the Munk moment and a warning appears.
 
 [b]Your own models[/b]
-Under “Model & Build” → “Custom build” you can set hull, tail, propulsion and appearance freely. Models can be exported as a file and sent to the admin – checked models become standard models for everyone.
+Under “Model & Build” → “Custom build” you can set hull, tail, propulsion and appearance freely. Models can be exported as a file and sent to the admin – checked models are added to the selection for everyone.
 
 [b]Race scoring (F7B rules)[/b]
 The race is 3 laps of a figure eight around the two pylons with a flying start. The total time t over all 3 laps is measured. To compare large and small airships fairly, the time is weighted by the size of the ship:
 [code]V_ref = L · W · H · π/6
-t_scored = t · V_ref^(1/3)[/code]
+L_ref = V_ref^(1/3)
+t_scored = t · √(L_ref / 1 m)[/code]
 L, W, H: length, width and height of the overall box (hull, fins, motors, battery) in m – as shown in the builder. V_ref is the volume of the ellipsoid in that box, so a smaller ship gets a bonus. The display on the right during the flight shows the laps, the total time and the scored time.
 @@@
 [b]The virtual flight controller[/b]
@@ -104,7 +109,9 @@ Open-source simulator for DIY racing airships. Built with the Godot Engine 4.
 {VERSION}
 
 [b]License[/b]
-MIT License – © 2026 Erich Fink (DerFink). The source code may be used, changed and shared freely.
+GNU General Public License version 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). The simulator is free software: you may use, change and share it, also in modified form – but only under the GPL again and together with the source code. It comes without any warranty.
+Source code: github.com/DerFink/AR-Airship-Regatta · License text: gnu.org/licenses/gpl-3.0
+The flight controller and the Teensy sketch are based on dRehmFlight by Nicholas Rehm (GPL-3.0).
 Godot Engine: MIT License. Chinese font: Noto Sans CJK (SIL Open Font License).
 
 [b]Made with AI[/b]

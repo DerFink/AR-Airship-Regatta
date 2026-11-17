@@ -1,3 +1,4 @@
+# 2026-11-17 08:45 – Volle 6×6-Massenmatrix ist jetzt immer an (Einstellung „Physik genau“ entfällt); Watchdog/vereinfacht rechnet weiter mit der Diagonale
 # 2026-11-16 23:50 – Einstellung AppSettings.physics_full schaltet die volle Massenmatrix
 # 2026-11-16 23:30 – Volle 6×6-Massenmatrix (mass_matrix_full): Schwerpunkt-Kopplung, Deviationsmomente, virtuelle Masse der Flossen; Kirchhoff mit Cholesky; Watchdog/vereinfacht → Diagonale wie bisher
 # 2026-11-16 19:10 – flight_modes: Flugmodi je Luftschiff (Name, Mischer/FC-Art, eigene Tabelle)
@@ -199,11 +200,11 @@ var added_mass: Vector3 = Vector3.ZERO      ## Ma (diagonal, Körperachsen)
 var inertia_rb: Vector3 = Vector3.ZERO      ## I  (diagonal)
 var added_inertia: Vector3 = Vector3.ZERO   ## Ia (diagonal)
 var simplified: bool = false                ## vom Watchdog gesetzt
-## Volle 6×6-Massenmatrix statt der Diagonale (Einstellung „Physik: genau“).
+## Volle 6×6-Massenmatrix (Standard und einziges Modell; false nur für Vergleichstests).
 ## Nimmt mit: Schwerpunkt unter dem Auftriebszentrum (Kopplung Translation ↔
 ## Rotation), Deviationsmomente der Anbauten und die virtuelle Masse der Flossen.
 ## Im vereinfachten Modus (Watchdog) wird immer die Diagonale gerechnet.
-var mass_matrix_full: bool = false
+var mass_matrix_full: bool = true
 var _m6 := PackedFloat64Array()             ## M = M_RB + M_A (6×6, zeilenweise)
 var _ma6 := PackedFloat64Array()            ## nur M_A (für das Munk-Moment mit munk_factor)
 var _l6 := PackedFloat64Array()             ## Cholesky-Faktor L von M (M = L·L^T)
@@ -531,7 +532,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# --- 6) Kleine Rolldämpfung ----------------------------------------------
 	T.z += -roll_damping * w_b.z
 
-	if (mass_matrix_full or AppSettings.physics_full) and _m6_ok and not simplified:
+	if mass_matrix_full and _m6_ok and not simplified:
 		# --- 7+8) Volle 6×6-Massenmatrix (Kirchhoff, siehe _solve_full) --------
 		var acc := _solve_full(F, T, v_rel, w_b)
 		# Körperableitungen → Welt: d(v)/dt = R·(v̇_b + ω×v_b), d(ω)/dt = R·ω̇_b
