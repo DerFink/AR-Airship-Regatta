@@ -1,3 +1,4 @@
+# 2026-11-17 18:35 – Zugangscodes: beim Start auffrischen; private Modelle melden im Ziel „zählen nicht für die Bestenliste“
 # 2026-11-17 09:35 – Tutorial „Erste Schritte“ einbinden (Knopf auf der Startseite, markierte Bereiche, Ansicht je Karte)
 # 2026-11-17 08:45 – Rennen mit voller 6×6-Physik zählen wieder für die Bestenliste (einziges Physikmodell)
 # 2026-11-16 23:50 – Physik „genau“ vorerst ohne Wertung
@@ -361,9 +362,13 @@ func _build_ui() -> void:
 	# „Einstellungen“: vorerst das Regler-Menü (Steuerung, Modus, alles zurücksetzen)
 	settings = SettingsPanel.new()
 	settings.online = lb_online                      # „Meine Online-Einträge löschen“
+	settings.access_changed.connect(func():
+		builder.update_admin()                       # Teensy-Sketch nur für den Admin
+		AirshipPresets._allowed = {})                # Liste der zugelassenen Modelle neu rechnen
 	settings.sound_mode_changed.connect(func(): _rebuild_prop_sounds(true))   # Motorklang einfach/fein
 	root.add_child(settings)
 	lb_online.hit()                                  # Besucherzähler: ein Start = ein Aufruf (ohne IP/Kennung)
+	AccessCodes.refresh(lb_online)                   # Zugangscode: private Modelle neu laden (gesperrt → weg)
 	start_screen.settings_requested.connect(func(): _settings_back = View.START; _set_view(View.SETTINGS))
 	settings.closed.connect(func(): builder.reload_model_list(); _set_view(_settings_back))   # Testmodelle ein/aus
 	# ⚙ auch im Flug und im Baukasten; zurück geht es dorthin, wo man herkam
@@ -526,6 +531,10 @@ func _on_race_changed() -> void:
 	# Bestenliste nur mit dem Standard-Pylonabstand (Cup bzw. Wiese 100 m)
 	if not course.is_ranked():
 		hud.show_notice(I18n.t("Ziel · %s – Pylonabstand geändert, nicht in der Bestenliste") % Course.format_time(course.time_s), "info", 5.0)
+		return
+	# Private Modelle (Zugangscode) zählen nie für die Bestenliste
+	if AirshipPresets.standard_model_of(ship) == "" and AirshipPresets.private_model_of(ship) != "":
+		hud.show_notice(I18n.t("Ziel · %s – private Modelle zählen nicht für die Bestenliste") % Course.format_time(course.time_s), "info", 5.0)
 		return
 	# Bestenliste nur mit unveränderten Modellen aus der Auswahl (Aussehen/Regler egal)
 	if AirshipPresets.standard_model_of(ship) == "":

@@ -1,3 +1,4 @@
+# 2026-11-17 18:45 – Private Modelle (Zugangscode) mit Schloss und „privat · Gruppe“ in der Liste
 # 2026-11-17 08:45 – Export-Hinweis ohne „Standardmodell“
 # 2026-11-16 20:30 – Kommentar: F7B-Faktor √(L_ref) statt L_ref
 # 2026-11-16 16:00 – Knopf „Auf Werkseinstellung zurücksetzen“ je Standardmodell, Hinweis wenn das geladene Luftschiff abweicht (keine Wertung)
@@ -245,7 +246,10 @@ func _fill() -> void:
 		var tex := ShipPreview.texture_for_build(e.name, e.build, 220)
 		var meta := AirshipPresets.meta(e.name)
 		var sub: String = meta.get("team", "")
-		var it := _item(tex, "%s   ×%s" % [e.name, _factor_text(race_factor_of(e.build))], sub, e.name == ship.model_name)
+		var priv: bool = e.source == "Privat"            # nur mit Zugangscode in der Liste
+		if priv:
+			sub = I18n.t("privat") + (" · " + sub if sub != "" else "")
+		var it := _item(tex, "%s   ×%s" % [e.name, _factor_text(race_factor_of(e.build))], sub, e.name == ship.model_name, priv)
 		ShipRender3D.into(it.get_meta("img"), e.build, 240)          # echtes 3D-Bild (mit Logos), sobald fertig
 		var idx := i
 		it.pressed.connect(func(): _select(idx))
@@ -258,7 +262,7 @@ func _fill() -> void:
 
 
 ## Listeneintrag: Bild links, Name und Zeile darunter rechts; ausgewählt = blau umrandet.
-func _item(tex: Texture2D, title: String, sub: String, on: bool) -> Button:
+func _item(tex: Texture2D, title: String, sub: String, on: bool, lock := false) -> Button:
 	var b := Button.new()
 	b.toggle_mode = true
 	b.button_pressed = on
@@ -295,9 +299,24 @@ func _item(tex: Texture2D, title: String, sub: String, on: bool) -> Button:
 	var t := UITheme.make_label(title)
 	var s := UITheme.make_label(sub, "MutedLabel")
 	s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	for c in [t, s]:
+	var top: Control = t
+	if lock:
+		# privates Modell: kleines Schloss hinter dem Namen (sieht nur, wer den Code hat)
+		var row := UITheme.make_hbox("xs")
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ic := TextureRect.new()
+		ic.texture = load("res://textures/schloss.svg")
+		ic.custom_minimum_size = Vector2(16, 16)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(t)
+		row.add_child(ic)
+		top = row
+	for c in [top, t, s]:
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		v.add_child(c)
+	v.add_child(top)
+	v.add_child(s)
 	h.add_child(v)
 	b.add_child(h)
 	return b

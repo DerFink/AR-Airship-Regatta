@@ -1,3 +1,4 @@
+# 2026-11-17 18:40 – Abschnitt „Zugang“: Zugangscode eingeben (Freischalten), Stand anzeigen, Code entfernen
 # 2026-11-17 08:45 – Schalter „Physik genau“ entfernt (volle 6×6-Massenmatrix ist jetzt immer an)
 # 2026-11-17 00:45 – Aufnahme-Schalter (Browser)
 # 2026-11-16 23:50 – Schalter „Physik genau (6×6)“
@@ -29,6 +30,7 @@ signal closed
 ## Browser: Motorklang einfach/fein umgeschaltet → Klang neu aufbauen
 signal sound_mode_changed
 signal controls_requested          ## Steuerung & Regler (Stick-Mode, alles zurücksetzen)
+signal access_changed              ## Zugangscode freigeschaltet/entfernt (Modellliste, Admin-Bereiche neu)
 
 var _panel: PanelContainer
 var _scroll: ScrollContainer          ## Inhalt scrollt, Kopfzeile bleibt
@@ -36,6 +38,10 @@ var _box: VBoxContainer
 var online: LeaderboardOnline          ## Online-Bestenliste (setzt main.gd) – zum Löschen der eigenen Einträge
 var _online_toggle: CheckButton       ## „Zeiten online eintragen“
 var _del_btn: Button                  ## „Meine Online-Einträge löschen“ (2× tippen)
+var _code_edit: LineEdit              ## Zugang: Code-Eingabe
+var _code_btn: Button                 ## „Freischalten“
+var _code_status: Label               ## Zugang: Stand („Freigeschaltet: …“ oder Fehler)
+var _code_del: Button                 ## „Code entfernen“
 var _del_armed := false               ## erster Tipp gemacht → zweiter löscht
 var _del_status: Label
 var _test_toggle: CheckButton       ## versteckter Schalter „Testmodelle zeigen“
@@ -119,6 +125,34 @@ func _ready() -> void:
 			func(on): AppSettings.rec_auto = on; AppSettings.save()))
 		box.add_child(_toggle("Ton mit aufnehmen", AppSettings.rec_audio,
 			func(on): AppSettings.rec_audio = on; AppSettings.save()))
+	# --- Zugang: Code vom Admin für private Modelle bzw. Admin-Bereiche ---
+	box.add_child(UITheme.make_title("Zugang"))
+	var crow := UITheme.make_hbox("sm")
+	crow.add_child(UITheme.make_label("Zugangscode", "MutedLabel"))
+	_code_edit = LineEdit.new()
+	_code_edit.placeholder_text = "XXXX-XXXX-XXXX"
+	_code_edit.custom_minimum_size = Vector2(230, 0)
+	_code_edit.max_length = 20
+	_code_edit.text_submitted.connect(func(_t): _on_unlock())
+	crow.add_child(_code_edit)
+	_code_btn = UITheme.make_primary_button("Freischalten")
+	_code_btn.pressed.connect(_on_unlock)
+	crow.add_child(_code_btn)
+	_code_del = UITheme.make_button("Code entfernen")
+	_code_del.pressed.connect(func():
+		AccessCodes.clear()
+		_code_edit.text = ""
+		_show_access("")
+		access_changed.emit())
+	crow.add_child(_code_del)
+	box.add_child(crow)
+	_code_status = UITheme.make_label("")
+	_code_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_code_status)
+	var cnote := UITheme.make_label("Codes bekommst du vom Admin. Gespeichert wird nur der Code auf diesem Gerät – kein Name, keine E-Mail.", "MutedLabel")
+	cnote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(cnote)
+	_show_access("")
 	# --- Rechtliches: Impressum und Datenschutz (öffnen den Browser) ---
 	var lrow := UITheme.make_hbox("sm")
 	var b_imp := UITheme.make_button("Impressum ↗")
@@ -145,7 +179,8 @@ func _ready() -> void:
 	visibility_changed.connect(func():
 		if visible:
 			_online_toggle.set_pressed_no_signal(AppSettings.online_on)
-			_del_status.text = "")
+			_del_status.text = ""
+			_show_access(""))
 	_layout.call_deferred()
 
 
@@ -183,6 +218,39 @@ func _on_delete_mine() -> void:
 			_del_status.text = I18n.t("%d Online-Einträge gelöscht.") % int(r.get("deleted", 0))
 		else:
 			_del_status.text = I18n.t("Keine Verbindung – bitte später nochmal versuchen."))
+
+
+## Zugangscode beim Server prüfen; bei Erfolg kommen die privaten Modelle aufs Gerät.
+func _on_unlock() -> void:
+	if online == null:
+		return
+	_code_btn.disabled = true
+	_code_status.remove_theme_color_override("font_color")
+	_code_status.text = I18n.t("Wird geprüft …")
+	AccessCodes.unlock(online, _code_edit.text, func(ok: bool, msg: String):
+		_code_btn.disabled = false
+		if ok: _code_edit.text = ""
+		_show_access(msg)
+		access_changed.emit())
+
+
+## Stand des Zugangs anzeigen (msg = Fehlermeldung, sonst leer).
+func _show_access(msg: String) -> void:
+	if _code_status == null:
+		return
+	_code_del.visible = AccessCodes.has_code()
+	if msg != "":
+		_code_status.text = msg
+		_code_status.add_theme_color_override("font_color", Color("ff9a9a"))
+		return
+	if AccessCodes.has_code():
+		var who := I18n.t("Admin") if AccessCodes.is_admin() else I18n.t("Gruppe „%s“") % AccessCodes.group
+		var cnt := I18n.t("1 privates Modell") if AccessCodes.model_count == 1 else I18n.t("%d private Modelle") % AccessCodes.model_count
+		_code_status.text = "● " + I18n.t("Freigeschaltet: %s") % who + " · " + cnt
+		_code_status.add_theme_color_override("font_color", Color("3fbf6a"))
+	else:
+		_code_status.text = ""
+		_code_status.remove_theme_color_override("font_color")
 
 
 ## Tipp auf die Versionsnummer: 7 Tipps (Abstand je unter 1,5 s) zeigen den

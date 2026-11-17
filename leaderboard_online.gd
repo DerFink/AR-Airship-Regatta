@@ -1,3 +1,4 @@
+# 2026-11-17 18:30 – unlock(): Zugangscode beim Server prüfen
 # 2026-11-16 10:05 – Fehler 8/200 im Browser behoben: accept_gzip aus (doppeltes Entpacken)
 # 2026-11-16 01:45 – Bei Fehlern Ursache mitgeben ("net": z. B. TLS/0, HTTP/503) für die Anzeige
 # 2026-11-14 22:00 – Einwilligung (Fassung + Text), Geräte-Kennung beim Eintragen, eigene Einträge löschen, Besucherzähler, Links zu Impressum/Datenschutz
@@ -14,6 +15,7 @@
 #                          (nur mit Einwilligung; Geräte-Kennung wird angehängt)
 #   delete_mine(cb)      → {"ok", "deleted"}  alle Online-Einträge dieses Geräts löschen
 #   hit()                → Besucherzähler +1 (nur Tag und Plattform)
+#   unlock(code, cb)     → Zugangscode prüfen: Rolle und private Modelle (AccessCodes)
 # =============================================================================
 class_name LeaderboardOnline
 extends Node
@@ -49,6 +51,11 @@ func submit(entry: Dictionary, cb: Callable) -> void:
 	e["device"] = AppSettings.device()          # zum späteren Selbstlöschen
 	e["consent"] = AppSettings.online_consent   # Server prüft die Fassung
 	_request(API_URL, HTTPClient.METHOD_POST, JSON.stringify(e), cb)
+
+
+## Zugangscode prüfen → {"ok","role","group","models":[…]} bzw. {"ok":false,"error":"code"|"locked"}
+func unlock(code: String, cb: Callable) -> void:
+	_request(API_URL, HTTPClient.METHOD_POST, JSON.stringify({"action": "unlock", "code": code}), cb)
 
 
 ## Widerruf: alle Online-Einträge dieses Geräts löschen.

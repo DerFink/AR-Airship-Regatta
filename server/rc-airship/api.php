@@ -1,4 +1,5 @@
 <?php
+// 2026-11-17 17:55 – neu: unlock (Zugangscode → Rolle und private Modelle), Sperre nach Fehlversuchen
 // 2026-11-16 15:10 – Wiese gewertet nur mit 100 m (wiese_100.0) statt 200 m
 // 2026-11-16 01:45 – Eintragen nur für Standard-Pylonabstand (cup, wiese_200.0)
 // 2026-11-14 21:40 – Eintragen nur mit Einwilligung + Geräte-Kennung; neu: delete_device (eigene Einträge löschen), hit (Besucherzähler)
@@ -13,6 +14,8 @@
 //        nur mit Einwilligung (consent = CONSENT_VERSION) und Geräte-Kennung
 //   POST action=delete_device {"device"} → alle Einträge dieses Geräts löschen (Widerruf)
 //   POST action=hit {"platform"}         → Besucherzähler +1 (Tag, Plattform; sonst nichts)
+//   POST action=unlock {"code"}          → {"ok","role","group","models":[{"name","model","meta","group"}]}
+//        falscher/gesperrter Code → 403 {"error":"code"}; zu viele Fehlversuche → 429 {"error":"locked"}
 // Gewertet werden nur unveränderte Standardmodelle (Fingerabdruck fp aus
 // models.json); die gewertete Zeit rechnet der Server selbst aus.
 // =============================================================================
@@ -53,6 +56,22 @@ try {
         $st = db()->prepare("DELETE FROM entries WHERE device_hash = ?");
         $st->execute([$dh]);
         out(['ok' => true, 'deleted' => $st->rowCount()]);
+    }
+    // Zugangscode prüfen: Rolle und freigegebene private Modelle zurückgeben
+    if ($action === 'unlock') {
+        usleep(300000);                                  // bremst Raten
+        if (code_locked()) out(['ok' => false, 'error' => 'locked'], 429);
+        $code = norm_code((string)($body['code'] ?? ''));
+        $row = false;
+        if ($code !== '') {
+            $q = db()->prepare("SELECT * FROM access_codes WHERE code = ? AND active = 1");
+            $q->execute([$code]);
+            $row = $q->fetch();
+        }
+        if (!$row) { code_failed(); out(['ok' => false, 'error' => 'code'], 403); }
+        db()->prepare("UPDATE access_codes SET last_used = ?, uses = uses + 1 WHERE id = ?")
+            ->execute([gmdate('Y-m-d H:i:s'), (int)$row['id']]);
+        out(['ok' => true, 'role' => $row['role'], 'group' => $row['note'], 'models' => models_for($row)]);
     }
     $course = (string)($_GET['course'] ?? $body['course'] ?? 'cup');
     if (!valid_course($course)) out(['ok' => false, 'error' => 'course'], 400);

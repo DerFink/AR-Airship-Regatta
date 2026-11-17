@@ -201,3 +201,7 @@ arRec.mark(%s)
 arRec.elapsed()
 ● REC %d:%02d
 Hant
+Team:
+ | Team: 
+Privat
+XXXX-XXXX-XXXX

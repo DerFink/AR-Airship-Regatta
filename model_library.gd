@@ -1,3 +1,4 @@
+# 2026-11-17 18:30 – Private Modelle (Quelle „Privat“) aus user://private_modelle.txt, nur mit Zugangscode
 # 2026-11-15 23:40 – delete_own(): eigenes Modell löschen
 # 2026-11-11 15:00 – Angaben zum Modell: Kommentarzeile „# Autor: … | Team: … | Beschreibung: …“ direkt über dem Modell-String wird gelesen (meta) und in „Modell & Bau“ angezeigt
 # 2026-10-27 11:08 – Erstversion: Modellsammlung aus Textdateien – Admin-Sammlung (res://models/sammlung.txt) und eigene Modelle (user://meine_modelle.txt); Speichern eigener Modelle
@@ -20,12 +21,18 @@ extends RefCounted
 
 const ADMIN_FILE := "res://models/sammlung.txt"
 const USER_FILE := "user://meine_modelle.txt"
+## Private Modelle (nur mit Zugangscode, siehe AccessCodes) – Quelle „Privat“
+const PRIVATE_FILE := AccessCodes.MODELS_FILE
 
 
 ## Alle gültigen Einträge: [{name, code, source}] – erst Sammlung, dann eigene.
 static func entries() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for pair in [[ADMIN_FILE, "Sammlung"], [USER_FILE, "Eigene"]]:
+	var files := [[ADMIN_FILE, "Sammlung"]]
+	if AccessCodes.has_code():
+		files.append([PRIVATE_FILE, "Privat"])         # ohne Code: unsichtbar, auch wenn die Datei noch da wäre
+	files.append([USER_FILE, "Eigene"])
+	for pair in files:
 		if not FileAccess.file_exists(pair[0]):
 			continue
 		var meta := {}

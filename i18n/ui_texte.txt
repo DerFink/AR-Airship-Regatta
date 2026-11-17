@@ -612,3 +612,18 @@ Zurück	Back	Retour	Atrás	Indietro	Zpět	Wstecz	上一步
 Überspringen	Skip	Passer	Saltar	Salta	Přeskočit	Pomiń	略過
 Weiter	Next	Suivant	Siguiente	Avanti	Dál	Dalej	下一步
 Los geht’s	Let’s go	C’est parti	¡Vamos!	Si parte	Jdeme na to	Zaczynamy	開始吧
+Der Code hat 12 Zeichen, z. B. ABCD-EFGH-JKLM.	The code has 12 characters, e.g. ABCD-EFGH-JKLM.	Le code comporte 12 caractères, p. ex. ABCD-EFGH-JKLM.	El código tiene 12 caracteres, p. ej. ABCD-EFGH-JKLM.	Il codice ha 12 caratteri, ad es. ABCD-EFGH-JKLM.	Kód má 12 znaků, např. ABCD-EFGH-JKLM.	Kod ma 12 znaków, np. ABCD-EFGH-JKLM.	代碼共 12 個字元，例如 ABCD-EFGH-JKLM。
+Code unbekannt oder gesperrt.	Code unknown or blocked.	Code inconnu ou bloqué.	Código desconocido o bloqueado.	Codice sconosciuto o bloccato.	Kód neznámý nebo zablokovaný.	Kod nieznany lub zablokowany.	代碼不存在或已停用。
+Zu viele Fehlversuche – bitte in 15 Minuten erneut versuchen.	Too many failed attempts – please try again in 15 minutes.	Trop d’essais erronés – réessaie dans 15 minutes.	Demasiados intentos fallidos: inténtalo de nuevo en 15 minutos.	Troppi tentativi errati – riprova tra 15 minuti.	Příliš mnoho chybných pokusů – zkus to znovu za 15 minut.	Zbyt wiele błędnych prób – spróbuj ponownie za 15 minut.	錯誤次數過多——請 15 分鐘後再試。
+Ziel · %s – private Modelle zählen nicht für die Bestenliste	Finish · %s – private models do not count for the leaderboard	Arrivée · %s – les modèles privés ne comptent pas pour le classement	Meta · %s – los modelos privados no cuentan para la clasificación	Arrivo · %s – i modelli privati non contano per la classifica	Cíl · %s – soukromé modely se do žebříčku nepočítají	Meta · %s – prywatne modele nie liczą się do rankingu	終點 · %s——私人模型不列入排行榜
+Zugang	Access	Accès	Acceso	Accesso	Přístup	Dostęp	存取
+Zugangscode	Access code	Code d’accès	Código de acceso	Codice di accesso	Přístupový kód	Kod dostępu	存取代碼
+Freischalten	Unlock	Débloquer	Desbloquear	Sblocca	Odemknout	Odblokuj	解鎖
+Code entfernen	Remove code	Supprimer le code	Quitar código	Rimuovi codice	Odebrat kód	Usuń kod	移除代碼
+Codes bekommst du vom Admin. Gespeichert wird nur der Code auf diesem Gerät – kein Name, keine E-Mail.	Codes are given out by the admin. Only the code is stored on this device – no name, no email.	Les codes sont fournis par l’administrateur. Seul le code est enregistré sur cet appareil – ni nom, ni e-mail.	Los códigos los da el administrador. Solo se guarda el código en este dispositivo: ni nombre ni correo.	I codici li fornisce l’amministratore. Su questo dispositivo viene salvato solo il codice – nessun nome, nessuna e-mail.	Kódy dostaneš od správce. Na tomto zařízení se ukládá jen kód – žádné jméno, žádný e-mail.	Kody dostajesz od administratora. Na tym urządzeniu zapisywany jest tylko kod – bez imienia i e-maila.	代碼由管理員提供。此裝置只儲存代碼——不含姓名或電子郵件。
+Wird geprüft …	Checking …	Vérification …	Comprobando …	Verifica in corso …	Ověřuji …	Sprawdzanie …	檢查中 …
+Gruppe „%s“	group “%s”	groupe « %s »	grupo «%s»	gruppo «%s»	skupina „%s“	grupa „%s”	群組「%s」
+1 privates Modell	1 private model	1 modèle privé	1 modelo privado	1 modello privato	1 soukromý model	1 prywatny model	1 個私人模型
+%d private Modelle	%d private models	%d modèles privés	%d modelos privados	%d modelli privati	%d soukromé modely	%d prywatne modele	%d 個私人模型
+Freigeschaltet: %s	Unlocked: %s	Débloqué : %s	Desbloqueado: %s	Sbloccato: %s	Odemčeno: %s	Odblokowano: %s	已解鎖：%s
+privat	private	privé	privado	privato	soukromý	prywatny	私人

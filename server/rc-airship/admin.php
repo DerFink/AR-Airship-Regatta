@@ -1,4 +1,5 @@
 <?php
+// 2026-11-17 18:00 – neu: Bereich „Zugangscodes“ (anlegen, private Modelle je Code, sperren/entsperren, löschen)
 // 2026-11-14 21:40 – Anmeldung: Sperre nach 5 Fehlversuchen (15 min) mit Meldung; neu: Besucherzähler (heute, 30 Tage, insgesamt, je Plattform, je Tag)
 // 2026-11-11 19:20 – Erstversion: Verwaltung der Online-Bestenliste (Anmeldung mit Passwort, Einträge ansehen und einzelne Piloten streichen)
 // =============================================================================
@@ -50,6 +51,38 @@ if ($admin && ($_POST['csrf'] ?? '') === ($_SESSION['csrf'] ?? 'x')) {
         $st = $pdo->prepare("DELETE FROM entries WHERE name = ?");
         $st->execute([(string)$_POST['del_name']]);
         $msg = $st->rowCount() . ' Einträge von „' . h((string)$_POST['del_name']) . '“ gelöscht.';
+    } elseif (isset($_POST['code_new'])) {
+        // --- Zugangscode anlegen (mit privaten Modellen) ---
+        $role = ($_POST['role'] ?? '') === 'admin' ? 'admin' : 'gruppe';
+        $note = mb_substr(trim((string)($_POST['note'] ?? '')), 0, 60);
+        $code = new_code();
+        $pdo->prepare("INSERT INTO access_codes (code, note, role, active, created) VALUES (?, ?, ?, 1, ?)")
+            ->execute([$code, $note, $role, gmdate('Y-m-d H:i:s')]);
+        $id = (int)$pdo->lastInsertId();
+        $n = 0;
+        foreach (parse_models((string)($_POST['models'] ?? '')) as [$name, $model, $meta]) {
+            $pdo->prepare("INSERT INTO private_models (code_id, name, model, meta) VALUES (?, ?, ?, ?)")->execute([$id, $name, $model, $meta]);
+            $n++;
+        }
+        $msg = 'Code angelegt: <b style="font-family:monospace;font-size:18px">' . h($code) . '</b> (' . h($note) . ', ' . $n . ' Modelle)';
+    } elseif (isset($_POST['code_models'])) {
+        // --- Modelle eines Codes ersetzen ---
+        $id = (int)$_POST['code_models'];
+        $pdo->prepare("DELETE FROM private_models WHERE code_id = ?")->execute([$id]);
+        $n = 0;
+        foreach (parse_models((string)($_POST['models'] ?? '')) as [$name, $model, $meta]) {
+            $pdo->prepare("INSERT INTO private_models (code_id, name, model, meta) VALUES (?, ?, ?, ?)")->execute([$id, $name, $model, $meta]);
+            $n++;
+        }
+        $msg = 'Modelle gespeichert (' . $n . ').';
+    } elseif (isset($_POST['code_toggle'])) {
+        $pdo->prepare("UPDATE access_codes SET active = 1 - active WHERE id = ?")->execute([(int)$_POST['code_toggle']]);
+        $msg = 'Code gesperrt bzw. entsperrt. Gesperrte Codes verlieren beim nächsten Start der App mit Internet ihre Modelle.';
+    } elseif (isset($_POST['code_del'])) {
+        $id = (int)$_POST['code_del'];
+        $pdo->prepare("DELETE FROM private_models WHERE code_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM access_codes WHERE id = ?")->execute([$id]);
+        $msg = 'Code und seine Modelle gelöscht.';
     }
 }
 ?><!doctype html>
@@ -97,6 +130,40 @@ if ($admin && ($_POST['csrf'] ?? '') === ($_SESSION['csrf'] ?? 'x')) {
   <p style="color:#9aa7b4">Gezählt wird jeder Start der App bzw. der Browser-Version – ohne IP-Adresse oder Kennung (Datum UTC).</p>
   <table><tr><th>Tag</th><th>Aufrufe</th></tr>
   <?php foreach ($days->fetchAll() as $r): ?><tr><td><?= h($r['day']) ?></td><td><?= (int)$r['n'] ?></td></tr><?php endforeach; ?></table>
+ </div>
+ <?php
+ // --- Zugangscodes: private Modelle und Admin-Rolle in der App ---
+ $codes = $pdo->query("SELECT * FROM access_codes ORDER BY role DESC, note ASC, id ASC")->fetchAll();
+ $pm = $pdo->query("SELECT code_id, name, model, meta FROM private_models ORDER BY name")->fetchAll();
+ ?>
+ <div class="box"><h2>Zugangscodes</h2>
+  <p style="color:#9aa7b4">Wer in der App unter Einstellungen → Zugang einen Code eingibt, bekommt dessen private Modelle (Rolle „Gruppe“)
+   bzw. alle privaten Modelle und die Admin-Bereiche der App, z. B. „Teensy-Sketch erzeugen“ (Rolle „Admin“).
+   Ohne Code sind private Modelle in der App unsichtbar. Private Modelle zählen nie für die Bestenliste.</p>
+  <form method="post"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="code_new" value="1">
+   <b>Neuen Code anlegen</b><br>
+   Gruppe / Notiz <input name="note" maxlength="60" placeholder="z. B. Troponaut"> Rolle
+   <select name="role" style="font:inherit;padding:6px;border-radius:8px;background:#222a33;color:#e9eef3;border:1px solid #ffffff33"><option value="gruppe">Gruppe</option><option value="admin">Admin</option></select><br>
+   Private Modelle – je Modell eine Zeile „LTA1:…“, optional darüber „# Autor: … | Team: … | Beschreibung: …“:<br>
+   <textarea name="models" rows="3" style="width:100%;font-family:monospace;font-size:12px;background:#0f141b;color:#e9eef3;border:1px solid #ffffff33;border-radius:8px"></textarea><br>
+   <button>Anlegen</button>
+  </form>
+  <table style="margin-top:12px"><tr><th>Code</th><th>Gruppe / Notiz</th><th>Rolle</th><th>Modelle</th><th>zuletzt benutzt</th><th>Abrufe</th><th></th></tr>
+  <?php foreach ($codes as $c):
+    $mine = array_values(array_filter($pm, fn($m) => (int)$m['code_id'] === (int)$c['id']));
+    $txt = '';
+    foreach ($mine as $m) $txt .= ($m['meta'] !== '' ? $m['meta'] . "\n" : '') . $m['model'] . "\n"; ?>
+   <tr style="<?= $c['active'] ? '' : 'opacity:.5' ?>">
+    <td style="font-family:monospace"><?= h($c['code']) ?><?= $c['active'] ? '' : ' (gesperrt)' ?></td><td><?= h($c['note']) ?></td>
+    <td><?= $c['role'] === 'admin' ? 'Admin' : 'Gruppe' ?></td>
+    <td><?= $c['role'] === 'admin' ? 'alle' : '' ?><?= h(implode(', ', array_column($mine, 'name'))) ?></td>
+    <td><?= h(substr($c['last_used'], 0, 16)) ?></td><td><?= (int)$c['uses'] ?></td>
+    <td><details><summary style="cursor:pointer;color:#3d8bfd">Modelle</summary>
+      <form method="post"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="code_models" value="<?= (int)$c['id'] ?>">
+       <textarea name="models" rows="3" cols="60" style="font-family:monospace;font-size:12px;background:#0f141b;color:#e9eef3;border:1px solid #ffffff33;border-radius:8px"><?= h($txt) ?></textarea><br><button>Speichern</button></form></details>
+     <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="code_toggle" value="<?= (int)$c['id'] ?>"><button><?= $c['active'] ? 'Sperren' : 'Entsperren' ?></button></form>
+     <form method="post" style="display:inline" onsubmit="return confirm('Code und seine privaten Modelle löschen?')"><input type="hidden" name="csrf" value="<?= $csrf ?>"><input type="hidden" name="code_del" value="<?= (int)$c['id'] ?>"><button class="del">Löschen</button></form></td></tr>
+  <?php endforeach; if (!$codes): ?><tr><td colspan="7">Noch keine Codes.</td></tr><?php endif; ?></table>
  </div>
  <div class="box"><form method="post" onsubmit="return confirm('Alle Einträge dieses Namens löschen?')">
   <input type="hidden" name="csrf" value="<?= $csrf ?>">

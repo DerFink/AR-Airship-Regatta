@@ -1,4 +1,5 @@
 <?php
+// 2026-11-17 17:50 – Zugangscodes: Tabellen access_codes, private_models, code_fail; Code erzeugen/normalisieren, Sperre nach Fehlversuchen beim Freischalten
 // 2026-11-16 20:30 – F7B-Wertung korrigiert: Zeit × √(V_ref^(1/3) / 1 m) = Zeit × V_ref^(1/6); vorhandene Einträge einmalig umgerechnet
 // 2026-11-14 21:40 – Einwilligung (CONSENT_VERSION), Geräte-Kennung zum Selbstlöschen, Speicherdauer 2 Jahre, Besucherzähler (Tag/Plattform), Sperre nach 5 falschen Admin-Passwörtern, keine Fehlerausgabe, Hinweis ohne config.php
 // 2026-11-11 19:10 – Erstversion: gemeinsame Funktionen der Online-Bestenliste (Datenbank, Quartal, Prüfung der Einträge, F7B-Wertung)
@@ -87,6 +88,29 @@ function db(): PDO {
     $pdo->exec("CREATE TABLE IF NOT EXISTS login_fail (
         ip_hash VARCHAR(16) NOT NULL,
         ts INT NOT NULL)");
+    // Zugangscodes: Admin legt sie in admin.php an. role = 'gruppe' (sieht die
+    // eigenen privaten Modelle) oder 'admin' (sieht alle, Admin-Bereiche der App).
+    // Kein Name, keine E-Mail – nur Code, Notiz und wann zuletzt benutzt.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS access_codes (
+        id $auto,
+        code VARCHAR(20) NOT NULL UNIQUE,
+        note VARCHAR(60) NOT NULL DEFAULT '',
+        role VARCHAR(10) NOT NULL DEFAULT 'gruppe',
+        active INT NOT NULL DEFAULT 1,
+        created VARCHAR(19) NOT NULL,
+        last_used VARCHAR(19) NOT NULL DEFAULT '',
+        uses INT NOT NULL DEFAULT 0)");
+    // Private Modelle: Modell-String (LTA1:…) je Code; nur über api.php?unlock abrufbar
+    $pdo->exec("CREATE TABLE IF NOT EXISTS private_models (
+        id $auto,
+        code_id INT NOT NULL,
+        name VARCHAR(60) NOT NULL,
+        model TEXT NOT NULL,
+        meta VARCHAR(400) NOT NULL DEFAULT '')");
+    // Fehlversuche beim Freischalten (eigene Sperre, damit der Admin-Login nicht mitgesperrt wird)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS code_fail (
+        ip_hash VARCHAR(16) NOT NULL,
+        ts INT NOT NULL)");
     return $pdo;
 }
 
@@ -159,6 +183,70 @@ function login_locked(): bool {
 /** Fehlversuch merken. */
 function login_failed(): void {
     db()->prepare("INSERT INTO login_fail (ip_hash, ts) VALUES (?, ?)")->execute([ip_hash(), time()]);
+}
+
+// --- Zugangscodes -----------------------------------------------------------
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // ohne 0/O, 1/I – nicht verwechselbar
+const CODE_TRIES = 8;          // Freischalten: so viele Fehlversuche je IP …
+const CODE_LOCK_MIN = 15;      // … sperren für so viele Minuten
+
+/** Neuer Zufallscode im Format XXXX-XXXX-XXXX (12 Zeichen ≈ 60 Bit). */
+function new_code(): string {
+    $c = '';
+    for ($i = 0; $i < 12; $i++) $c .= CODE_CHARS[random_int(0, strlen(CODE_CHARS) - 1)];
+    return substr($c, 0, 4) . '-' . substr($c, 4, 4) . '-' . substr($c, 8, 4);
+}
+
+/** Eingabe vereinheitlichen: Groß, nur erlaubte Zeichen, Bindestriche neu setzen; '' wenn ungültig. */
+function norm_code(string $in): string {
+    $c = preg_replace('/[^A-Z0-9]/', '', strtoupper($in)) ?? '';
+    if (strlen($c) !== 12 || strspn($c, CODE_CHARS) !== 12) return '';
+    return substr($c, 0, 4) . '-' . substr($c, 4, 4) . '-' . substr($c, 8, 4);
+}
+
+/** Freischalten gesperrt? (zu viele falsche Codes von dieser IP) */
+function code_locked(): bool {
+    $pdo = db();
+    $pdo->prepare("DELETE FROM code_fail WHERE ts < ?")->execute([time() - CODE_LOCK_MIN * 60]);
+    $c = $pdo->prepare("SELECT COUNT(*) AS n FROM code_fail WHERE ip_hash = ?");
+    $c->execute([ip_hash()]);
+    return (int)$c->fetch()['n'] >= CODE_TRIES;
+}
+
+function code_failed(): void {
+    db()->prepare("INSERT INTO code_fail (ip_hash, ts) VALUES (?, ?)")->execute([ip_hash(), time()]);
+}
+
+/**
+ * Modell-Strings aus dem Textfeld der Verwaltung lesen. Je Modell eine Zeile
+ * „LTA1:Name:…“, optional darüber eine Angabenzeile „# Autor: … | Team: … |
+ * Beschreibung: …“. Rückgabe: [[name, model, meta], …]
+ */
+function parse_models(string $text): array {
+    $out = []; $meta = '';
+    foreach (preg_split('/\r?\n/', $text) as $line) {
+        $t = trim($line);
+        if ($t === '') continue;
+        if ($t[0] === '#') { $meta = mb_substr($t, 0, 400); continue; }
+        if (!preg_match('/^LTA\d+:([^:]{1,60}):/', $t, $m)) { $meta = ''; continue; }
+        $out[] = [$m[1], $t, $meta];
+        $meta = '';
+    }
+    return $out;
+}
+
+/** Private Modelle eines Codes (Admin: alle) für die App. */
+function models_for(array $code): array {
+    $pdo = db();
+    if ($code['role'] === 'admin') {
+        $q = $pdo->query("SELECT p.name, p.model, p.meta, c.note FROM private_models p JOIN access_codes c ON c.id = p.code_id ORDER BY p.name");
+    } else {
+        $q = $pdo->prepare("SELECT p.name, p.model, p.meta, c.note FROM private_models p JOIN access_codes c ON c.id = p.code_id WHERE p.code_id = ? ORDER BY p.name");
+        $q->execute([(int)$code['id']]);
+    }
+    $out = [];
+    foreach ($q->fetchAll() as $r) $out[] = ['name' => $r['name'], 'model' => $r['model'], 'meta' => $r['meta'], 'group' => $r['note']];
+    return $out;
 }
 
 /** IP nicht im Klartext speichern – nur ein kurzer, gesalzener Hash (Schutz gegen Fluten). */

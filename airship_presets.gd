@@ -1,3 +1,4 @@
+# 2026-11-17 18:30 – Private Modelle: in der Liste ohne Zusatz, nie in der Bestenliste (private_model_of)
 # 2026-11-17 09:45 – Fehler behoben: Mischer (mix_manual, mix_table) des vorigen Modells blieb beim Laden eines Standardmodells bzw. „Werkseinstellung“ stehen
 # 2026-11-16 19:55 – Kurzbeschreibung des vorigen Modells wird beim Laden eines Presets geleert
 # 2026-11-16 19:50 – Albacore: Heckmotor wie Chewie (1804 2450 kV, T4×2×3, berechnet)
@@ -91,8 +92,8 @@ static func list() -> Array[Dictionary]:
 	if AppSettings.show_test_models:
 		out.append({"name": "Chewie27", "build": chewie27, "source": "Test"})
 	for e in ModelLibrary.entries():
-		# Sammlung ohne Zusatz im Namen, eigene Modelle mit „ (Eigene)“
-		var nm: String = e.name if e.source == "Sammlung" else "%s (%s)" % [e.name, e.source]
+		# Sammlung und private Modelle ohne Zusatz im Namen, eigene Modelle mit „ (Eigene)“
+		var nm: String = e.name if e.source == "Sammlung" or e.source == "Privat" else "%s (%s)" % [e.name, e.source]
 		out.append({"name": nm, "build": _build_from_code.bind(e.code), "source": e.source})
 	# Reihenfolge wie vom Betreiber festgelegt; alles andere (Test, Eigene) danach
 	var sorted: Array[Dictionary] = []
@@ -115,12 +116,26 @@ static var _allowed := {}
 static func standard_model_of(ship: AirshipPhysics) -> String:
 	if _allowed.is_empty():
 		for e in list():
-			if e.source == "Eigene" or e.source == "Test": continue
+			if e.source == "Eigene" or e.source == "Test" or e.source == "Privat": continue
 			var s := AirshipPhysics.new()
 			e.build.call(s)
 			_allowed[ModelCodec.fingerprint(s)] = e.name
 			s.free()
 	return _allowed.get(ModelCodec.fingerprint(ship), "")
+
+
+## Ist das ein privates Modell (Zugangscode)? Dann nie in die Bestenliste.
+## Rückgabe: Name oder "". Wird bei jedem Aufruf neu gerechnet (selten: Rennende).
+static func private_model_of(ship: AirshipPhysics) -> String:
+	var fp := ModelCodec.fingerprint(ship)
+	for e in list():
+		if e.source != "Privat": continue
+		var s := AirshipPhysics.new()
+		e.build.call(s)
+		var same := ModelCodec.fingerprint(s) == fp
+		s.free()
+		if same: return e.name
+	return ""
 
 
 ## Baut ein Modell aus einem Modell-String (für Sammlung und eigene Modelle).
