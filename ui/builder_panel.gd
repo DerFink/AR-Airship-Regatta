@@ -1,3 +1,4 @@
+# 2026-11-17 18:15 – Bedienhinweis im Baukasten nennt Verschieben (Touch: 2 Finger, Maus: Rad gedrückt)
 # 2026-11-17 18:40 – „Teensy-Sketch erzeugen“ nur mit Admin-Zugangscode (update_admin)
 # 2026-11-17 09:05 – Fehler behoben: Mischer zeigte beim Moduswechsel immer die Tabelle des Flugmodus (Neuaufbau lief ins Leere, Lambda-Kopie) – jetzt eigene Methode _refill_mixer
 # 2026-11-16 19:40 – Elastisches Leitwerk: Stärke einstellbar (Restausschlag bei 30 km/h)
@@ -289,7 +290,9 @@ func _ready() -> void:
 	b_save.custom_minimum_size.y = 40
 
 	# ===================== Mitte: Hinweis, Ansicht, Heckansicht, Banner =====
-	_hint = UITheme.make_label("1 Finger drehen · 2 Finger zoomen", "MutedLabel")
+	# Bedienhinweis: Touch oder Maus (Verschieben: 2 Finger bzw. Scrollrad gedrückt)
+	_hint = UITheme.make_label("1 Finger drehen · 2 Finger zoomen und verschieben" if DisplayServer.is_touchscreen_available()
+		else "Ziehen drehen · Rad zoomen · Rad gedrückt verschieben", "MutedLabel")
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hint)
 	_view_btn = UITheme.make_pill("Ansicht zurücksetzen", true)

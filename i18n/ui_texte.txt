@@ -627,3 +627,5 @@ Gruppe „%s“	group “%s”	groupe « %s »	grupo «%s»	gruppo «%s»	skupin
 %d private Modelle	%d private models	%d modèles privés	%d modelos privados	%d modelli privati	%d soukromé modely	%d prywatne modele	%d 個私人模型
 Freigeschaltet: %s	Unlocked: %s	Débloqué : %s	Desbloqueado: %s	Sbloccato: %s	Odemčeno: %s	Odblokowano: %s	已解鎖：%s
 privat	private	privé	privado	privato	soukromý	prywatny	私人
+1 Finger drehen · 2 Finger zoomen und verschieben	1 finger rotate · 2 fingers zoom and move	1 doigt pivoter · 2 doigts zoomer et déplacer	1 dedo girar · 2 dedos zoom y mover	1 dito ruota · 2 dita zoom e sposta	1 prst otáčet · 2 prsty zoom a posun	1 palec obrót · 2 palce zoom i przesuwanie	單指旋轉 · 雙指縮放與移動
+Ziehen drehen · Rad zoomen · Rad gedrückt verschieben	Drag to rotate · wheel to zoom · hold wheel to move	Glisser pour pivoter · molette pour zoomer · molette enfoncée pour déplacer	Arrastrar gira · rueda zoom · rueda pulsada mueve	Trascina per ruotare · rotella per zoom · rotella premuta per spostare	Tažením otáčet · kolečkem zoom · stisknutým kolečkem posun	Przeciągnij – obrót · kółko – zoom · wciśnięte kółko – przesuwanie	拖曳旋轉 · 滾輪縮放 · 按住滾輪移動

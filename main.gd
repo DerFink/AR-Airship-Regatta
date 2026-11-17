@@ -1,3 +1,4 @@
+# 2026-11-17 18:05 – Baukasten: Modell verschieben (Scrollrad gedrückt bzw. Umschalt + linke Maustaste ziehen, 2 Finger schieben); Ansicht zurücksetzen setzt es zurück
 # 2026-11-17 18:35 – Zugangscodes: beim Start auffrischen; private Modelle melden im Ziel „zählen nicht für die Bestenliste“
 # 2026-11-17 09:35 – Tutorial „Erste Schritte“ einbinden (Knopf auf der Startseite, markierte Bereiche, Ansicht je Karte)
 # 2026-11-17 08:45 – Rennen mit voller 6×6-Physik zählen wieder für die Bestenliste (einziges Physikmodell)
@@ -115,6 +116,9 @@ var track: CourseTrack               ## Acht als Spur auf dem Boden
 var _orbit_yaw := 0.0            ## Drehung um die Hochachse (rad), 0 = von der Seite
 var _orbit_pitch := 0.25         ## Blick von oben (rad)
 var _orbit_zoom := 1.0           ## 1 = Standardabstand, < 1 näher, > 1 weiter
+## Verschiebung quer zur Blickrichtung (Scrollrad gedrückt ziehen, 2 Finger schieben),
+## in Vielfachen des Kameraabstands – bleibt beim Zoomen am gleichen Bildpunkt
+var _orbit_pan := Vector2.ZERO
 var _touches := {}               ## aktive Finger: Index → Position
 
 
@@ -642,12 +646,15 @@ func reset_view() -> void:
 	_orbit_yaw = 0.0
 	_orbit_pitch = 0.3
 	_orbit_zoom = 1.0
+	_orbit_pan = Vector2.ZERO
 
 
 # =============================================================================
 # Gesten im Baukasten (nur in der freien Mitte – Bedienfelder fangen ihre
-# Berührungen selbst ab):  1 Finger ziehen = drehen, 2 Finger = zoomen.
-# Am PC: mit gedrückter Maus ziehen = drehen, Mausrad = zoomen.
+# Berührungen selbst ab):  1 Finger ziehen = drehen, 2 Finger auseinander =
+# zoomen, 2 Finger gemeinsam schieben = verschieben.
+# Am PC: mit gedrückter Maus ziehen = drehen, Mausrad = zoomen,
+# Scrollrad gedrückt (oder Umschalttaste + linke Maustaste) ziehen = verschieben.
 # =============================================================================
 func _unhandled_input(event: InputEvent) -> void:
 	if not ready_done: return
@@ -665,6 +672,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			var after: float = event.position.distance_to(other)
 			if before > 1.0 and after > 1.0:
 				_orbit_zoom = clampf(_orbit_zoom * before / after, 0.35, 3.0)
+			_pan_view(event.relative * 0.5)              # jeder Finger trägt die Hälfte bei
 		elif _touches.size() == 1:
 			_rotate_view(event.relative)
 		_touches[event.index] = event.position
@@ -673,9 +681,25 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and not DisplayServer.is_touchscreen_available():
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP: _orbit_zoom = clampf(_orbit_zoom * 0.9, 0.35, 3.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN: _orbit_zoom = clampf(_orbit_zoom * 1.1, 0.35, 3.0)
-	elif event is InputEventMouseMotion and not DisplayServer.is_touchscreen_available() \
-			and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
-		_rotate_view(event.relative)
+	elif event is InputEventMouseMotion and not DisplayServer.is_touchscreen_available():
+		var mid: bool = event.button_mask & MOUSE_BUTTON_MASK_MIDDLE
+		var left: bool = event.button_mask & MOUSE_BUTTON_MASK_LEFT
+		if mid or (left and event.shift_pressed):
+			_pan_view(event.relative)
+		elif left:
+			_rotate_view(event.relative)
+
+
+## Verschieben: das Modell folgt der Maus bzw. den Fingern. Grenze: höchstens
+## eine knappe halbe Bildbreite/-höhe, damit das Schiff nie ganz verschwindet.
+func _pan_view(rel: Vector2) -> void:
+	var vp := get_viewport().get_visible_rect().size
+	var tan_h := tan(deg_to_rad(FOV) * 0.5)
+	var k := 2.0 * tan_h / maxf(vp.y, 1.0)          # Pixel → Vielfache des Abstands
+	_orbit_pan += Vector2(-rel.x, rel.y) * k
+	var aspect := vp.x / maxf(vp.y, 1.0)
+	_orbit_pan.x = clampf(_orbit_pan.x, -tan_h * aspect * 0.85, tan_h * aspect * 0.85)
+	_orbit_pan.y = clampf(_orbit_pan.y, -tan_h * 0.85, tan_h * 0.85)
 
 
 func _rotate_view(rel: Vector2) -> void:
@@ -719,6 +743,7 @@ func _set_view(v: View) -> void:
 			_orbit_yaw = 0.0
 			_orbit_pitch = 0.3
 			_orbit_zoom = 1.0
+			_orbit_pan = Vector2.ZERO
 		_rebuild_gauge.call_deferred()
 	gauge.visible = workshop
 	# Werkstatt: Strecke und Halle ausblenden, nur das Schiff in der Messecke
@@ -764,6 +789,12 @@ func _process(dt: float) -> void:
 		var dist := maxf(need_w / (2.0 * tan_h * aspect * free_frac), need_h / (2.0 * tan_h)) * _orbit_zoom
 		var off_l := Vector3(dist, 0, 0).rotated(Vector3(0, 0, 1), _orbit_pitch).rotated(Vector3.UP, _orbit_yaw)
 		var off := ship.global_basis * off_l
+		# Verschieben: Kamera und Blickpunkt gemeinsam quer zur Blickrichtung
+		var fwd := -off.normalized()
+		var right := fwd.cross(Vector3.UP)
+		right = right.normalized() if right.length() > 0.01 else ship.global_basis.z
+		var up := right.cross(fwd).normalized()
+		p += (right * _orbit_pan.x + up * _orbit_pan.y) * dist
 		camera.global_position = camera.global_position.lerp(p + off, clampf(dt * 10.0, 0.0, 1.0))
 		# Bildmitte auf die Mitte der freien Fläche schieben
 		var shift_ui := (span.x + span.y) * 0.5 - ui_w * 0.5
