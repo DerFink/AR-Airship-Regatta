@@ -1,3 +1,4 @@
+<!-- 2026-11-17 23:05 – Abschnitt 14 verweist auf das Backlog docs/backlog.md -->
 <!-- 2026-11-12 22:45 – Erstversion: Projektdokumentation (was gebaut wurde, warum, wo im Code, bekannte Fallen, offene Punkte) – Stand 0.31.1 -->
 # RC Airship Regatta – Projektdokumentation
 
@@ -9,6 +10,7 @@ Ergänzende Dateien:
 - `docs/chewie_regler_stand_2026-11-08.md` – Stand des echten Chewie-Reglers (Teensy-Code Beta 1.4) und der Physik-Annahmen.
 - `server/ANLEITUNG.md` – Einrichtung der Website und Online-Bestenliste bei Strato.
 - `docs/ideen.md` – nur notierte Ideen, nicht geplant.
+- `docs/backlog.md` – offene Punkte und notierte Aufgaben (Umsetzung erst nach Freigabe).
 - `README.md` – Kurzanleitung für Nutzer (App laden, Bedienung, Übersetzungen).
 
 ---
@@ -339,21 +341,7 @@ Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den 
 
 ---
 
-## 14. Offene Punkte (Stand 14.11.2026)
+## 14. Offene Punkte
 
-**Zu prüfen / Rückmeldung des Projektinhabers ausstehend**
-- Build 104 (0.31.1) testen: Flugmodi, Rollausgleich, Signalfluss, Flossen einzeln, Mischer von Hand.
-- Sender steuert nicht (nach „Werkseinstellung“ der Kalibrierung): nach Zurücksetzen + neuer Kalibrierung prüfen.
-- Echte Flossengröße von Chewie (Höhe × Tiefe) – Darstellung „Faktor 10 zu klein?“ prüfen (Simulator: 361 cm² je Flosse ≈ 19 × 19 cm).
-- Kalibrierung bleibt im Browser nach Abstecken erhalten?
-
-**Entscheidungen offen**
-- Admin-Knopf „Teensy-Sketch erzeugen“ mit Code schützen oder nur Hinweis?
-- Lizenzdateien (GPL/OFL-Texte für Schriften), Profil-Diagramm, Chewie-Flossengewicht, variable Modi in der .ino.
-
-**Aufgaben**
-- Online-Stellen auf flinkfink.de (SSL, MySQL, Upload, `config.php`, Admin-Passwort-Hash), dazu **Impressum und Datenschutz**.
-- **paypal.me**-Name anlegen (bisher Spenden-Link mit E-Mail) und QR-Code neu erzeugen (`tools/make_support_qr.py`).
-- .ino-Export für eigene PID-Modi und Rollausgleich (erst nach Freigabe).
-- Physik-Abgleich mit dem echten Chewie (aus dem Regler-Stand): Gasverhalten (echter Chewie agiler), Rollen bei ~30 % Gas bis 40° (echt < 10°), Weiterdrehen nach Loslassen bei 60 % Schub.
-- Ideen: Location „Aerarium“ mit autonomen Fisch-Luftschiffen (`docs/ideen.md`), In-App-Abfrage bei neuer Version, Besucherstatistik.
+Seit 17.11.2026 stehen alle offenen Punkte, Ideen und Realismus-Notizen im
+**Backlog `docs/backlog.md`** (nur notiert, Umsetzung erst nach Freigabe).
