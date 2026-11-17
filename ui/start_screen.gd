@@ -1,3 +1,4 @@
+# 2026-11-17 09:30 – Kleiner Knopf „▶ Tutorial“ oben rechts (blinkt beim Laden 3× kurz), Signal tutorial_requested
 # 2026-11-16 15:30 – Knopf „Support me“ statt „Support“
 # 2026-11-16 01:00 – Startseite: 3D-Bild des Luftschiffs (mit Logos) statt nur gezeichneter Ansicht
 # 2026-11-15 20:40 – Vollbild-Knopf oben rechts neben Sender und Sprache (Browser/PC)
@@ -31,6 +32,7 @@ signal about_requested
 signal calibrate_requested
 signal settings_requested
 signal leaderboard_requested
+signal tutorial_requested               ## kleiner Knopf „Tutorial“ oben rechts
 
 
 ## Liefert {"model": Name, "location": Text, "joy": Gerätename oder ""} (setzt main.gd)
@@ -49,6 +51,7 @@ var _title: VBoxContainer
 var _menu: VBoxContainer
 var _btn_fly: Button
 var _btn_build: Button
+var _btn_tut: Button                     ## „▶ Tutorial“ (blinkt beim ersten Laden kurz)
 var _top: HBoxContainer
 var _joy_chip: Button
 var _lang_btn: MenuButton
@@ -156,6 +159,12 @@ func _ready() -> void:
 	# --- oben rechts: Sender und Sprache ---
 	_top = UITheme.make_hbox("sm")
 	add_child(_top)
+	# Tutorial: klein, startet nur auf Knopfdruck
+	_btn_tut = UITheme.make_pill("Tutorial", true)
+	_btn_tut.icon = load("res://textures/play.svg")
+	_btn_tut.add_theme_constant_override("icon_max_width", 16)
+	_btn_tut.pressed.connect(func(): tutorial_requested.emit())
+	_top.add_child(_btn_tut)
 	_joy_chip = UITheme.make_pill("")
 	_top.add_child(_joy_chip)
 	_top.add_child(UITheme.make_fullscreen_button())   # Vollbild (Browser/PC)
@@ -198,6 +207,22 @@ func _ready() -> void:
 	resized.connect(_layout)
 	visibility_changed.connect(func(): if visible: _refresh())
 	_refresh.call_deferred()                 # erste Anzeige (Startseite ist von Anfang an sichtbar)
+	_blink_tutorial.call_deferred()          # Knopf „Tutorial“ beim Laden 3× kurz aufleuchten lassen
+
+
+## Knopf „Tutorial“ 3× kurz gelb aufleuchten lassen (ca. 2 s), danach normal.
+func _blink_tutorial() -> void:
+	var lit := UITheme.box(Color(0.11, 0.13, 0.17, 0.95), Color("ffb000"), -1, UITheme.space("sm"))
+	lit.set_border_width_all(2)
+	lit.shadow_color = Color(1.0, 0.69, 0.0, 0.5)
+	lit.shadow_size = 8
+	var tw := create_tween()
+	tw.tween_interval(0.6)                           # erst nach dem Aufbau der Seite
+	for k in 3:
+		tw.tween_callback(func(): _btn_tut.add_theme_stylebox_override("normal", lit))
+		tw.tween_interval(0.35)
+		tw.tween_callback(func(): _btn_tut.remove_theme_stylebox_override("normal"))
+		tw.tween_interval(0.25)
 
 
 ## Großer Menüknopf mit eigener Farbe.

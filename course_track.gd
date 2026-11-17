@@ -1,3 +1,4 @@
+# 2026-11-17 09:55 – attention: Grundlinie der Acht pulsiert hell (Tutorial-Karte „Die Acht fliegen“)
 # 2026-11-16 12:15 – Spur 5 cm über dem Boden statt 1,2 cm (war im Hallenboden versunken/flimmerte)
 # 2026-11-11 16:00 – Erstversion (Entwurf): Flugspur als Acht auf dem Hallenboden – gestrichelte Linie um beide Pylone mit Richtungspfeilen, Punkt unter dem Luftschiff (Lot auf den Boden) und hell hervorgehobenes Stück der Acht direkt vor dem Schiff
 # =============================================================================
@@ -28,6 +29,9 @@ var _ahead := MeshInstance3D.new()
 var _ring := MeshInstance3D.new()
 var _idx := 0
 var _dist := -1.0
+## Tutorial „Die Acht fliegen“: Grundlinie pulsiert hell, damit man sie sofort sieht
+var attention := false
+var _t := 0.0
 
 
 func _ready() -> void:
@@ -98,9 +102,16 @@ static func _quad(im: ImmediateMesh, a: Vector2, b: Vector2, w: float) -> void:
 		im.surface_add_vertex(Vector3(p[k].x, Y, p[k].y))
 
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	if course == null or ship == null:
 		return
+	# Hinweis aus dem Tutorial: Grundlinie zwischen Orange und Hellgelb pulsieren lassen
+	var mat := _base.material_override as StandardMaterial3D
+	if attention:
+		_t += dt
+		mat.albedo_color = COLOR.lerp(Color(1.0, 0.95, 0.5, 1.0), 0.5 + 0.5 * sin(_t * 5.0))
+	elif mat.albedo_color != COLOR:
+		mat.albedo_color = COLOR
 	if absf(course.distance() - _dist) > 0.01:
 		rebuild()
 	var n := _pts.size()

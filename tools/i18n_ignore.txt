@@ -200,3 +200,4 @@ Frei%dm
 arRec.mark(%s)
 arRec.elapsed()
 ● REC %d:%02d
+Hant

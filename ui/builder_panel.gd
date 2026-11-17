@@ -1,3 +1,4 @@
+# 2026-11-17 09:05 – Fehler behoben: Mischer zeigte beim Moduswechsel immer die Tabelle des Flugmodus (Neuaufbau lief ins Leere, Lambda-Kopie) – jetzt eigene Methode _refill_mixer
 # 2026-11-16 19:40 – Elastisches Leitwerk: Stärke einstellbar (Restausschlag bei 30 km/h)
 # 2026-11-16 19:20 – Reiter Steuerung: Abschnitt „Flugmodi“ (Anzahl 1–5, FC eingebaut, je Modus Name und Mischer/FC mit FC-Art); Mischer-Fenster ohne Anzahl/Name
 # 2026-11-16 18:45 – Mischer: Modusname wird beim Tippen übernommen; Tabelle immer bearbeitbar (erste Änderung legt die eigene Tabelle des Modus an); ohne FC kein Umstellen der Modusart
@@ -1032,6 +1033,9 @@ func _window(title: String, close_text := "Fertig") -> Dictionary:
 # Reglermenü eingestellt. Werte −200 … +200 %. Das Gas bleibt beim Piloten.
 # =============================================================================
 var _mix_mode := -1                    ## im Mischer gewählter Flugmodus (Index in fc.modes)
+var _mix_body: VBoxContainer           ## Inhalt des offenen Mischer-Fensters
+var _mix_fc: FlightController
+var _mix_sugg: Button                  ## Knopf „Vorschlag aus Einbaulage“
 
 
 func _show_mixer() -> void:
@@ -1052,11 +1056,23 @@ func _show_mixer() -> void:
 	w.head.move_child(sugg, 1)
 	# Gewählter Modus: der aktive, wenn er „Direkt“ ist, sonst der erste Direkt-Modus
 	_mix_mode = fc.mode_index if str(fc.modes[fc.mode_index].get("art", "")) == "direkt" else _first_direct(fc)
-	var fill := func(): pass
-	fill = func():
-		for c in body.get_children(): c.queue_free()
-		_fill_mixer(body, fc, sugg, fill)
-	fill.call()
+	# Neu aufbauen über eine Methode: Ein Lambda, das sich selbst aufruft, sähe nur
+	# den Wert der Variable beim Anlegen (Lambdas fangen lokale Variablen als Kopie)
+	# – dann blieb die Tabelle beim Moduswechsel stehen.
+	_mix_body = body
+	_mix_fc = fc
+	_mix_sugg = sugg
+	_refill_mixer()
+
+
+## Mischer-Fenster neu füllen (Moduswechsel, Haken „Eigene Tabelle“ …).
+func _refill_mixer() -> void:
+	if not is_instance_valid(_mix_body):
+		return
+	for c in _mix_body.get_children():
+		_mix_body.remove_child(c)          # sofort raus, damit die neue Tabelle nicht unter der alten hängt
+		c.queue_free()
+	_fill_mixer(_mix_body, _mix_fc, _mix_sugg, _refill_mixer)
 
 
 ## Index des ersten Modus der Art „Direkt“ (0, falls keiner).

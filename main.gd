@@ -1,3 +1,4 @@
+# 2026-11-17 09:35 – Tutorial „Erste Schritte“ einbinden (Knopf auf der Startseite, markierte Bereiche, Ansicht je Karte)
 # 2026-11-17 08:45 – Rennen mit voller 6×6-Physik zählen wieder für die Bestenliste (einziges Physikmodell)
 # 2026-11-16 23:50 – Physik „genau“ vorerst ohne Wertung
 # 2026-11-16 19:10 – Flugmodi je Luftschiff (fc.adopt_ship_modes beim Start und bei jeder Modellwahl)
@@ -82,6 +83,7 @@ const CURRENT_MODEL := "user://aktuelles_modell.txt"   ## zuletzt benutztes Luft
 var _save_model_t := -1.0                 ## Sekunden bis zum Speichern des aktuellen Modells (−1 = nichts zu tun)
 var hud: FlightHUD
 var builder: BuilderPanel
+var tutorial: Tutorial                   ## „Erste Schritte“ (Knopf auf der Startseite)
 var pid: PIDPanel
 var share: SharePanel
 var course: Course
@@ -431,6 +433,21 @@ func _build_ui() -> void:
 	watchdog.notice.connect(func(t): hud.show_notice(t, "warning"))
 	sound_guard.notice.connect(func(t): hud.show_notice(t, "warning", 3.0))
 	ar.ar_state_changed.connect(func(_on, msg): hud.show_notice(msg, "info", 2.0))
+	# --- Tutorial „Erste Schritte“: ganz oben, startet nur über den Knopf auf der Startseite ---
+	tutorial = Tutorial.new()
+	root.add_child(tutorial)
+	tutorial.targets = {
+		"start_main": func(): return [start_screen._btn_fly.get_global_rect(), start_screen._btn_build.get_global_rect()],
+		"start_build": func(): return [start_screen._btn_build.get_global_rect()],
+		"race_hint": func(): return [hud._pill_race.get_global_rect()],
+		"race_panel": func(): return [hud.race_panel.get_global_rect()] if hud.race_panel.visible else [],
+	}
+	# Karte „Die Acht fliegen“: statt eines Rahmens pulsiert die Acht auf dem Boden
+	tutorial.step_changed.connect(func(t: String): track.attention = t == "eight")
+	tutorial.view_requested.connect(func(n: String):
+		var want := View.FLY if n == "fly" else View.START
+		if view != want: _set_view(want))
+	start_screen.tutorial_requested.connect(func(): ui_sounds.chime("select"); tutorial.start())
 
 
 ## Autopilot an/aus. An: Schiff an den Start (voller Akku), dann übernimmt der

@@ -1,3 +1,4 @@
+# 2026-11-17 09:15 – Tastatur: Rolle auf A/D (Beschriftung „Gas · Rolle (W/S A/D)“), Demo von A auf T
 # 2026-11-17 00:45 – Aufnahmeknopf „●“ oben rechts (RaceRecorder, nur Browser)
 # 2026-11-16 18:50 – Ohne FC wieder alle Flugmodi wählbar (jeder fliegt manuell mit seiner Mischtabelle)
 # 2026-11-16 18:15 – Geber S1–S4: vom Sender (Kalibrierung), Tastatur Q/E und Z/C, Touch-Schieber am rechten Rand (nur wenn der Modus sie nutzt)
@@ -98,6 +99,7 @@ var _geber_check_t := 0.0
 const KB_THR_RETURN := 0.3
 var _kb_pitch := 0.0
 var _kb_yaw := 0.0
+var _kb_roll := 0.0                    ## Rolle über Tasten A/D (federt zurück wie Nick/Gier)
 var _kb_used := false                     ## Tastatur hat zuletzt gesteuert
 var _kb_joy_thr0 := 0.0                   ## Gasstellung des Senders, als die Tastatur übernahm (Gas hat keine Mittenfeder)
 var _calib: CalibrationPanel              ## Fenster „Sender kalibrieren“
@@ -254,7 +256,7 @@ func _ready() -> void:
 	add_child(_calib)
 	# Tastenkürzel grau auf den Knöpfen (nur wo es eine Tastatur gibt)
 	if has_keyboard():
-		for pair in [[_btn_auto, "A"], [_btn_persp, "P"],
+		for pair in [[_btn_auto, "T"], [_btn_persp, "P"],
 				[b_reset, "R"], [_btn_arm, "Space"], [b_menu, "M"]]:
 			_key_hint(pair[0], pair[1])
 	resized.connect(_layout)
@@ -445,8 +447,8 @@ func _refresh_stick_captions() -> void:
 	stick_left.caption = I18n.t(labels[0])
 	stick_right.caption = I18n.t(labels[1])
 	if has_keyboard():                               # Tasten dazuschreiben
-		# Tasten je Funktion; Rolle hat keine Taste
-		var keys := {"thr": "W/S", "pitch": "↑↓", "yaw": "←→", "roll": ""}
+		# Tasten je Funktion (Rolle: A/D wie bei W A S D)
+		var keys := {"thr": "W/S", "pitch": "↑↓", "yaw": "←→", "roll": "A/D"}
 		var lay: Array = FlightController.STICK_LAYOUT.get(fc.stick_mode, FlightController.STICK_LAYOUT[4])
 		var kl: String = (keys[lay[1]] + " " + keys[lay[0]]).strip_edges()
 		var kr: String = (keys[lay[3]] + " " + keys[lay[2]]).strip_edges()
@@ -517,6 +519,8 @@ func _keyboard(dt: float) -> bool:
 	var rt := Input.is_physical_key_pressed(KEY_RIGHT)
 	var w := Input.is_physical_key_pressed(KEY_W)
 	var sk := Input.is_physical_key_pressed(KEY_S)
+	var ka := Input.is_physical_key_pressed(KEY_A)
+	var kd := Input.is_physical_key_pressed(KEY_D)
 	if Input.is_physical_key_pressed(KEY_X):
 		_kb_throttle = 0.0
 	if w: _kb_throttle = minf(_kb_throttle + 0.8 * dt, 1.0)
@@ -528,21 +532,23 @@ func _keyboard(dt: float) -> bool:
 	var ty := (1.0 if rt else 0.0) - (1.0 if lf else 0.0)
 	_kb_pitch = move_toward(_kb_pitch, tp, dt * 4.0)
 	_kb_yaw = move_toward(_kb_yaw, ty, dt * 4.0)
-	if up or dn or lf or rt or w or sk:
+	var tr_ := (1.0 if kd else 0.0) - (1.0 if ka else 0.0)    # D = rechts rollen
+	_kb_roll = move_toward(_kb_roll, tr_, dt * 4.0)
+	if up or dn or lf or rt or w or sk or ka or kd:
 		_kb_used = true
 	# Bildschirmknüppel angefasst → Tastatur gibt ab
 	for st in [stick_left, stick_right]:
 		if st._finger >= 0 or st._mouse_down:
 			_kb_used = false
 	# Sender bewegt (ein Knüppel deutlich aus der Mitte) → Tastatur gibt ab
-	if _kb_used and _joy and _joy.active() and not (up or dn or lf or rt or w or sk):
+	if _kb_used and _joy and _joy.active() and not (up or dn or lf or rt or w or sk or ka or kd):
 		if maxf(maxf(absf(_joy.f_pitch), absf(_joy.f_yaw)), maxf(absf(_joy.f_roll), absf(_joy.f_thr - _kb_joy_thr0))) > 0.15:
 			_kb_used = false
 	if not _kb_used:
 		_kb_joy_thr0 = _joy.f_thr if _joy else 0.0
 		return false
 	# Tasten liefern Funktionen; der Stickmode legt fest, welcher Knüppel sie zeigt
-	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw)
+	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw, _kb_roll)
 	stick_left.show_external(ks[0])
 	stick_right.show_external(ks[1])
 	return true
@@ -553,7 +559,8 @@ func _kb_hold(dt: float) -> bool:
 	_kb_throttle = move_toward(_kb_throttle, 0.0, dt * KB_THR_RETURN)
 	_kb_pitch = move_toward(_kb_pitch, 0.0, dt * 4.0)
 	_kb_yaw = move_toward(_kb_yaw, 0.0, dt * 4.0)
-	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw)
+	_kb_roll = move_toward(_kb_roll, 0.0, dt * 4.0)
+	var ks := fc.set_stick_functions(_kb_throttle, _kb_pitch, _kb_yaw, _kb_roll)
 	stick_left.show_external(ks[0])
 	stick_right.show_external(ks[1])
 	return true
@@ -579,7 +586,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_mode_btns[md].emit_signal("pressed")
 		KEY_P:
 			_btn_persp.emit_signal("pressed")
-		KEY_A:
+		KEY_T:                                       # Demo (A ist jetzt Rolle links)
 			autopilot_requested.emit()
 		KEY_M:
 			hub_requested.emit()
