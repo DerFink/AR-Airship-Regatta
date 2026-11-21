@@ -1,3 +1,4 @@
+<!-- 2026-11-22 00:25 – Aerarium: Idee Mehrspieler-Event (bis 20+ Luftschiffe in Echtzeit), Datenrate und Server notiert -->
 <!-- 2026-11-17 23:10 – Servos: Datenblatt EMAX ES9251 II, Stellkraft-Grenze als Prüfpunkt -->
 <!-- 2026-11-17 23:05 – Erstversion: Backlog (notiert, noch nicht freigegeben) – Realismus-Punkte aus der Prüfung vom 17.11., Location „Aerarium“, Restpunkte der offenen Liste -->
 # Backlog – RC Airship Regatta
@@ -26,6 +27,28 @@ mit g++ und Ersatzbibliotheken übersetzt und gegen den Simulator gerechnet.
 - Mehrere Luftschiffe fliegen autonom und sehr langsam im Kreis.
 - Einige in Fischform; andere ziehen Helium-Ballone in Fischform hinter sich her.
 - Andere ziehen ein silbernes Band hinter sich her (ca. 1 cm breit, 10 m lang).
+
+#### Idee: Mehrspieler-Event im Aerarium (notiert 22.11.2026)
+- Zeitlich begrenztes Event: bis zu 20 Luftschiffe oder mehr fliegen gleichzeitig
+  in Echtzeit, jeder Mensch steuert sein eigenes.
+- Prinzip: Jedes Gerät rechnet die Physik des eigenen Luftschiffs. Es sendet
+  Position, Lage, Geschwindigkeit, Drehrate und Ruder an einen Server, der an alle
+  verteilt. Fremde Luftschiffe werden geglättet und vorausberechnet dargestellt
+  (aus Geschwindigkeit und Drehrate bis zum nächsten Paket).
+- Die autonomen Fisch-Luftschiffe laufen nach der Uhrzeit und sind bei allen gleich,
+  ohne Netz.
+- Datenrate: 1 Hz reicht nur zum gemütlichen Zuschauen; Kurven werden dann eckig
+  und Positionen hinken 1–2 s nach. 5 Hz reicht zum gemeinsamen Fliegen,
+  10 Hz für Rennen oder Berührungen. Menge bei 20 Schiffen und 10 Hz: je Gerät
+  etwa 20 kB/s Empfang, unkritisch.
+- Server: Für Echtzeit ist ein dauerhaft laufendes Programm mit WebSocket nötig.
+  Der Strato-Webspace (PHP) kann das vermutlich nicht. Bei einem zeitlich begrenzten
+  Event reicht ein Server, der nur während des Events läuft, z. B. ein stundenweise
+  gemieteter kleiner Server oder ein Docker-Container auf einer Synology.
+  Notlösung PHP mit Abfrage 1×/s: 20 Anfragen pro Sekunde auf Strato, Grenzen des
+  Tarifs prüfen.
+- Vorher festlegen: nur gemeinsam fliegen oder auch Rennen; Berührungen ja/nein;
+  Raumcode für das Event; Anzeige von Namen nur mit Einwilligung (Datenschutz).
 
 ---
 
