@@ -1,3 +1,4 @@
+# 2026-11-22 18:25 – Modell-String der Albacore (ALBACORE_CODE)
 # 2026-11-11 14:30 – Erstversion: Texte, die check_i18n.py fälschlich für Anzeige-Text hält oder die bewusst nicht übersetzt werden (Namen, Code, Kürzel)
 # Eine Zeile = ein Text, genau wie im Code (Zeilenumbruch als \n)
 Albacore Standard
@@ -218,3 +219,4 @@ Flugmodi aus dem Modell (Kanal 13 in %d Stufen, oben = 1): %s
 Differenzschub (Nick/Gier/Roll auf Motoren) NICHT übernommen – Schub nur vom Gas des Piloten
 ACHTUNG: Im Modus %s haben Motoren eine Grundstellung – sie laufen bei freigegebenem Kanal 14 auch mit Gas auf Stopp (Drehgeber bzw. Kanal 14 = Notaus)
 ACHTUNG: Im Modus %s steuern Nick/Gier/Roll den Schub mit (Differenzschub) – Motoren können auch bei Gas auf Stopp laufen, sobald ein Knüppel ausgeschlagen ist (Kanal 14 = Notaus)
+LTA1:Dorade:eJx1VdtuozAQ_ZUVz2yEnUAub92LtFJXWmmrfaoqZMAmKAYj4xDaKP--MzZ2k17aBzzjOeOZM5ecI1FGu3NU8w4_rao4ybWSMm-VUTraJfG10rBGgm5BU68eTFMe8r4x5T5AFgn96NqD394-s9MVNFm9vw3IxL4LprPLmjUQN_VKG6PTkRvd0NSg-wpKh5OcVXnFa7BLva5lk1MtE6_qtTK8NHnBOm8e7jQzPK_6IdqtggvNzVF3TkvBcuB6VLnZawUZEhvUjYouMSuAf8rih_xhzCi8JQGp4lOv0GjpxOHUjFzm4ggkSD5y65jSyxwx1vy-Qh36vG_wBPzf93jIwArZezVaBSMSjJxNPg757JEs0ot93OFceW2iyRLhV4oNegkyQfmjliDZO733SGh6fXfTKLdqj0gyhKBWKtXfeMuu9FeQ2dwWHJoEAiXJBVIUTQd1fnyKo_3RsVR6SiTQtUZgOzOqk9mTJnamRjXPEfiB9w6ILpQB-ow-8jgq8T4iGdmQIoqjig8wphGchLtZioKuBcotMyALpgsOohTRTjA5cHRbK4eRvRr81MqheeG-lg5bKwgXOsp5FvYPZeGDMR4PVTceT9YgTIj_9_Dw5e73t7vvf_7-jC7odRhsPuxoVAinaF0LbPDI9jhmwENxZYCjBJ_Jt2MxMR8oD4tDMB-VaC2Te-GuIJy9e2KTku2KrOh2m9ItFKMHCNng4EqL6Ke5FobzkKKDYoK6cWcsTdtMmInqQpSQ8BmLjysKq3-OmEYSqkbzgwHaOtaC1-iHl-10lKrtZxeX2ENYV0v-iribxc8Be6WbF4glQH4FxTvQ07z_5hhnBgpgAIawskxDyHYlHUbYHqsUN_3BcQncdOielwc3hUCaayWYcbtqNBeW9xRbmo-eRt0Dd0u6pTjJyrI9YOTw-ArQw4kHIofTaO8NBPNI4iROIGTYi0cEpIt1llGabchmTcAf3DTSWHucP8zOjTqktndFj4Ek3CEZHjhziWwBnyTL1WYJ_xAqG71x2RlHAhfSrXxRitqNs5Csn3eokHwKITddFc4HS51kz_bbsTL0Zd-2lmT47XAE9BJJ82k_t6HnLNuE4oD5jrStuYXTiL8rF_sll_80n00o:479c23c6

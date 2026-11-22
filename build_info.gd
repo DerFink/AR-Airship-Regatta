@@ -1,3 +1,4 @@
+# 2026-11-22 18:25 – Version 1.6.3 (Albacore durch neues Modell ersetzt)
 # 2026-11-17 22:15 – Version 1.6.2 (Tutorial: eigene Karte „Flug aufnehmen“)
 # 2026-11-17 20:50 – Version 1.6.1 (Differenzschub im Teensy-Sketch)
 # 2026-11-17 22:00 – Version 1.6.0 (Teensy-Sketch mit Modus-Tabelle, OFL-Lizenztext)
@@ -83,7 +84,7 @@
 # =============================================================================
 class_name BuildInfo
 
-const VERSION := "1.6.2"
+const VERSION := "1.6.3"
 const BUILD := 0
 
 ## GitHub-Repository mit den Releases (für die Update-Suche)

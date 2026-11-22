@@ -1,3 +1,4 @@
+# 2026-11-22 18:25 – Albacore durch das neue Modell des Nutzers ersetzt (Modell-String, Arbeitsname „Dorade“): X-Leitwerk mit 4 Pendelflossen NACA 0012, Goldfolie, 263 g; Beschreibung angepasst
 # 2026-11-17 18:30 – Private Modelle: in der Liste ohne Zusatz, nie in der Bestenliste (private_model_of)
 # 2026-11-17 09:45 – Fehler behoben: Mischer (mix_manual, mix_table) des vorigen Modells blieb beim Laden eines Standardmodells bzw. „Werkseinstellung“ stehen
 # 2026-11-16 19:55 – Kurzbeschreibung des vorigen Modells wird beim Laden eines Presets geleert
@@ -61,7 +62,7 @@ const META := {
 	"Chewie": {"author": "Erich Fink", "team": "aerarium e.V.",
 		"desc": "Rennluftschiff für die Halle: 0,25 m³ Helium, 260 g, drei Pendelflossen in λ-Anordnung und zwei entlang der Hülle schwenkbare Motoren. Wendet unter 2 m Radius."},
 	"Albacore": {"author": "Simulator-Team", "team": "RC Airship Regatta",
-		"desc": "Standardhülle nach dem U-Boot USS Albacore (Gertler-Form), schwarz wie das Vorbild, Kreuzleitwerk mit Ruderklappen und ein Heckmotor wie beim Original."},
+		"desc": "Hülle nach dem U-Boot USS Albacore (Gertler-Form) in Goldfolie, X-Leitwerk mit vier Pendelflossen und ein Heckmotor wie beim Original."},
 	"Chewie27": {"author": "Erich Fink", "team": "aerarium e.V.",
 		"desc": "Testmodell: Chewie wie bis 11.11.2026 – Hülle fest 85 g, Flossen je 10 g, fliegt im Flugmodus Horizon (Mode 3)."},
 }
@@ -197,77 +198,21 @@ static func _reset_common(ship: AirshipPhysics) -> void:
 		ship.remove_meta("mode_art")          # Flugmodus-Wunsch nur für Testmodelle (Chewie27)
 
 
+## Albacore als Modell-String (vom Nutzer im Baukasten gebaut, 22.11.2026 –
+## Arbeitsname „Dorade“). Angaben laut Nutzer: Hülle 0,25 m³, L/D 7,5,
+## L 3,10 m, Ø 0,41 m, Folie 27 g/m²; X-Leitwerk, 4 Pendelflossen je 292 cm²,
+## NACA 0012; 1 Heckmotor fest, Propeller 10,2 cm; Akku 4S 300 mAh;
+## Masse 263 g, Teensy-FC eingebaut.
+const ALBACORE_CODE := "LTA1:Dorade:eJx1VdtuozAQ_ZUVz2yEnUAub92LtFJXWmmrfaoqZMAmKAYj4xDaKP--MzZ2k17aBzzjOeOZM5ecI1FGu3NU8w4_rao4ybWSMm-VUTraJfG10rBGgm5BU68eTFMe8r4x5T5AFgn96NqD394-s9MVNFm9vw3IxL4LprPLmjUQN_VKG6PTkRvd0NSg-wpKh5OcVXnFa7BLva5lk1MtE6_qtTK8NHnBOm8e7jQzPK_6IdqtggvNzVF3TkvBcuB6VLnZawUZEhvUjYouMSuAf8rih_xhzCi8JQGp4lOv0GjpxOHUjFzm4ggkSD5y65jSyxwx1vy-Qh36vG_wBPzf93jIwArZezVaBSMSjJxNPg757JEs0ot93OFceW2iyRLhV4oNegkyQfmjliDZO733SGh6fXfTKLdqj0gyhKBWKtXfeMuu9FeQ2dwWHJoEAiXJBVIUTQd1fnyKo_3RsVR6SiTQtUZgOzOqk9mTJnamRjXPEfiB9w6ILpQB-ow-8jgq8T4iGdmQIoqjig8wphGchLtZioKuBcotMyALpgsOohTRTjA5cHRbK4eRvRr81MqheeG-lg5bKwgXOsp5FvYPZeGDMR4PVTceT9YgTIj_9_Dw5e73t7vvf_7-jC7odRhsPuxoVAinaF0LbPDI9jhmwENxZYCjBJ_Jt2MxMR8oD4tDMB-VaC2Te-GuIJy9e2KTku2KrOh2m9ItFKMHCNng4EqL6Ke5FobzkKKDYoK6cWcsTdtMmInqQpSQ8BmLjysKq3-OmEYSqkbzgwHaOtaC1-iHl-10lKrtZxeX2ENYV0v-iribxc8Be6WbF4glQH4FxTvQ07z_5hhnBgpgAIawskxDyHYlHUbYHqsUN_3BcQncdOielwc3hUCaayWYcbtqNBeW9xRbmo-eRt0Dd0u6pTjJyrI9YOTw-ArQw4kHIofTaO8NBPNI4iROIGTYi0cEpIt1llGabchmTcAf3DTSWHucP8zOjTqktndFj4Ek3CEZHjhziWwBnyTL1WYJ_xAqG71x2RlHAhfSrXxRitqNs5Csn3eokHwKITddFc4HS51kz_bbsTL0Zd-2lmT47XAE9BJJ82k_t6HnLNuE4oD5jrStuYXTiL8rF_sll_80n00o:479c23c6"
+
+
+## Albacore: wird komplett aus ALBACORE_CODE gebaut (Hülle, Leitwerk, Motor,
+## Massen, Reglerwerte, Flugmodi, Aussehen). Der Name im String („Dorade“)
+## ist nur ein Arbeitsname – das Modell heißt „Albacore“.
 static func albacore_default(ship: AirshipPhysics) -> void:
-	_reset_common(ship)
-	# Schlankheit wie das Original (62,6 m / 8,3 m ≈ 7,5)
-	var h := GertlerHull.new()
-	h.length_to_diameter = 7.5
-	h.volume_m3 = 0.25
-	ship.set_hull(h)
-	ship.model_name = "Albacore"
-	ship.livery = Livery.new()
-	ship.livery.text = "USS ALBACORE"         # fester Schriftzug des Originals
-	# Schwarz wie das Vorbild (Wunsch Nutzer 11.11.2026): Hülle und Leitwerk schwarz,
-	# Schriftzug weiß, vorn (Lage 0,21), Größe 0,17
-	ship.livery.material = "farbe"
-	ship.livery.hull_color = Color("16181b")
-	ship.livery.fin_material = "farbe"
-	ship.livery.fin_color = Color("16181b")
-	ship.livery.text_color = Color.WHITE
-	ship.livery.text_pos = 0.21
-	ship.livery.text_size = 0.17
-	# Turm wie beim Original, aber an der Unterseite (Optik + Wirkung als feste Flosse)
-	ship.sail_enabled = false              # Turm standardmäßig aus (im Baukasten zuschaltbar)
-	# Maße aus dem Bauplan abgemessen (Genauigkeit ca. ±10 %)
-	ship.sail_x = 0.36
-	ship.sail_length_frac = 0.135
-	ship.sail_height_frac = 0.59
-	# Massen: Hülle 86 g, Elektronik 30 g; Akku + Ballast ergibt sich aus dem Auftrieb
-	ship.electronics_mass_kg = 0.020        # Empfänger, BEC, Kabel (Teensy extra, s. u.)
-	ship.fc_teensy = true                    # Teensy-Flugcontroller: +10 g
-	ship.battery_cells = 4
-	ship.battery_mah = 300.0
-	ship.battery_mass_kg = 0.038             # ANNAHME: typischer 4S-300-mAh-LiPo, bitte nachwiegen
-	ship.payload_mass_kg = 0.0
-	ship.ballast_auto_x = true
-	# X-Heck wie das Original (Phase III): 4 diagonale Flossen mit Ruderklappen
-	# direkt VOR dem Heckpropeller. Maße aus dem Bauplan abgemessen:
-	# Fläche je Flosse ≈ 2,4 % von L·D, Spannweite ≈ 0,47 D, Streckung ≈ 1,2,
-	# Pfeilung (Endtiefe/Wurzeltiefe) 0,8, Hinterkante senkrecht.
-	# Damit ist die Albacore aerodynamisch instabil → fliegt nur mit Regler.
-	var t := TailConfig.new()
-	t.layout = TailConfig.Layout.CROSS
-	t.kind = ControlSurface.Kind.FLAP
-	t.area_m2 = 0.024 * h.length_m * h.diameter_m
-	t.aspect_ratio = 1.2
-	t.taper = 0.8
-	t.hull_x = 0.95
-	# Reglerwerte (Kaskadenregler) aus automatischer Suche im Simulator
-	# (Testprogramm, 100 % mit Nickböe, Steigen)
-	# Regler: Werte aus Chewies Teensy-Code (noch nicht auf die Albacore abgestimmt)
-	ship.fc_gains = {}
-	ship.tail = t
-	ship.surfaces.clear()                # Flossen erzeugt rebuild_mass_properties() aus ship.tail
-	# Antrieb wie beim Original (Wunsch Nutzer 11.11.2026): EIN Heckmotor auf der
-	# Längsachse hinter dem Kreuzleitwerk, nicht schwenkbar – gesteuert wird nur
-	# über die Ruderklappen. Motor/Propeller wie bei Chewie (GEPRC 1804, 4").
-	var heck := make_motor("Heckmotor", 1.0, 180.0, 7.0, 0.0)
-	heck.standoff_m = 0.0                 # sitzt auf der Längsachse an der Heckspitze
-	heck.pair_id = ""
-	heck.spin_dir = 1
-	heck.reverse_allowed = true
-	heck.reverse_efficiency = 0.55
-	# Motor wie Chewie (Nutzer 16.11.2026): GEPRC SpeedX2 1804 2450 kV mit HQProp
-	# T4×2×3 an 4S – Schub und Drehzahl werden daraus berechnet (vorher fest 7 N)
-	heck.stator = "1804"
-	heck.kv = 2450.0
-	heck.prop_diameter_in = 4.0
-	heck.prop_pitch_in = 2.0
-	heck.prop_blades = 3
-	heck.spool_time_s = 0.03
-	heck.mass_kg = 0.025                  # Motor + Propeller, ohne Schwenkservo (Annahme)
-	var mots: Array[VectorMotor] = [heck]
-	ship.motors = mots
+	_reset_common(ship)                         # Werte des vorigen Modells löschen
+	_build_from_code(ship, ALBACORE_CODE)       # alle Bau-Werte aus dem String
+	ship.model_name = "Albacore"                # fester Name statt Arbeitsname
 	ship.rebuild_mass_properties()
 
 
