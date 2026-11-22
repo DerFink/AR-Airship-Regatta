@@ -15,14 +15,6 @@
     ],
     "name": "Picard"
   },
-  "4f653ff3a85c2274a8cc1948d53af3f7874a382cb64aad0ad137e5ef5b2b4a63": {
-    "box": [
-      3.023,
-      0.403,
-      0.403
-    ],
-    "name": "Albacore"
-  },
   "936a5d01dd57f1909f5d8f88afe7e4db00dbfbc9a275fbaded9293d6485a499f": {
     "box": [
       2.603,
@@ -30,6 +22,14 @@
       0.494
     ],
     "name": "Chewie"
+  },
+  "d644495b6f3904b3aa98c403baab9bc944eda79f09f8efbc10c9b1c83538c3ac": {
+    "box": [
+      3.105,
+      0.414,
+      0.414
+    ],
+    "name": "Albacore"
   },
   "fb6c8a606dcca023a57eb78e3b9d0df2347c4753d12818aba62f611c0aa561f0": {
     "box": [
