@@ -1,3 +1,4 @@
+# 2026-11-24 12:10 – Seite „Über den Simulator“: Reiterzahl aus AboutPanel.TABS, KI-Hinweis und Danksagung in Allgemeines, GPL in Lizenz
 # 2026-11-11 16:00 – Erstversion: prüft Übersetzungstabelle, Dezimalzeichen je Sprache und die Seite „Grundlagen“ in allen Sprachen
 extends SceneTree
 
@@ -6,12 +7,15 @@ func _initialize() -> void:
 	I18n.setup()
 	for lang in I18n.LANGS:
 		I18n.set_language(lang, false)
-		# Seite „Grundlagen“: 5 Reiter, Hinweis auf KI im letzten
+		# Seite „Über den Simulator“: so viele Reiter wie AboutPanel.TABS,
+		# KI-Hinweis und Danksagung im ersten (Allgemeines), GPL im letzten (Lizenz)
 		var t := AboutPanel.load_texts(lang)
-		if t.size() != 5:
+		if t.size() != AboutPanel.TABS.size():
 			print("FEHLER about_%s: %d Reiter" % [lang, t.size()]); ok = false
-		elif not ("Claude" in t[4]):
-			print("FEHLER about_%s: KI-Hinweis fehlt" % lang); ok = false
+		elif not ("Claude" in t[0]) or not ("Johannes Eißing" in t[0]):
+			print("FEHLER about_%s: KI-Hinweis oder Danksagung fehlt" % lang); ok = false
+		elif not ("GPL" in t[t.size() - 1]):
+			print("FEHLER about_%s: Lizenz fehlt im letzten Reiter" % lang); ok = false
 	var cases := {"fr": ["Hülle", "Enveloppe", "1,25"], "en": ["Hülle", "Hull", "1.25"], "zh_TW": ["Hülle", "艇身", "1.25"],
 		"pl": ["Kopieren", "Kopiuj", "1,25"], "de": ["Hülle", "Hülle", "1,25"]}
 	for lang in cases:
