@@ -1,9 +1,36 @@
+# 2026-11-24 12:00 – Reiter Allgemeines (vorn, mit Danksagung Erich Fink und Johannes Eißing), Lizenz als eigener Reiter; F7B nach Sporting Code: L_ref = (L·B·H)^(1/3)
 # 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
 # 2026-11-17 08:40 – física: matriz de masa 6×6 completa (único modelo), masa añadida de las aletas; modelos estándar eliminados; fórmula F7B con L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Textos de la página «Fundamentos del simulador» (BBCode). Pestañas separadas por una línea @@@:
 # Física, Modelo del dirigible, Controlador (PID), Batería, Acerca de / licencia. Variables {VERSION} y {CONTACT}.
+[b]RC Airship Regatta[/b]
+Simulador de código abierto para dirigibles de carreras DIY. Hecho con Godot Engine 4.
+
+{VERSION}
+
+[b]Erich Fink[/b] (Author & Creator)
+Aeronautical Engineer, Chairman of Aerarium Luftschifftechnik e.V., FAI CIAM F7 Technical Expert – and a self-confessed "Heliumhead."
+Having participated in airship regattas for over two decades, the idea frequently arose to create an accessible airship flight simulator that allows pilots to fly their own custom-designed airships. Sincere gratitude is extended to Johannes Eißing, Alexander Richter, and all other supporters who helped turn this long-standing dream into reality.
+
+[b]Johannes Eißing[/b] (Advisor & Reviewer)
+Aeronautical engineer, Council Member of The Airship Association, and Chairman of the FAI CIAM Subcommittee F7 Model Aerostats.
+Having initiated the Model Airship Regattas and sparked the push for a physics-based airship simulator at Aerarium e.V., he contributed the Gertler hull generator and supported development as flight physics advisor and reviewer.
+
+[b]Creado con IA[/b]
+Este programa solo ha sido posible gracias a la IA: el código, el modelo físico y los textos se crearon en diálogo con Claude (IA de Anthropic). La IA puede cometer errores: revisa los resultados, sobre todo los sketches de Teensy exportados; antes del primer vuelo haz siempre una prueba en tierra sin hélices.
+
+[b]Fuentes[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – formas de envolvente según Gertler (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – base del controlador de vuelo Teensy
+
+[b]Contacto[/b]
+{CONTACT}
+@@@
 [b]Ecuaciones del movimiento (6 grados de libertad)[/b]
 El dirigible es un cuerpo rígido con 3 traslaciones y 3 rotaciones. El simulador calcula en ejes del cuerpo (origen en el centro de empuje, morro hacia delante) a 60 pasos por segundo. La velocidad v y la velocidad de giro ω forman el estado ν = [v; ω]; todas las masas están en una matriz de masa 6×6 completa M:
 
@@ -63,10 +90,9 @@ En «Modelo y construcción» → «Construcción propia» puedes ajustar librem
 
 [b]Puntuación de carrera (reglamento F7B)[/b]
 Se vuelan 3 vueltas en ocho alrededor de los dos pilones, con salida lanzada. Se mide el tiempo total t de las 3 vueltas. Para comparar con justicia dirigibles grandes y pequeños, el tiempo se pondera con el tamaño:
-[code]V_ref = L · A · H · π/6
-L_ref = V_ref^(1/3)
+[code]L_ref = (L · A · H)^(1/3)
 t_puntuado = t · √(L_ref / 1 m)[/code]
-L, A, H: largo, ancho y alto de la caja total (envolvente, aletas, motores, batería) en m, como se muestra en el constructor. V_ref es el volumen del elipsoide en esa caja; un dirigible más pequeño obtiene una ventaja. La pantalla de la derecha durante el vuelo muestra las vueltas, el tiempo total y el tiempo puntuado.
+L, A, H: largo, ancho y alto de la caja total (envolvente, aletas, motores, batería) en m, como se muestra en el constructor. L_ref es la arista de un cubo con el volumen de la caja (Código Deportivo FAI F7B); un dirigible más pequeño obtiene una ventaja. La pantalla de la derecha durante el vuelo muestra las vueltas, el tiempo total y el tiempo puntuado.
 @@@
 [b]El controlador de vuelo virtual[/b]
 Reproduce el controlador de vuelo Teensy (dRehmFlight) del Chewie real. Mide velocidades de giro y actitud (como giróscopo y acelerómetro) y mueve aletas y motores basculantes. El gas siempre lo lleva el piloto: el controlador nunca cambia el empuje.
@@ -102,26 +128,8 @@ Al bajar la tensión, los motores giran más despacio: [code]empuje ∝ (V/V0)²
 
 Tiempos de vuelo aproximados (Chewie en línea recta): 30 % de gas ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, gas a fondo ≈ 34 s. «Reiniciar» vuelve a cargar la batería.
 @@@
-[b]RC Airship Regatta[/b]
-Simulador de código abierto para dirigibles de carreras DIY. Hecho con Godot Engine 4.
-
-{VERSION}
-
 [b]Licencia[/b]
 Licencia Pública General de GNU versión 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). El simulador es software libre: puedes usarlo, modificarlo y compartirlo, también modificado, pero solo de nuevo bajo la GPL y con el código fuente. Se ofrece sin ninguna garantía.
 Código fuente: github.com/DerFink/AR-Airship-Regatta · Texto de la licencia: gnu.org/licenses/gpl-3.0
 El controlador de vuelo y el sketch de Teensy se basan en dRehmFlight de Nicholas Rehm (GPL-3.0).
 Godot Engine: licencia MIT. Fuente para chino: Noto Sans CJK (SIL Open Font License).
-
-[b]Creado con IA[/b]
-Este programa solo ha sido posible gracias a la IA: el código, el modelo físico y los textos se crearon en diálogo con Claude (IA de Anthropic). La IA puede cometer errores: revisa los resultados, sobre todo los sketches de Teensy exportados; antes del primer vuelo haz siempre una prueba en tierra sin hélices.
-
-[b]Fuentes[/b]
-Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
-Eissing, Johannes: Gertler Shape Generator – formas de envolvente según Gertler (DTMB Series 58)
-Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
-Lamb, H.: Hydrodynamics
-dRehmFlight (Nicholas Rehm) – base del controlador de vuelo Teensy
-
-[b]Contacto[/b]
-{CONTACT}

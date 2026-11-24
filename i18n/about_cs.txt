@@ -1,9 +1,36 @@
+# 2026-11-24 12:00 – Reiter Allgemeines (vorn, mit Danksagung Erich Fink und Johannes Eißing), Lizenz als eigener Reiter; F7B nach Sporting Code: L_ref = (L·B·H)^(1/3)
 # 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
 # 2026-11-17 08:40 – fyzika: úplná matice hmotnosti 6×6 (jediný model), přidaná hmotnost ploutví; standardní modely odstraněny; vzorec F7B s L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Texty stránky „Základy simulátoru“ (BBCode). Karty oddělené řádkem @@@:
 # Fyzika, Model vzducholodě, Regulátor (PID), Baterie, O aplikaci / licence. Proměnné {VERSION} a {CONTACT}.
+[b]RC Airship Regatta[/b]
+Open-source simulátor pro závodní vzducholodě DIY. Vytvořeno v Godot Engine 4.
+
+{VERSION}
+
+[b]Erich Fink[/b] (Author & Creator)
+Aeronautical Engineer, Chairman of Aerarium Luftschifftechnik e.V., FAI CIAM F7 Technical Expert – and a self-confessed "Heliumhead."
+Having participated in airship regattas for over two decades, the idea frequently arose to create an accessible airship flight simulator that allows pilots to fly their own custom-designed airships. Sincere gratitude is extended to Johannes Eißing, Alexander Richter, and all other supporters who helped turn this long-standing dream into reality.
+
+[b]Johannes Eißing[/b] (Advisor & Reviewer)
+Aeronautical engineer, Council Member of The Airship Association, and Chairman of the FAI CIAM Subcommittee F7 Model Aerostats.
+Having initiated the Model Airship Regattas and sparked the push for a physics-based airship simulator at Aerarium e.V., he contributed the Gertler hull generator and supported development as flight physics advisor and reviewer.
+
+[b]Vytvořeno s pomocí AI[/b]
+Tento program vznikl jen díky AI: kód, fyzikální model a texty vznikly v dialogu s Claude (AI od Anthropic). AI může dělat chyby – výsledky prosím kontroluj, hlavně exportované sketche pro Teensy: před prvním letem vždy udělej pozemní test se sundanými vrtulemi.
+
+[b]Zdroje[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – tvary obalu podle Gertlera (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – základ letového kontroléru Teensy
+
+[b]Kontakt[/b]
+{CONTACT}
+@@@
 [b]Pohybové rovnice (6 stupňů volnosti)[/b]
 Vzducholoď je tuhé těleso se 3 posuny a 3 rotacemi. Simulátor počítá v souřadnicích tělesa (počátek ve středu vztlaku, příď dopředu) se 60 kroky za sekundu. Rychlost v a úhlová rychlost ω tvoří stav ν = [v; ω]; všechny hmotnosti jsou v úplné matici hmotnosti 6×6 M:
 
@@ -63,10 +90,9 @@ V „Model a stavba“ → „Vlastní stavba“ lze volně nastavit obal, ocasn
 
 [b]Hodnocení závodu (pravidla F7B)[/b]
 Létají se 3 kola osmičky kolem obou pylonů s letmým startem. Měří se celkový čas t za všechna 3 kola. Aby se velké a malé vzducholodě porovnaly spravedlivě, čas se váží velikostí lodi:
-[code]V_ref = D · Š · V · π/6
-L_ref = V_ref^(1/3)
+[code]L_ref = (D · Š · V)^(1/3)
 t_hodnocený = t · √(L_ref / 1 m)[/code]
-D, Š, V: délka, šířka a výška celkového boxu (obal, ploutve, motory, baterie) v m – jak ukazuje stavebnice. V_ref je objem elipsoidu v tomto boxu; menší loď tedy dostane bonus. Panel vpravo během letu ukazuje kola, celkový a hodnocený čas.
+D, Š, V: délka, šířka a výška celkového boxu (obal, ploutve, motory, baterie) v m – jak ukazuje stavebnice. L_ref je hrana krychle s objemem boxu (Sportovní řád FAI F7B); menší loď tedy dostane bonus. Panel vpravo během letu ukazuje kola, celkový a hodnocený čas.
 @@@
 [b]Virtuální letový kontrolér[/b]
 Napodobuje letový kontrolér Teensy (dRehmFlight) skutečného Chewieho. Měří úhlové rychlosti a polohu (jako gyroskop a akcelerometr) a ovládá ploutve a naklápěcí motory. Plyn zůstává vždy pilotovi – regulátor nikdy nemění tah.
@@ -102,26 +128,8 @@ Když napětí klesá, motory se točí pomaleji: [code]tah ∝ (V/V0)²[/code].
 
 Přibližné doby letu (Chewie rovně): 30 % plynu ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, plný plyn ≈ 34 s. „Reset“ baterii znovu nabije.
 @@@
-[b]RC Airship Regatta[/b]
-Open-source simulátor pro závodní vzducholodě DIY. Vytvořeno v Godot Engine 4.
-
-{VERSION}
-
 [b]Licence[/b]
 GNU General Public License verze 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Simulátor je svobodný software: smíš ho používat, měnit a šířit, i v upravené podobě – ale jen znovu pod GPL a se zdrojovým kódem. Je poskytován bez jakékoli záruky.
 Zdrojový kód: github.com/DerFink/AR-Airship-Regatta · Text licence: gnu.org/licenses/gpl-3.0
 Letový kontrolér a sketch pro Teensy vycházejí z dRehmFlight od Nicholase Rehma (GPL-3.0).
 Godot Engine: licence MIT. Písmo pro čínštinu: Noto Sans CJK (SIL Open Font License).
-
-[b]Vytvořeno s pomocí AI[/b]
-Tento program vznikl jen díky AI: kód, fyzikální model a texty vznikly v dialogu s Claude (AI od Anthropic). AI může dělat chyby – výsledky prosím kontroluj, hlavně exportované sketche pro Teensy: před prvním letem vždy udělej pozemní test se sundanými vrtulemi.
-
-[b]Zdroje[/b]
-Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
-Eissing, Johannes: Gertler Shape Generator – tvary obalu podle Gertlera (DTMB Series 58)
-Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
-Lamb, H.: Hydrodynamics
-dRehmFlight (Nicholas Rehm) – základ letového kontroléru Teensy
-
-[b]Kontakt[/b]
-{CONTACT}

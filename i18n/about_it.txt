@@ -1,9 +1,36 @@
+# 2026-11-24 12:00 – Reiter Allgemeines (vorn, mit Danksagung Erich Fink und Johannes Eißing), Lizenz als eigener Reiter; F7B nach Sporting Code: L_ref = (L·B·H)^(1/3)
 # 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
 # 2026-11-17 08:40 – fisica: matrice delle masse 6×6 completa (unico modello), massa aggiunta delle pinne; modelli standard rimossi; formula F7B con L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Testi della pagina «Fondamenti del simulatore» (BBCode). Schede separate da una riga @@@:
 # Fisica, Modello del dirigibile, Regolatore (PID), Batteria, Info / licenza. Variabili {VERSION} e {CONTACT}.
+[b]RC Airship Regatta[/b]
+Simulatore open source per dirigibili da corsa fai-da-te. Realizzato con Godot Engine 4.
+
+{VERSION}
+
+[b]Erich Fink[/b] (Author & Creator)
+Aeronautical Engineer, Chairman of Aerarium Luftschifftechnik e.V., FAI CIAM F7 Technical Expert – and a self-confessed "Heliumhead."
+Having participated in airship regattas for over two decades, the idea frequently arose to create an accessible airship flight simulator that allows pilots to fly their own custom-designed airships. Sincere gratitude is extended to Johannes Eißing, Alexander Richter, and all other supporters who helped turn this long-standing dream into reality.
+
+[b]Johannes Eißing[/b] (Advisor & Reviewer)
+Aeronautical engineer, Council Member of The Airship Association, and Chairman of the FAI CIAM Subcommittee F7 Model Aerostats.
+Having initiated the Model Airship Regattas and sparked the push for a physics-based airship simulator at Aerarium e.V., he contributed the Gertler hull generator and supported development as flight physics advisor and reviewer.
+
+[b]Creato con l'IA[/b]
+Questo programma è nato solo grazie all'IA: codice, modello fisico e testi sono stati creati in dialogo con Claude (IA di Anthropic). L'IA può commettere errori – controlla i risultati, soprattutto gli sketch Teensy esportati: prima del primo volo fai sempre una prova a terra senza eliche.
+
+[b]Fonti[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – forme dell'involucro secondo Gertler (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – base del flight controller Teensy
+
+[b]Contatto[/b]
+{CONTACT}
+@@@
 [b]Equazioni del moto (6 gradi di libertà)[/b]
 Il dirigibile è un corpo rigido con 3 traslazioni e 3 rotazioni. Il simulatore calcola negli assi corpo (origine nel centro di spinta, prua in avanti) a 60 passi al secondo. La velocità v e la velocità di rotazione ω formano lo stato ν = [v; ω]; tutte le masse stanno in una matrice delle masse 6×6 completa M:
 
@@ -63,10 +90,9 @@ In «Modello e costruzione» → «Costruzione propria» puoi impostare liberame
 
 [b]Classifica di gara (regolamento F7B)[/b]
 Si volano 3 giri a otto attorno ai due piloni, con partenza lanciata. Si misura il tempo totale t sui 3 giri. Per confrontare in modo equo dirigibili grandi e piccoli, il tempo viene pesato con la dimensione:
-[code]V_ref = L · W · H · π/6
-L_ref = V_ref^(1/3)
+[code]L_ref = (L · W · H)^(1/3)
 t_valutato = t · √(L_ref / 1 m)[/code]
-L, W, H: lunghezza, larghezza e altezza del box d'ingombro (involucro, pinne, motori, batteria) in m, come mostrato nel costruttore. V_ref è il volume dell'ellissoide in quel box; un dirigibile più piccolo ottiene quindi un vantaggio. Il riquadro a destra durante il volo mostra i giri, il tempo totale e il tempo valutato.
+L, W, H: lunghezza, larghezza e altezza del box d'ingombro (involucro, pinne, motori, batteria) in m, come mostrato nel costruttore. L_ref è lo spigolo di un cubo con il volume del box (Codice Sportivo FAI F7B); un dirigibile più piccolo ottiene quindi un vantaggio. Il riquadro a destra durante il volo mostra i giri, il tempo totale e il tempo valutato.
 @@@
 [b]Il flight controller virtuale[/b]
 Riproduce il flight controller Teensy (dRehmFlight) del vero Chewie. Misura velocità di rotazione e assetto (come giroscopio e accelerometro) e comanda pinne e motori orientabili. Il gas resta sempre al pilota – il regolatore non modifica mai la spinta.
@@ -102,26 +128,8 @@ Quando la tensione cala, i motori girano più piano: [code]spinta ∝ (V/V0)²[/
 
 Tempi di volo indicativi (Chewie in linea retta): 30 % di gas ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, tutto gas ≈ 34 s. «Ripristina» ricarica la batteria.
 @@@
-[b]RC Airship Regatta[/b]
-Simulatore open source per dirigibili da corsa fai-da-te. Realizzato con Godot Engine 4.
-
-{VERSION}
-
 [b]Licenza[/b]
 GNU General Public License versione 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Il simulatore è software libero: puoi usarlo, modificarlo e condividerlo, anche in forma modificata – ma solo di nuovo sotto la GPL e insieme al codice sorgente. È fornito senza alcuna garanzia.
 Codice sorgente: github.com/DerFink/AR-Airship-Regatta · Testo della licenza: gnu.org/licenses/gpl-3.0
 Il flight controller e lo sketch Teensy si basano su dRehmFlight di Nicholas Rehm (GPL-3.0).
 Godot Engine: licenza MIT. Font per il cinese: Noto Sans CJK (SIL Open Font License).
-
-[b]Creato con l'IA[/b]
-Questo programma è nato solo grazie all'IA: codice, modello fisico e testi sono stati creati in dialogo con Claude (IA di Anthropic). L'IA può commettere errori – controlla i risultati, soprattutto gli sketch Teensy esportati: prima del primo volo fai sempre una prova a terra senza eliche.
-
-[b]Fonti[/b]
-Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
-Eissing, Johannes: Gertler Shape Generator – forme dell'involucro secondo Gertler (DTMB Series 58)
-Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
-Lamb, H.: Hydrodynamics
-dRehmFlight (Nicholas Rehm) – base del flight controller Teensy
-
-[b]Contatto[/b]
-{CONTACT}

@@ -1,10 +1,37 @@
+# 2026-11-24 12:00 – Reiter Allgemeines (vorn, mit Danksagung Erich Fink und Johannes Eißing), Lizenz als eigener Reiter; F7B nach Sporting Code: L_ref = (L·B·H)^(1/3)
 # 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
 # 2026-11-17 08:40 – Physik: volle 6×6-Massenmatrix (einziges Modell), virtuelle Masse der Flossen; Standardmodelle entfernt; F7B-Formel mit L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
-# Texte der Seite „Grundlagen des Simulators“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
-# Physik, Luftschiff-Modell, Regler (PID), Akku, Über / Lizenz. Platzhalter {VERSION} und {CONTACT}.
+# Texte der Seite „Über den Simulator“ (BBCode). Reiter durch eine Zeile @@@ getrennt:
+# Allgemeines, Physik, Luftschiff-Modell, Regler (PID), Akku, Lizenz. Platzhalter {VERSION} und {CONTACT}.
 # Zeilen mit # am Anfang werden ignoriert.
+[b]RC Airship Regatta[/b]
+Open-Source-Simulator für DIY-Rennluftschiffe. Gebaut mit der Godot Engine 4.
+
+{VERSION}
+
+[b]Erich Fink[/b] (Author & Creator)
+Aeronautical Engineer, Chairman of Aerarium Luftschifftechnik e.V., FAI CIAM F7 Technical Expert – and a self-confessed "Heliumhead."
+Having participated in airship regattas for over two decades, the idea frequently arose to create an accessible airship flight simulator that allows pilots to fly their own custom-designed airships. Sincere gratitude is extended to Johannes Eißing, Alexander Richter, and all other supporters who helped turn this long-standing dream into reality.
+
+[b]Johannes Eißing[/b] (Advisor & Reviewer)
+Aeronautical engineer, Council Member of The Airship Association, and Chairman of the FAI CIAM Subcommittee F7 Model Aerostats.
+Having initiated the Model Airship Regattas and sparked the push for a physics-based airship simulator at Aerarium e.V., he contributed the Gertler hull generator and supported development as flight physics advisor and reviewer.
+
+[b]Mit KI erstellt[/b]
+Dieses Programm wurde nur dank KI erstellt: Code, Physikmodell und Texte sind im Dialog mit Claude (KI von Anthropic) entstanden. KI kann Fehler machen – bitte Ergebnisse prüfen, besonders exportierte Teensy-Sketche: vor dem Erstflug immer einen Bodentest mit abgenommenen Propellern machen.
+
+[b]Quellen[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – Hüllenform nach Gertler (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – Grundlage des Teensy-Flugcontrollers
+
+[b]Kontakt[/b]
+{CONTACT}
+@@@
 [b]Bewegungsgleichungen (6 Freiheitsgrade)[/b]
 Das Luftschiff ist ein starrer Körper mit 3 Verschiebungen und 3 Drehungen. Gerechnet wird im Körpersystem (Ursprung im Auftriebszentrum, Nase nach vorn) mit 60 Schritten pro Sekunde. Geschwindigkeit v und Drehrate ω bilden den Zustand ν = [v; ω]; alle Massen stehen in einer vollen 6×6-Massenmatrix M:
 
@@ -64,10 +91,9 @@ Unter „Modell & Bau“ → „Eigenbau“ lassen sich Hülle, Leitwerk, Antrie
 
 [b]Rennwertung (F7B-Reglement)[/b]
 Geflogen werden 3 Runden als Acht um die beiden Pylone, mit fliegendem Start. Gemessen wird die Gesamtzeit t über alle 3 Runden. Damit große und kleine Luftschiffe fair verglichen werden, wird die Zeit mit der Größe des Schiffs gewertet:
-[code]V_ref = L · B · H · π/6
-L_ref = V_ref^(1/3)
+[code]L_ref = (L · B · H)^(1/3)
 t_gewertet = t · √(L_ref / 1 m)[/code]
-L, B, H: Länge, Breite und Höhe der Box über alles (Hülle, Flossen, Motoren, Akku) in m – wie im Baukasten als Boxmaß angezeigt. V_ref ist das Volumen des Ellipsoids in dieser Box. Ein kleineres Schiff bekommt also einen Bonus. Die Anzeige rechts im Flug zeigt die Runden, die Gesamtzeit und die gewertete Zeit.
+L, B, H: Länge, Breite und Höhe der Box über alles (Hülle, Flossen, Motoren, Akku) in m – wie im Baukasten als Boxmaß angezeigt. L_ref ist die Kantenlänge eines Würfels mit dem Volumen der Box (FAI Sporting Code F7B). Ein kleineres Schiff bekommt also einen Bonus. Die Anzeige rechts im Flug zeigt die Runden, die Gesamtzeit und die gewertete Zeit.
 @@@
 [b]Der virtuelle Flugcontroller[/b]
 Er bildet den Teensy-Flugcontroller (dRehmFlight) des echten Chewie nach. Gemessen werden Drehraten und Lage (wie Kreisel und Beschleunigungssensor), gestellt werden Ruder und Schwenkmotoren. Das Gas bleibt immer beim Piloten – der Regler verändert den Schub nie.
@@ -103,26 +129,8 @@ Sinkt die Spannung, drehen die Motoren langsamer: [code]Schub ∝ (V/V0)²[/code
 
 Grobe Flugzeiten (Chewie geradeaus): 30 % Gas ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, Vollgas ≈ 34 s. „Zurücksetzen“ lädt den Akku wieder voll.
 @@@
-[b]RC Airship Regatta[/b]
-Open-Source-Simulator für DIY-Rennluftschiffe. Gebaut mit der Godot Engine 4.
-
-{VERSION}
-
 [b]Lizenz[/b]
 GNU General Public License Version 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Der Simulator ist freie Software: Du darfst ihn verwenden, verändern und weitergeben, auch in veränderter Form – dann aber wieder unter der GPL und mit Quelltext. Er wird ohne jede Gewährleistung bereitgestellt.
 Quelltext: github.com/DerFink/AR-Airship-Regatta · Lizenztext: gnu.org/licenses/gpl-3.0
 Flugcontroller und Teensy-Sketch beruhen auf dRehmFlight von Nicholas Rehm (GPL-3.0).
 Godot Engine: MIT-Lizenz. Schrift für Chinesisch: Noto Sans CJK (SIL Open Font License).
-
-[b]Mit KI erstellt[/b]
-Dieses Programm wurde nur dank KI erstellt: Code, Physikmodell und Texte sind im Dialog mit Claude (KI von Anthropic) entstanden. KI kann Fehler machen – bitte Ergebnisse prüfen, besonders exportierte Teensy-Sketche: vor dem Erstflug immer einen Bodentest mit abgenommenen Propellern machen.
-
-[b]Quellen[/b]
-Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
-Eissing, Johannes: Gertler Shape Generator – Hüllenform nach Gertler (DTMB Series 58)
-Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
-Lamb, H.: Hydrodynamics
-dRehmFlight (Nicholas Rehm) – Grundlage des Teensy-Flugcontrollers
-
-[b]Kontakt[/b]
-{CONTACT}

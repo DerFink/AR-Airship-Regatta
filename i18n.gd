@@ -1,3 +1,4 @@
+# 2026-11-24 12:00 – Reiter-Namen „Allgemeines“ und „Lizenz“ statt „Grundlagen des Simulators“ und „Über / Lizenz“
 # 2026-11-17 08:45 – Export-Hinweis ohne „Standardmodell“
 # 2026-11-11 17:00 – Erster Start: Sprache des Geräts/Browsers übernehmen (nicht unterstützte → Englisch); selbst gewählte Sprache bleibt gespeichert
 # 2026-11-11 16:00 – „Autopilot“ → „Demo“
@@ -105,11 +106,11 @@ const TEXTS := {
 	"Ton": ["Sound", "Son", "Sonido", "Suono", "Zvuk", "Dźwięk", "聲音"],
 	"Steuerung": ["Controls", "Commandes", "Controles", "Comandi", "Ovládání", "Sterowanie", "操控"],
 	"Fertig": ["Done", "Terminé", "Listo", "Fatto", "Hotovo", "Gotowe", "完成"],
-	"Grundlagen des Simulators": ["Simulator fundamentals", "Bases du simulateur", "Fundamentos del simulador", "Fondamenti del simulatore", "Základy simulátoru", "Podstawy symulatora", "模擬器原理"],
+	"Allgemeines": ["General", "Général", "General", "Generale", "Obecné", "Ogólne", "一般"],
 	"Physik": ["Physics", "Physique", "Física", "Fisica", "Fyzika", "Fizyka", "物理"],
 	"Luftschiff-Modell": ["Airship model", "Modèle de dirigeable", "Modelo del dirigible", "Modello del dirigibile", "Model vzducholodě", "Model sterowca", "飛艇模型"],
 	"Akku": ["Battery", "Batterie", "Batería", "Batteria", "Baterie", "Akumulator", "電池"],
-	"Über / Lizenz": ["About / license", "À propos / licence", "Acerca de / licencia", "Info / licenza", "O aplikaci / licence", "O programie / licencja", "關於／授權"],
+	"Lizenz": ["License", "Licence", "Licencia", "Licenza", "Licence", "Licencja", "授權"],
 	"Kontakt": ["Contact", "Contact", "Contacto", "Contatto", "Kontakt", "Kontakt", "聯絡"],
 	"Schließen": ["Close", "Fermer", "Cerrar", "Chiudi", "Zavřít", "Zamknij", "關閉"],
 	"Sprache": ["Language", "Langue", "Idioma", "Lingua", "Jazyk", "Język", "語言"],

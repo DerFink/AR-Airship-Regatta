@@ -1,3 +1,4 @@
+<!-- 2026-11-24 12:00 – Verlauf: 1.6.4 F7B nach Sporting Code, Reiter Allgemeines/Lizenz -->
 <!-- 2026-11-22 18:25 – Verlauf: 1.6.3 Albacore durch neues Modell ersetzt -->
 <!-- 2026-11-17 23:05 – Abschnitt 14 verweist auf das Backlog docs/backlog.md -->
 <!-- 2026-11-12 22:45 – Erstversion: Projektdokumentation (was gebaut wurde, warum, wo im Code, bekannte Fallen, offene Punkte) – Stand 0.31.1 -->
@@ -221,7 +222,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 ## 9. Rennen und Bestenliste
 
 - Strecke **FN Hugo Eckener Cup**: Acht um zwei Pylone im Abstand **18 m** (`CUP_DISTANCE`); daneben „frei“ mit eigenem Abstand (5–500 m, Location Halle oder Wiese), 3 Runden, fliegender Start, Kontrollpunkte (falsche Pylonseite = ungültig).
-- **F7B-Wertung:** `L_ref = ∛(L·B·H·π/6)`, `gewertet = gemessen × √(L_ref / 1 m)` (bis 1.0.0 fälschlich `× L_ref`) mit dem Boxmaß über alles (Flossen, Motoren, Akku zählen mit). Der **Rennfaktor** steht in der Modellliste und bei den Kennwerten. Sortiert wird nach gewerteter Zeit, damit kleine, langsamere Schiffe eine Chance haben.
+- **F7B-Wertung:** `L_ref = ∛(L·B·H)` (FAI Sporting Code F7B; bis 1.6.3 mit Faktor π/6), `gewertet = gemessen × √(L_ref / 1 m)` (bis 1.0.0 fälschlich `× L_ref`) mit dem Boxmaß über alles (Flossen, Motoren, Akku zählen mit). Der **Rennfaktor** steht in der Modellliste und bei den Kennwerten. Sortiert wird nach gewerteter Zeit, damit kleine, langsamere Schiffe eine Chance haben.
 - **Lokal** (`leaderboard.gd`, `user://bestenliste.json`): 100 Plätze je Strecke und Quartal; zum Quartalsende kommen die 10 Besten nach „Best Forever“.
 - **Online** (`leaderboard_online.gd` → `https://flinkfink.de/rc-airship/api.php`): PHP 8 + MySQL bei Strato. Der Server rechnet die gewertete Zeit selbst, prüft Fingerabdruck, Rundenzeiten (≥ 2 s, Summe passt) und begrenzt Einträge je Stunde; IP nur als gesalzener Kurzwert. `admin.php`: Einträge/Piloten löschen (Passwort, CSRF). Ohne Netz zeigt die App die Liste des Geräts.
 - **Einwilligung (seit 0.34):** Online eingetragen wird nur nach Zustimmung im Fenster `ui/consent_dialog.gd` (Text mit dem Betreiber abgestimmt, `LeaderboardOnline.CONSENT_TEXT`). Fassung `CONSENT_VERSION` = 1 in App **und** `lib.php` – bei Textänderung beide erhöhen, dann fragt die App neu. „Nur auf diesem Gerät“ schaltet das Online-Eintragen aus. Einstellungen → „Online-Bestenliste“: Schalter (aus = Widerruf) und „Meine Online-Einträge löschen“ (über zufällige Geräte-Kennung, auf dem Server nur gesalzen/gekürzt). Speicherdauer **2 Jahre** (`KEEP_DAYS`, automatisch in `cleanup()`).
@@ -331,6 +332,7 @@ Der Nutzer hatte noch „Mode 3“ aus der Zeit vor der Umstellung gespeichert �
 | 17.11. | 1.6.1 | Teensy-Sketch: Differenzschub aus den Piloten-Knüppeln wird übernommen (`MOT_MIX[Modus][Motor] = {Gas, Nick, Gier, Roll}`, rohe Kanäle 5/6/7 wie im Simulator `motor_throttle`), Warnhinweis „ACHTUNG“ im Export; PID-Regler weiterhin ohne Einfluss auf den Schub. Regel 1 in Abschnitt 2 angepasst. |
 | 17.11. | 1.6.2 | Tutorial: eigene Karte „Flug aufnehmen“ (Knopf ● markiert), nur im Browser – Karten mit `"web": true` werden ohne Aufnahmeknopf ausgelassen (`tutorial.steps`); Karte „Bestenliste“ wieder ohne Aufnahme-Satz. |
 | 22.11. | 1.6.3 | Albacore durch das neue Modell des Nutzers ersetzt (Arbeitsname „Dorade“, als `ALBACORE_CODE` in `airship_presets.gd`): X-Leitwerk mit 4 Pendelflossen je 292 cm² (NACA 0012), Heckmotor fest, Goldfolie, 263 g. Beschreibung angepasst. Alte Bestenlisten-Einträge der Albacore bleiben stehen. |
+| 24.11. | 1.6.4 | F7B-Wertung wie im Sporting Code: `L_ref = (L·B·H)^(1/3)` ohne π/6 (App, Server, Grundlagen-Text in 8 Sprachen); Rennfaktor aller Modelle ≈ 11 % größer, Online-Einträge einmalig umgerechnet (×(6/π)^(1/6), Spalte `f7b = 3`). Seite heißt „Über den Simulator“; neuer erster Reiter „Allgemeines“ (Programm, Danksagung Erich Fink und Johannes Eißing auf Englisch, KI, Quellen, Kontakt), letzter Reiter nur noch „Lizenz“. |
 
 Die vollständige Liste steht im Git-Verlauf (`git log`); jede Datei hat in den ersten Zeilen ihre eigene Änderungschronik.
 

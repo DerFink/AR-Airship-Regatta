@@ -1,3 +1,4 @@
+# 2026-11-24 12:00 – Werkzeug: Box-Volumen für die Wertung ohne π/6 (Sporting Code F7B)
 # 2026-11-11 15:20 – set_stick_functions statt fester Knüppelbelegung
 # 2026-11-09 13:20 – Knüppel-Verzögerung "lag" (Physikschritte) für robuste Ergebnisse
 # 2026-11-09 13:10 – Ausgabe h_rms (Höhenschwankung um die Sollhöhe)
@@ -422,7 +423,7 @@ func _finish() -> void:
 		if course.race == Course.Race.DONE and r.fail == "":
 			total = snappedf(course.time_s, 0.01)
 		var bx := _box(r.s, false)
-		var vref := bx.x * bx.y * bx.z * PI / 6.0
+		var vref := bx.x * bx.y * bx.z                     # Sporting Code F7B: Box-Volumen ohne π/6
 		out.append({"c": r.c, "total": total, "laps": laps, "fail": r.fail, "tr": r.tr if trace else [],
 			"box": [snappedf(bx.x, 0.001), snappedf(bx.y, 0.001), snappedf(bx.z, 0.001)], "vref": snappedf(vref, 0.0001),
 			"tau": snappedf(pow(vref, 1.0 / 3.0), 0.0001), "score": snappedf(total * pow(vref, 1.0 / 3.0), 0.01) if total > 0 else -1.0,

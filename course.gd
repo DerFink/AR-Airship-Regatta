@@ -1,3 +1,4 @@
+# 2026-11-24 12:00 – F7B-Wertung nach Sporting Code: L_ref = (L·B·H)^(1/3) ohne Faktor π/6 (Rennfaktor damit ≈ 11 % größer); scored_time() nutzt race_factor()
 # 2026-11-17 08:45 – Fehler behoben: Beim Wechsel Halle ↔ Wiese wurde die Acht auf dem Boden (CourseTrack) mit gelöscht und kam nicht wieder
 # 2026-11-16 20:30 – F7B-Wertung korrigiert: Zeit × √(L_ref/1 m) mit L_ref = V_ref^(1/3), also V_ref^(1/6) (vorher V_ref^(1/3))
 # 2026-11-16 15:10 – Wiese: Vorgabe-Pylonabstand 100 m statt 200 m (gewertet wird „wiese_100.0“); alte gespeicherte Vorgabe 200 m wird auf 100 m umgestellt
@@ -611,18 +612,18 @@ func current_lap_time() -> float:
 
 
 ## Gewertete Zeit nach dem F7B-Reglement:
-##   V_ref = L · B · H · π/6 (m³, Ellipsoid in der Box über alles)
-##   L_ref = V_ref^(1/3)
-##   gewertet = Gesamtzeit × √(L_ref / 1 m) = Gesamtzeit × V_ref^(1/6)
+##   L_ref = (L · B · H)^(1/3)   (m, Box über alles – so steht es im FAI
+##                                Sporting Code F7B; Kantenlänge eines Würfels
+##                                mit dem Volumen der Box)
+##   gewertet = Gesamtzeit × √(L_ref / 1 m) = Gesamtzeit × (L·B·H)^(1/6)
 ## Kleine Schiffe werden damit belohnt, große bekommen eine längere Zeit.
 ## Rennfaktor (F7B): Zahl, mit der die gemessene Zeit malgenommen wird.
 static func race_factor(box_m: Vector3) -> float:
-	return pow(maxf(box_m.x * box_m.y * box_m.z * PI / 6.0, 1e-6), 1.0 / 6.0)
+	return pow(maxf(box_m.x * box_m.y * box_m.z, 1e-6), 1.0 / 6.0)           # (L·B·H)^(1/6) = √(L_ref)
 
 
 static func scored_time(total_s: float, box_m: Vector3) -> float:
-	var v_ref := box_m.x * box_m.y * box_m.z * PI / 6.0
-	return total_s * pow(maxf(v_ref, 1e-6), 1.0 / 6.0)
+	return total_s * race_factor(box_m)                                       # gleiche Formel wie der Rennfaktor
 
 
 ## Zeile unter der Rundenanzeige: nächster Kontrollpunkt und Rundenzeiten

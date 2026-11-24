@@ -1,9 +1,36 @@
+# 2026-11-24 12:00 – Reiter Allgemeines (vorn, mit Danksagung Erich Fink und Johannes Eißing), Lizenz als eigener Reiter; F7B nach Sporting Code: L_ref = (L·B·H)^(1/3)
 # 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
 # 2026-11-17 08:40 – fizyka: pełna macierz mas 6×6 (jedyny model), masa dodana płetw; usunięto modele standardowe; wzór F7B z L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # Teksty strony „Podstawy symulatora” (BBCode). Zakładki oddzielone wierszem @@@:
 # Fizyka, Model sterowca, Regulator (PID), Akumulator, O programie / licencja. Zmienne {VERSION} i {CONTACT}.
+[b]RC Airship Regatta[/b]
+Symulator open source dla wyścigowych sterowców DIY. Zbudowany w Godot Engine 4.
+
+{VERSION}
+
+[b]Erich Fink[/b] (Author & Creator)
+Aeronautical Engineer, Chairman of Aerarium Luftschifftechnik e.V., FAI CIAM F7 Technical Expert – and a self-confessed "Heliumhead."
+Having participated in airship regattas for over two decades, the idea frequently arose to create an accessible airship flight simulator that allows pilots to fly their own custom-designed airships. Sincere gratitude is extended to Johannes Eißing, Alexander Richter, and all other supporters who helped turn this long-standing dream into reality.
+
+[b]Johannes Eißing[/b] (Advisor & Reviewer)
+Aeronautical engineer, Council Member of The Airship Association, and Chairman of the FAI CIAM Subcommittee F7 Model Aerostats.
+Having initiated the Model Airship Regattas and sparked the push for a physics-based airship simulator at Aerarium e.V., he contributed the Gertler hull generator and supported development as flight physics advisor and reviewer.
+
+[b]Stworzone z pomocą AI[/b]
+Ten program powstał tylko dzięki AI: kod, model fizyczny i teksty powstały w dialogu z Claude (AI firmy Anthropic). AI może popełniać błędy – sprawdzaj wyniki, zwłaszcza wyeksportowane szkice Teensy: przed pierwszym lotem zawsze zrób test naziemny ze zdjętymi śmigłami.
+
+[b]Źródła[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator – kształty powłoki wg Gertlera (DTMB Series 58)
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight (Nicholas Rehm) – podstawa kontrolera lotu Teensy
+
+[b]Kontakt[/b]
+{CONTACT}
+@@@
 [b]Równania ruchu (6 stopni swobody)[/b]
 Sterowiec jest bryłą sztywną z 3 przesunięciami i 3 obrotami. Symulator liczy w układzie związanym z bryłą (początek w środku wyporu, dziób do przodu) z 60 krokami na sekundę. Prędkość v i prędkość kątowa ω tworzą stan ν = [v; ω]; wszystkie masy są w pełnej macierzy mas 6×6 M:
 
@@ -63,10 +90,9 @@ W „Model i budowa” → „Własna konstrukcja” można dowolnie ustawić po
 
 [b]Punktacja wyścigu (regulamin F7B)[/b]
 Lata się 3 okrążenia ósemki wokół obu pylonów ze startem lotnym. Mierzy się łączny czas t za 3 okrążenia. Aby uczciwie porównać duże i małe sterowce, czas jest ważony wielkością sterowca:
-[code]V_ref = D · S · W · π/6
-L_ref = V_ref^(1/3)
+[code]L_ref = (D · S · W)^(1/3)
 t_wynik = t · √(L_ref / 1 m)[/code]
-D, S, W: długość, szerokość i wysokość całkowitego prostopadłościanu (powłoka, płetwy, silniki, akumulator) w m – jak pokazuje kreator. V_ref to objętość elipsoidy w tym prostopadłościanie; mniejszy sterowiec dostaje więc premię. Panel po prawej w czasie lotu pokazuje okrążenia, łączny czas i wynik.
+D, S, W: długość, szerokość i wysokość całkowitego prostopadłościanu (powłoka, płetwy, silniki, akumulator) w m – jak pokazuje kreator. L_ref to krawędź sześcianu o objętości prostopadłościanu (Kodeks Sportowy FAI F7B); mniejszy sterowiec dostaje więc premię. Panel po prawej w czasie lotu pokazuje okrążenia, łączny czas i wynik.
 @@@
 [b]Wirtualny kontroler lotu[/b]
 Odwzorowuje kontroler lotu Teensy (dRehmFlight) prawdziwego Chewiego. Mierzy prędkości kątowe i położenie (jak żyroskop i akcelerometr) i steruje płetwami oraz wychylanymi silnikami. Gaz zawsze zostaje u pilota – regulator nigdy nie zmienia ciągu.
@@ -102,26 +128,8 @@ Gdy napięcie spada, silniki kręcą się wolniej: [code]ciąg ∝ (V/V0)²[/cod
 
 Orientacyjne czasy lotu (Chewie prosto): 30 % gazu ≈ 12 min, 50 % ≈ 3 min, 70 % ≈ 77 s, pełny gaz ≈ 34 s. „Resetuj” ponownie ładuje akumulator.
 @@@
-[b]RC Airship Regatta[/b]
-Symulator open source dla wyścigowych sterowców DIY. Zbudowany w Godot Engine 4.
-
-{VERSION}
-
 [b]Licencja[/b]
 Powszechna Licencja Publiczna GNU w wersji 3 (GPL-3.0) – © 2026 Erich Fink (DerFink). Symulator jest wolnym oprogramowaniem: możesz go używać, zmieniać i udostępniać, także w zmienionej postaci – ale tylko ponownie na licencji GPL i razem z kodem źródłowym. Jest dostarczany bez żadnej gwarancji.
 Kod źródłowy: github.com/DerFink/AR-Airship-Regatta · Tekst licencji: gnu.org/licenses/gpl-3.0
 Kontroler lotu i szkic Teensy opierają się na dRehmFlight autorstwa Nicholasa Rehma (GPL-3.0).
 Godot Engine: licencja MIT. Czcionka dla chińskiego: Noto Sans CJK (SIL Open Font License).
-
-[b]Stworzone z pomocą AI[/b]
-Ten program powstał tylko dzięki AI: kod, model fizyczny i teksty powstały w dialogu z Claude (AI firmy Anthropic). AI może popełniać błędy – sprawdzaj wyniki, zwłaszcza wyeksportowane szkice Teensy: przed pierwszym lotem zawsze zrób test naziemny ze zdjętymi śmigłami.
-
-[b]Źródła[/b]
-Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
-Eissing, Johannes: Gertler Shape Generator – kształty powłoki wg Gertlera (DTMB Series 58)
-Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
-Lamb, H.: Hydrodynamics
-dRehmFlight (Nicholas Rehm) – podstawa kontrolera lotu Teensy
-
-[b]Kontakt[/b]
-{CONTACT}

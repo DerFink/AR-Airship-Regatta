@@ -1,4 +1,5 @@
 <?php
+// 2026-11-24 12:00 – F7B-Wertung nach Sporting Code: L_ref = (L·B·H)^(1/3) ohne π/6; vorhandene Einträge einmalig umgerechnet (×(6/π)^(1/6), Spalte f7b = 3)
 // 2026-11-17 17:50 – Zugangscodes: Tabellen access_codes, private_models, code_fail; Code erzeugen/normalisieren, Sperre nach Fehlversuchen beim Freischalten
 // 2026-11-16 20:30 – F7B-Wertung korrigiert: Zeit × √(V_ref^(1/3) / 1 m) = Zeit × V_ref^(1/6); vorhandene Einträge einmalig umgerechnet
 // 2026-11-14 21:40 – Einwilligung (CONSENT_VERSION), Geräte-Kennung zum Selbstlöschen, Speicherdauer 2 Jahre, Besucherzähler (Tag/Plattform), Sperre nach 5 falschen Admin-Passwörtern, keine Fehlerausgabe, Hinweis ohne config.php
@@ -78,6 +79,11 @@ function db(): PDO {
             if ($t > 0) $up->execute([round($t * sqrt(max((float)$r['score'] / $t, 0.0)), 2), $r['id']]);
         }
     }
+    // Bis 1.6.3 stand in L_ref zusätzlich der Faktor π/6 (Ellipsoid in der Box).
+    // Der Sporting Code rechnet mit dem Box-Volumen selbst. Vorhandene Einträge
+    // einmalig umrechnen: Faktor (6/π)^(1/6) ≈ 1,114. f7b = 3 heißt: erledigt;
+    // neue Einträge schreibt api.php direkt mit f7b = 3.
+    $pdo->exec("UPDATE entries SET score = ROUND(score * " . pow(6.0 / M_PI, 1.0 / 6.0) . ", 2), f7b = 3 WHERE f7b < 3");
     // Besucherzähler: nur Tag, Plattform und Anzahl – keine IP, keine Kennung
     $pdo->exec("CREATE TABLE IF NOT EXISTS hits (
         day VARCHAR(10) NOT NULL,
@@ -138,10 +144,10 @@ function models(): array {
     return $m;
 }
 
-/** F7B-Wertung: L_ref = V_ref^(1/3) mit V_ref = L·B·H·π/6 (m³);
- *  gewertet = Gesamtzeit × √(L_ref / 1 m) = Gesamtzeit × V_ref^(1/6). */
+/** F7B-Wertung nach FAI Sporting Code: L_ref = (L·B·H)^(1/3) (m, Box über alles);
+ *  gewertet = Gesamtzeit × √(L_ref / 1 m) = Gesamtzeit × (L·B·H)^(1/6). */
 function scored(float $total, array $box): float {
-    $v = $box[0] * $box[1] * $box[2] * M_PI / 6.0;
+    $v = $box[0] * $box[1] * $box[2];                 // Box-Volumen, ohne π/6
     return $total * pow(max($v, 1e-6), 1.0 / 6.0);
 }
 

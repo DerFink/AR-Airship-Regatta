@@ -1,9 +1,36 @@
+# 2026-11-24 12:00 – Reiter Allgemeines (vorn, mit Danksagung Erich Fink und Johannes Eißing), Lizenz als eigener Reiter; F7B nach Sporting Code: L_ref = (L·B·H)^(1/3)
 # 2026-11-17 09:00 – Lizenz: GPL-3.0 (Flugcontroller beruht auf dRehmFlight), Quelltext- und Lizenzlink, Gewährleistungsausschluss
 # 2026-11-17 08:40 – 物理：完整 6×6 質量矩陣（唯一模型）、尾翼附加質量；移除標準模型；F7B 公式改用 L_ref
 # 2026-11-11 18:50 – Flugmodi Direkt · Angle · Horizon
 # 2026-11-11 16:45 – Abschnitt Rennwertung (F7B-Formel); Autopilot heißt Demo
 # 「模擬器原理」頁面文字（BBCode）。各分頁以一行 @@@ 分隔：
 # 物理、飛艇模型、控制器（PID）、電池、關於／授權。變數 {VERSION} 與 {CONTACT}。
+[b]RC Airship Regatta[/b]
+DIY 競速飛艇的開放原始碼模擬器。以 Godot Engine 4 製作。
+
+{VERSION}
+
+[b]Erich Fink[/b] (Author & Creator)
+Aeronautical Engineer, Chairman of Aerarium Luftschifftechnik e.V., FAI CIAM F7 Technical Expert – and a self-confessed "Heliumhead."
+Having participated in airship regattas for over two decades, the idea frequently arose to create an accessible airship flight simulator that allows pilots to fly their own custom-designed airships. Sincere gratitude is extended to Johannes Eißing, Alexander Richter, and all other supporters who helped turn this long-standing dream into reality.
+
+[b]Johannes Eißing[/b] (Advisor & Reviewer)
+Aeronautical engineer, Council Member of The Airship Association, and Chairman of the FAI CIAM Subcommittee F7 Model Aerostats.
+Having initiated the Model Airship Regattas and sparked the push for a physics-based airship simulator at Aerarium e.V., he contributed the Gertler hull generator and supported development as flight physics advisor and reviewer.
+
+[b]以 AI 製作[/b]
+本程式全賴 AI 才得以完成：程式碼、物理模型與文字都是與 Claude（Anthropic 的 AI）對話中產生的。AI 可能會出錯——請檢查結果，特別是匯出的 Teensy 程式：首次飛行前，務必先拆下螺旋槳進行地面測試。
+
+[b]參考資料[/b]
+Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
+Eissing, Johannes: Gertler Shape Generator——依 Gertler 的艇身外形（DTMB Series 58）
+Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
+Lamb, H.: Hydrodynamics
+dRehmFlight（Nicholas Rehm）——Teensy 飛控的基礎
+
+[b]聯絡[/b]
+{CONTACT}
+@@@
 [b]運動方程式（6 自由度）[/b]
 飛艇是具有 3 個平移與 3 個轉動的剛體。模擬器以機體座標系計算（原點在浮心，機頭朝前），每秒 60 步。速度 v 與角速度 ω 組成狀態 ν = [v; ω]；所有質量都放在完整的 6×6 質量矩陣 M 中：
 
@@ -63,10 +90,9 @@ Chewie 的尾翼（c ≈ 19 cm）：2 m/s → Re ≈ 25 000，6 m/s → 76 000�
 
 [b]比賽計分（F7B 規則）[/b]
 比賽為繞兩根標竿飛 3 圈 8 字，採飛行起跑。量測 3 圈的總時間 t。為了公平比較大小不同的飛艇，時間會依飛艇大小加權：
-[code]V_ref = L · W · H · π/6
-L_ref = V_ref^(1/3)
+[code]L_ref = (L · W · H)^(1/3)
 t_計分 = t · √(L_ref / 1 m)[/code]
-L、W、H：整體外框（艇身、尾翼、馬達、電池）的長、寬、高，單位 m——即建造器中顯示的外框尺寸。V_ref 是此外框內橢球的體積，因此較小的飛艇會得到優勢。飛行時右側面板會顯示各圈時間、總時間與計分時間。
+L、W、H：整體外框（艇身、尾翼、馬達、電池）的長、寬、高，單位 m——即建造器中顯示的外框尺寸。L_ref 是與外框同體積之立方體的邊長（FAI 運動規則 F7B），因此較小的飛艇會得到優勢。飛行時右側面板會顯示各圈時間、總時間與計分時間。
 @@@
 [b]虛擬飛控[/b]
 它模擬真實 Chewie 上的 Teensy 飛控（dRehmFlight）。量測角速度與姿態（如陀螺儀與加速度計），並控制尾翼與可擺動馬達。油門始終由飛手控制——控制器絕不改變推力。
@@ -102,26 +128,8 @@ e 是設定值與量測值之間的誤差。P 立即反應，I 消除持續誤�
 
 約略飛行時間（Chewie 直線飛行）：30 % 油門 ≈ 12 min，50 % ≈ 3 min，70 % ≈ 77 s，全油門 ≈ 34 s。「重設」會將電池重新充滿。
 @@@
-[b]RC Airship Regatta[/b]
-DIY 競速飛艇的開放原始碼模擬器。以 Godot Engine 4 製作。
-
-{VERSION}
-
 [b]授權[/b]
 GNU 通用公共授權第 3 版（GPL-3.0）——© 2026 Erich Fink（DerFink）。本模擬器是自由軟體：你可以使用、修改與分享，修改後的版本也可以——但必須同樣以 GPL 授權並附上原始碼。本軟體不提供任何擔保。
 原始碼：github.com/DerFink/AR-Airship-Regatta · 授權全文：gnu.org/licenses/gpl-3.0
 飛控與 Teensy 程式草稿以 Nicholas Rehm 的 dRehmFlight（GPL-3.0）為基礎。
 Godot Engine：MIT 授權。中文字型：Noto Sans CJK（SIL Open Font License）。
-
-[b]以 AI 製作[/b]
-本程式全賴 AI 才得以完成：程式碼、物理模型與文字都是與 Claude（Anthropic 的 AI）對話中產生的。AI 可能會出錯——請檢查結果，特別是匯出的 Teensy 程式：首次飛行前，務必先拆下螺旋槳進行地面測試。
-
-[b]參考資料[/b]
-Gertler, M.: Resistance Experiments on a Systematic Series of Streamlined Bodies of Revolution (DTMB Report 719, 1950)
-Eissing, Johannes: Gertler Shape Generator——依 Gertler 的艇身外形（DTMB Series 58）
-Munk, M. M.: The Aerodynamic Forces on Airship Hulls (NACA Report 184, 1924)
-Lamb, H.: Hydrodynamics
-dRehmFlight（Nicholas Rehm）——Teensy 飛控的基礎
-
-[b]聯絡[/b]
-{CONTACT}

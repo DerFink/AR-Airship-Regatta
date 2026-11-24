@@ -1,4 +1,5 @@
 <?php
+// 2026-11-24 12:00 – neue Einträge mit f7b = 3 (Wertung nach Sporting Code, keine spätere Umrechnung)
 // 2026-11-17 17:55 – neu: unlock (Zugangscode → Rolle und private Modelle), Sperre nach Fehlversuchen
 // 2026-11-16 15:10 – Wiese gewertet nur mit 100 m (wiese_100.0) statt 200 m
 // 2026-11-16 01:45 – Eintragen nur für Standard-Pylonabstand (cup, wiese_200.0)
@@ -123,8 +124,8 @@ try {
         $c->execute([$ip, gmdate('Y-m-d H:i:s', $now - 3600)]);
         if ((int)$c->fetch()['n'] >= SUBMITS_PER_HOUR) out(['ok' => false, 'error' => 'rate'], 429);
         $score = round(scored($total, $models[$fp]['box']), 2);
-        $ins = $pdo->prepare("INSERT INTO entries (quarter, course, name, model, total, lap1, lap2, lap3, score, platform, version, created, ip_hash, device_hash, consent)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        $ins = $pdo->prepare("INSERT INTO entries (quarter, course, name, model, total, lap1, lap2, lap3, score, platform, version, created, ip_hash, device_hash, consent, f7b)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,3)");      // f7b = 3: Wertung schon nach Sporting Code (siehe lib.php)
         $ins->execute([$cur, $course, $name, $models[$fp]['name'], round($total, 2), round($laps[0], 2), round($laps[1], 2), round($laps[2], 2),
             $score, mb_substr((string)($body['platform'] ?? ''), 0, 40), mb_substr((string)($body['version'] ?? ''), 0, 20),
             gmdate('Y-m-d H:i:s', $now), $ip, $dh, CONSENT_VERSION]);

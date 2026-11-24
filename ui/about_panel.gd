@@ -1,3 +1,4 @@
+# 2026-11-24 12:00 – Titel „Über den Simulator“ (vorher „Grundlagen des Simulators“); Reiter Allgemeines vorn (Programm, Danksagung, KI, Quellen, Kontakt), letzter Reiter heißt nur noch Lizenz
 # 2026-11-11 15:40 – Texte in eigene Dateien i18n/about_<sprache>.txt ausgelagert, jetzt in allen 8 Sprachen; Abschnitt „Mit KI erstellt“ mit Hinweis, dass KI Fehler machen kann
 # 2026-11-11 08:40 – Physik: Abschnitt „Profilierte Flossen und Reynoldszahl“ (DE/EN)
 # 2026-11-11 01:30 – Quelle Johannes Eissing (Gertler Shape Generator)
@@ -6,8 +7,8 @@
 # =============================================================================
 # AboutPanel.gd
 # -----------------------------------------------------------------------------
-#   ┌ Grundlagen des Simulators ─────────────────────────────── [Schließen] ┐
-#   │ [Physik] [Luftschiff-Modell] [Regler (PID)] [Akku] [Über / Lizenz]     │
+#   ┌ Über den Simulator ────────────────────────────────────── [Schließen] ┐
+#   │ [Allgemeines] [Physik] [Luftschiff-Modell] [Regler (PID)] [Akku] [Lizenz] │
 #   │ ┌──────────────────────────────────────────────────────────────────┐ │
 #   │ │ Text mit Formeln (scrollt)                                       │ │
 #   │ └──────────────────────────────────────────────────────────────────┘ │
@@ -22,7 +23,7 @@ extends Control
 signal closed
 
 const CONTACT := "erich.fink ät aerarium.de"
-const TABS := ["Physik", "Luftschiff-Modell", "Regler (PID)", "Akku", "Über / Lizenz"]
+const TABS := ["Allgemeines", "Physik", "Luftschiff-Modell", "Regler (PID)", "Akku", "Lizenz"]
 
 var _text: RichTextLabel
 var _tab_btns: Array[Button] = []
@@ -41,7 +42,7 @@ func _ready() -> void:
 	add_child(root)
 	# Kopfzeile
 	var head := UITheme.make_hbox("sm")
-	var title := UITheme.make_title("Grundlagen des Simulators")
+	var title := UITheme.make_title("Über den Simulator")
 	title.add_theme_font_size_override("font_size", 26)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
